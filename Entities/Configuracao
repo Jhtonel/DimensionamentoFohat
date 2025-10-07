@@ -1,0 +1,38 @@
+{
+  "name": "Configuracao",
+  "type": "object",
+  "properties": {
+    "chave": {
+      "type": "string",
+      "description": "Chave única da configuração"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "tarifa",
+        "equipamento"
+      ],
+      "description": "Tipo de configuração"
+    },
+    "concessionaria": {
+      "type": "string",
+      "description": "Nome da concessionária (para tarifas)"
+    },
+    "tarifa_kwh": {
+      "type": "number",
+      "description": "Valor da tarifa por kWh"
+    },
+    "potencia_placa_padrao_w": {
+      "type": "number",
+      "description": "Potência padrão da placa em W"
+    },
+    "eficiencia_sistema": {
+      "type": "number",
+      "description": "Eficiência do sistema (0-1)"
+    }
+  },
+  "required": [
+    "chave",
+    "tipo"
+  ]
+}

@@ -1,0 +1,487 @@
+import React, { useState, useEffect } from "react";
+import { Projeto } from "@/entities/Projeto";
+import { Cliente } from "@/entities/Cliente";
+import { Configuracao } from "@/entities/Configuracao";
+import { IrradiacaoSolar } from "@/entities/IrradiacaoSolar";
+import { InvokeLLM } from "@/integrations/Core";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, Calculator, Save } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { motion } from "framer-motion";
+
+import DimensionamentoResults from "../components/projetos/DimensionamentoResults";
+import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes";
+
+export default function NovoProjeto() {
+  const navigate = useNavigate();
+  const [clientes, setClientes] = useState([]);
+  const [configs, setConfigs] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [calculando, setCalculando] = useState(false);
+  const [activeTab, setActiveTab] = useState("basico");
+  const [tipoConsumo, setTipoConsumo] = useState("medio");
+  
+  const [formData, setFormData] = useState({
+    cliente_id: "",
+    nome_projeto: "",
+    cep: "",
+    cidade: "",
+    estado: "",
+    tipo_telhado: "ceramico",
+    concessionaria: "",
+    consumo_mensal_reais: "",
+    consumo_mensal_kwh: "",
+    consumo_mes_a_mes: [],
+    percentual_comissao: 5,
+    percentual_margem_lucro: 20,
+    status: "dimensionamento"
+  });
+
+  const [resultados, setResultados] = useState(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const projetoId = urlParams.get('projeto_id');
+    
+    const [clientesData, configsData] = await Promise.all([
+      Cliente.list(),
+      Configuracao.list()
+    ]);
+    
+    setClientes(clientesData);
+    
+    const configsMap = {};
+    configsData.forEach(config => {
+      configsMap[config.chave] = config;
+    });
+    setConfigs(configsMap);
+
+    if (projetoId) {
+      const projeto = await Projeto.list();
+      const projetoEdit = projeto.find(p => p.id === projetoId);
+      if (projetoEdit) {
+        setFormData(projetoEdit);
+        if (projetoEdit.consumo_mes_a_mes && projetoEdit.consumo_mes_a_mes.length > 0) {
+          setTipoConsumo("mes_a_mes");
+        }
+        if (projetoEdit.potencia_sistema_kwp) {
+          setResultados({
+            potencia_sistema_kwp: projetoEdit.potencia_sistema_kwp,
+            quantidade_placas: projetoEdit.quantidade_placas,
+            custo_total: projetoEdit.custo_total,
+            preco_final: projetoEdit.preco_final,
+            economia_mensal_estimada: projetoEdit.economia_mensal_estimada,
+            payback_meses: projetoEdit.payback_meses,
+            custo_equipamentos: projetoEdit.custo_equipamentos,
+            custo_instalacao: projetoEdit.custo_instalacao,
+            custo_homologacao: projetoEdit.custo_homologacao,
+            custo_ca: projetoEdit.custo_ca,
+            custo_plaquinhas: projetoEdit.custo_plaquinhas,
+            custo_obra: projetoEdit.custo_obra
+          });
+        }
+      }
+    }
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const buscarCEP = async () => {
+    if (!formData.cep || formData.cep.length < 8) return;
+    
+    setLoading(true);
+    
+    const prompt = `Busque informações sobre o CEP ${formData.cep} no Brasil. 
+    Retorne a cidade e o estado (UF de 2 letras).`;
+    
+    const result = await InvokeLLM({
+      prompt,
+      add_context_from_internet: true,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          cidade: { type: "string" },
+          estado: { type: "string" }
+        }
+      }
+    });
+    
+    if (result.cidade && result.estado) {
+      setFormData(prev => ({
+        ...prev,
+        cidade: result.cidade,
+        estado: result.estado
+      }));
+    }
+    
+    setLoading(false);
+  };
+
+  const calcularCustoHomologacao = (potenciaKwp) => {
+    if (potenciaKwp <= 5) return 465;
+    if (potenciaKwp <= 10) return 565;
+    if (potenciaKwp <= 20) return 765;
+    if (potenciaKwp <= 50) return 865;
+    if (potenciaKwp <= 75) return 1065;
+    return 1065;
+  };
+
+  const calcularDimensionamento = async () => {
+    setCalculando(true);
+    
+    let consumoKwh = 0;
+    
+    if (tipoConsumo === "mes_a_mes" && formData.consumo_mes_a_mes && formData.consumo_mes_a_mes.length > 0) {
+      const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+      consumoKwh = totalAnual / 12;
+    } else if (formData.consumo_mensal_kwh) {
+      consumoKwh = parseFloat(formData.consumo_mensal_kwh);
+    } else if (formData.consumo_mensal_reais && formData.concessionaria) {
+      const tarifaConfig = Object.values(configs).find(
+        c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
+      );
+      const tarifaKwh = tarifaConfig?.tarifa_kwh || 0.75;
+      consumoKwh = parseFloat(formData.consumo_mensal_reais) / tarifaKwh;
+    }
+
+    const irradiacoes = await IrradiacaoSolar.list();
+    const irradiacaoLocal = irradiacoes.find(
+      i => i.cidade?.toLowerCase() === formData.cidade?.toLowerCase() && 
+           i.estado?.toLowerCase() === formData.estado?.toLowerCase()
+    );
+    
+    const irradiacaoMedia = irradiacaoLocal?.irradiacao_anual || 5.0;
+    const eficienciaSistema = configs['eficiencia_sistema']?.eficiencia_sistema || 0.80;
+    const potenciaPlaca = configs['potencia_placa']?.potencia_placa_padrao_w || 600;
+
+    const geracaoAnual = consumoKwh * 12;
+    const geracaoDiariaMedia = geracaoAnual / 365;
+    const potenciaNecessariaKw = geracaoDiariaMedia / (irradiacaoMedia * eficienciaSistema);
+    const potenciaSistemaKwp = potenciaNecessariaKw;
+    const quantidadePlacas = Math.ceil((potenciaSistemaKwp * 1000) / potenciaPlaca);
+
+    const custoInstalacao = quantidadePlacas * 200;
+    const custoHomologacao = calcularCustoHomologacao(potenciaSistemaKwp);
+    const custoCA = quantidadePlacas * 100;
+    const custoPlaquinhas = 60;
+    const custoObra = custoInstalacao * 0.1;
+
+    const custoEquipamentos = 15000;
+
+    const custoTotal = custoEquipamentos + custoInstalacao + custoHomologacao + 
+                      custoCA + custoPlaquinhas + custoObra;
+
+    const custoComComissao = custoTotal * (1 + formData.percentual_comissao / 100);
+    const precoFinal = custoComComissao * (1 + formData.percentual_margem_lucro / 100);
+
+    const tarifaConfig = Object.values(configs).find(
+      c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
+    );
+    const tarifaKwh = tarifaConfig?.tarifa_kwh || 0.75;
+    const economiaMensal = consumoKwh * tarifaKwh * 0.95;
+    const paybackMeses = Math.ceil(precoFinal / economiaMensal);
+
+    const results = {
+      potencia_sistema_kwp: potenciaSistemaKwp,
+      quantidade_placas: quantidadePlacas,
+      potencia_placa_w: potenciaPlaca,
+      custo_equipamentos: custoEquipamentos,
+      custo_instalacao: custoInstalacao,
+      custo_homologacao: custoHomologacao,
+      custo_ca: custoCA,
+      custo_plaquinhas: custoPlaquinhas,
+      custo_obra: custoObra,
+      custo_total: custoTotal,
+      preco_final: precoFinal,
+      economia_mensal_estimada: economiaMensal,
+      payback_meses: paybackMeses,
+      irradiacao_media: irradiacaoMedia,
+      consumo_mensal_kwh: consumoKwh
+    };
+
+    setResultados(results);
+    setFormData(prev => ({ ...prev, ...results }));
+    setCalculando(false);
+    setActiveTab("resultados");
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const projetoId = urlParams.get('projeto_id');
+    
+    if (projetoId) {
+      await Projeto.update(projetoId, formData);
+    } else {
+      await Projeto.create(formData);
+    }
+    
+    setLoading(false);
+    navigate(createPageUrl("Projetos"));
+  };
+
+  const concessionarias = Object.values(configs)
+    .filter(c => c.tipo === "tarifa")
+    .map(c => c.concessionaria);
+
+  return (
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-4"
+        >
+          <Link to={createPageUrl("Projetos")}>
+            <Button variant="outline" size="icon">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
+              Novo Projeto
+            </h1>
+            <p className="text-gray-600 mt-2">Dimensione e crie uma proposta personalizada</p>
+          </div>
+        </motion.div>
+
+        <Card className="glass-card border-0 shadow-2xl">
+          <CardContent className="p-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
+                <TabsTrigger value="resultados" disabled={!resultados}>Resultados</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="basico" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Cliente *</Label>
+                    <Select value={formData.cliente_id} onValueChange={(v) => handleChange("cliente_id", v)}>
+                      <SelectTrigger className="bg-white/50 border-sky-200">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientes.map(cliente => (
+                          <SelectItem key={cliente.id} value={cliente.id}>
+                            {cliente.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Nome do Projeto *</Label>
+                    <Input
+                      value={formData.nome_projeto}
+                      onChange={(e) => handleChange("nome_projeto", e.target.value)}
+                      placeholder="Ex: Sistema Residencial 10kWp"
+                      className="bg-white/50 border-sky-200"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>CEP *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={formData.cep}
+                        onChange={(e) => handleChange("cep", e.target.value)}
+                        placeholder="00000-000"
+                        className="bg-white/50 border-sky-200"
+                      />
+                      <Button type="button" onClick={buscarCEP} disabled={loading}>
+                        Buscar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tipo de Telhado *</Label>
+                    <Select value={formData.tipo_telhado} onValueChange={(v) => handleChange("tipo_telhado", v)}>
+                      <SelectTrigger className="bg-white/50 border-sky-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ceramico">Cerâmico</SelectItem>
+                        <SelectItem value="metalico">Metálico</SelectItem>
+                        <SelectItem value="fibrocimento">Fibrocimento</SelectItem>
+                        <SelectItem value="laje">Laje</SelectItem>
+                        <SelectItem value="solo">Solo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Cidade</Label>
+                    <Input
+                      value={formData.cidade}
+                      onChange={(e) => handleChange("cidade", e.target.value)}
+                      className="bg-white/50 border-sky-200"
+                      readOnly={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Estado (UF)</Label>
+                    <Input
+                      value={formData.estado}
+                      onChange={(e) => handleChange("estado", e.target.value)}
+                      className="bg-white/50 border-sky-200"
+                      maxLength={2}
+                      readOnly={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Concessionária *</Label>
+                    <Select value={formData.concessionaria} onValueChange={(v) => handleChange("concessionaria", v)}>
+                      <SelectTrigger className="bg-white/50 border-sky-200">
+                        <SelectValue placeholder="Selecione a concessionária" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {concessionarias.map(conc => (
+                          <SelectItem key={conc} value={conc}>{conc}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="text-blue-700">Informações de Consumo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <RadioGroup value={tipoConsumo} onValueChange={setTipoConsumo}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="medio" id="medio" />
+                        <Label htmlFor="medio">Valor médio mensal (R$ ou kWh)</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="mes_a_mes" id="mes_a_mes" />
+                        <Label htmlFor="mes_a_mes">Consumo mês a mês (kWh)</Label>
+                      </div>
+                    </RadioGroup>
+
+                    {tipoConsumo === "medio" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <Label>Consumo Mensal (R$)</Label>
+                          <Input
+                            type="number"
+                            value={formData.consumo_mensal_reais}
+                            onChange={(e) => handleChange("consumo_mensal_reais", e.target.value)}
+                            placeholder="Valor da conta de luz"
+                            className="bg-white"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>OU Consumo Mensal (kWh)</Label>
+                          <Input
+                            type="number"
+                            value={formData.consumo_mensal_kwh}
+                            onChange={(e) => handleChange("consumo_mensal_kwh", e.target.value)}
+                            placeholder="Consumo médio em kWh"
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {tipoConsumo === "mes_a_mes" && (
+                      <ConsumoMesAMes
+                        consumos={formData.consumo_mes_a_mes}
+                        onChange={(consumos) => handleChange("consumo_mes_a_mes", consumos)}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                  <CardHeader>
+                    <CardTitle className="text-green-700">Comissão e Margem</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Label>Comissão do Vendedor</Label>
+                        <span className="text-2xl font-bold text-green-600">
+                          {formData.percentual_comissao}%
+                        </span>
+                      </div>
+                      <Slider
+                        value={[formData.percentual_comissao]}
+                        onValueChange={(v) => handleChange("percentual_comissao", v[0])}
+                        min={0}
+                        max={20}
+                        step={0.5}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Label>Margem de Lucro</Label>
+                        <span className="text-2xl font-bold text-green-600">
+                          {formData.percentual_margem_lucro}%
+                        </span>
+                      </div>
+                      <Slider
+                        value={[formData.percentual_margem_lucro]}
+                        onValueChange={(v) => handleChange("percentual_margem_lucro", v[0])}
+                        min={20}
+                        max={50}
+                        step={1}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600">Mínimo: 20%</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    onClick={calcularDimensionamento}
+                    disabled={calculando || !formData.cliente_id || !formData.nome_projeto}
+                    className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700"
+                  >
+                    <Calculator className="w-4 h-4 mr-2" />
+                    {calculando ? "Calculando..." : "Calcular Dimensionamento"}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="resultados">
+                {resultados && (
+                  <DimensionamentoResults 
+                    resultados={resultados}
+                    formData={formData}
+                    onSave={handleSave}
+                    loading={loading}
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

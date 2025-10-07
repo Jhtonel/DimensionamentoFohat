@@ -1,0 +1,45 @@
+{
+  "name": "Cliente",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome completo do cliente"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Email do cliente"
+    },
+    "endereco_completo": {
+      "type": "string",
+      "description": "Endereço completo do cliente"
+    },
+    "cep": {
+      "type": "string",
+      "description": "CEP do cliente"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "residencial",
+        "comercial",
+        "industrial"
+      ],
+      "default": "residencial",
+      "description": "Tipo de cliente"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observações sobre o cliente"
+    }
+  },
+  "required": [
+    "nome",
+    "telefone"
+  ]
+}
