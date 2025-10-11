@@ -2,32 +2,58 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority"
 import { cn } from "@/utils"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+
+const SidebarContext = React.createContext({
+  collapsed: false,
+  setCollapsed: () => {},
+})
+
+const useSidebar = () => {
+  const context = React.useContext(SidebarContext)
+  if (!context) {
+    throw new Error('useSidebar must be used within a SidebarProvider')
+  }
+  return context
+}
+
 const sidebarVariants = cva(
-  "flex h-full w-64 flex-col bg-background",
+  "flex h-full flex-col bg-background transition-all duration-300 ease-in-out",
   {
     variants: {
       variant: {
         default: "border-r",
         floating: "border-r shadow-lg",
       },
+      collapsed: {
+        true: "w-16",
+        false: "w-64",
+      },
     },
     defaultVariants: {
       variant: "default",
+      collapsed: false,
     },
   }
 )
-const Sidebar = React.forwardRef(({ className, variant, ...props }, ref) => (
+
+const Sidebar = React.forwardRef(({ className, variant, collapsed = false, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(sidebarVariants({ variant }), className)}
+    className={cn(sidebarVariants({ variant, collapsed }), className)}
     {...props}
   />
 ))
 Sidebar.displayName = "Sidebar"
+
 const SidebarProvider = ({ children, ...props }) => {
+  const [collapsed, setCollapsed] = React.useState(false)
+  
   return (
     <div className="flex h-screen w-full">
-      {children}
+      <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
+        {children}
+      </SidebarContext.Provider>
     </div>
   )
 }
@@ -130,16 +156,23 @@ const SidebarMenuButton = React.forwardRef(({ className, variant, size, asChild 
   )
 })
 SidebarMenuButton.displayName = "SidebarMenuButton"
-const SidebarTrigger = React.forwardRef(({ className, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      "flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-sm font-medium shadow transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-      className
-    )}
-    {...props}
-  />
-))
+const SidebarTrigger = React.forwardRef(({ className, ...props }, ref) => {
+  const { collapsed, setCollapsed } = useSidebar()
+  
+  return (
+    <button
+      ref={ref}
+      onClick={() => setCollapsed(!collapsed)}
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-sm font-medium shadow transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+    </button>
+  )
+})
 SidebarTrigger.displayName = "SidebarTrigger"
 export {
   Sidebar,
@@ -154,4 +187,6 @@ export {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  SidebarContext,
+  useSidebar,
 }

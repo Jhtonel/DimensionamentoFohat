@@ -22,6 +22,7 @@ import {
   SidebarFooter,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { User } from "@/entities";
 
@@ -71,6 +72,21 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <SidebarProvider>
+      <LayoutContent 
+        children={children} 
+        location={location} 
+        user={user} 
+        handleLogout={handleLogout} 
+      />
+    </SidebarProvider>
+  );
+}
+
+function LayoutContent({ children, location, user, handleLogout }) {
+  const { collapsed } = useSidebar();
+
+  return (
+    <>
       <style>{`
         :root {
           --solar-blue: #0EA5E9;
@@ -100,24 +116,28 @@ export default function Layout({ children, currentPageName }) {
       `}</style>
       
       <div className="min-h-screen flex w-full">
-        <Sidebar className="glass-sidebar">
+        <Sidebar className="glass-sidebar" collapsed={collapsed}>
           <SidebarHeader className="border-b border-sky-100 p-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-sky-400 to-orange-400 rounded-2xl flex items-center justify-center shadow-lg">
                 <Sun className="w-7 h-7 text-white" />
               </div>
-              <div>
-                <h2 className="font-bold text-xl text-gray-900">Fohat Energia</h2>
-                <p className="text-xs text-sky-600 font-medium">Energia Fotovoltaica</p>
-              </div>
+              {!collapsed && (
+                <div>
+                  <h2 className="font-bold text-xl text-gray-900">Fohat Energia</h2>
+                  <p className="text-xs text-sky-600 font-medium">Energia Fotovoltaica</p>
+                </div>
+              )}
             </div>
           </SidebarHeader>
           
           <SidebarContent className="p-3">
             <SidebarGroup>
-              <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-3">
-                Menu Principal
-              </SidebarGroupLabel>
+              {!collapsed && (
+                <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-3">
+                  Menu Principal
+                </SidebarGroupLabel>
+              )}
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navigationItems.map((item) => (
@@ -129,10 +149,11 @@ export default function Layout({ children, currentPageName }) {
                             ? 'bg-gradient-to-r from-sky-50 to-orange-50 text-sky-700 shadow-sm' 
                             : ''
                         }`}
+                        title={collapsed ? item.title : undefined}
                       >
                         <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
                           <item.icon className="w-5 h-5" />
-                          <span className="font-medium">{item.title}</span>
+                          {!collapsed && <span className="font-medium">{item.title}</span>}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -150,31 +171,37 @@ export default function Layout({ children, currentPageName }) {
                     {user?.full_name?.charAt(0) || 'U'}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">
-                    {user?.full_name || 'Usuário'}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                </div>
+                {!collapsed && (
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">
+                      {user?.full_name || 'Usuário'}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                title={collapsed ? "Sair" : undefined}
               >
                 <LogOut className="w-4 h-4" />
-                Sair
+                {!collapsed && "Sair"}
               </button>
             </div>
           </SidebarFooter>
         </Sidebar>
 
         <main className="flex-1 flex flex-col">
-          <header className="bg-white/80 backdrop-blur-xl border-b border-sky-100 px-6 py-4 md:hidden shadow-sm">
+          <header className="bg-white/80 backdrop-blur-xl border-b border-sky-100 px-6 py-4 shadow-sm">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="hover:bg-sky-50 p-2 rounded-lg transition-colors duration-200" />
               <h1 className="text-xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
                 Solar CRM
               </h1>
+              <div className="ml-auto text-sm text-gray-500">
+                Sidebar: {collapsed ? 'Recolhida' : 'Expandida'}
+              </div>
             </div>
           </header>
 
@@ -183,6 +210,6 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </main>
       </div>
-    </SidebarProvider>
+    </>
   );
 }

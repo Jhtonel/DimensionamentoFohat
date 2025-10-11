@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-import PipelineBoard from "../components/Dashboard/PiplineBoard.jsx";
+import KanbanBoard from "../components/Dashboard/KanbanBoard.jsx";
 import StatsCard from "../components/Dashboard/StatsCard.jsx";
 
 export default function Dashboard() {
@@ -112,25 +112,9 @@ export default function Dashboard() {
           />
         </div>
 
-        <Card className="glass-card border-0 shadow-2xl">
-          <CardHeader className="border-b border-sky-100">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <Zap className="w-6 h-6 text-orange-500" />
-                Pipeline de Vendas
-              </CardTitle>
-              <Link to={createPageUrl("Projetos")}>
-                <Button variant="ghost" className="text-sky-600 hover:text-sky-700 hover:bg-sky-50">
-                  Ver todos
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <PipelineBoard projetos={projetos} onUpdate={loadData} />
-          </CardContent>
-        </Card>
+        <div className="glass-card border-0 shadow-2xl rounded-xl p-6">
+          <KanbanBoard projetos={projetos} onUpdate={loadData} />
+        </div>
       </div>
     </div>
   );
