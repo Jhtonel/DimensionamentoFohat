@@ -12,7 +12,7 @@ export default defineConfig({
   },
       server: {
         port: 3002,
-        host: '192.168.1.9', // IP correto da máquina
+        host: '192.168.1.11', // IP correto para contornar CORS
         open: true,
         proxy: {
           '/api/solaryum': {
@@ -20,42 +20,33 @@ export default defineConfig({
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/solaryum/, ''),
             secure: true,
-            headers: {
-              'Origin': 'https://api-d1297.cloud.solaryum.com.br',
-              'Referer': 'https://api-d1297.cloud.solaryum.com.br/swagger/index.html',
-              'X-Forwarded-For': '192.168.1.9',
-              'X-Real-IP': '192.168.1.9',
-              'X-Client-IP': '192.168.1.9',
-              'X-Original-IP': '192.168.1.9',
-              'Client-IP': '192.168.1.9',
-              'Remote-Addr': '192.168.1.9'
-            },
             configure: (proxy, _options) => {
               proxy.on('error', (err, _req, _res) => {
-                console.log('proxy error', err);
+                console.log('❌ Proxy error:', err);
               });
               proxy.on('proxyReq', (proxyReq, req, _res) => {
-                console.log('Sending Request to the Target:', req.method, req.url);
-                console.log('Client IP:', req.connection.remoteAddress);
+                console.log('🚀 Enviando requisição para:', req.method, req.url);
                 
-                // Simula que a requisição vem do Swagger
+                // Simula que a requisição vem do Swagger (same-origin)
                 proxyReq.setHeader('Origin', 'https://api-d1297.cloud.solaryum.com.br');
                 proxyReq.setHeader('Referer', 'https://api-d1297.cloud.solaryum.com.br/swagger/index.html');
                 proxyReq.setHeader('Host', 'api-d1297.cloud.solaryum.com.br');
                 
-                // Força o IP correto
-                proxyReq.setHeader('X-Forwarded-For', '192.168.1.9');
-                proxyReq.setHeader('X-Real-IP', '192.168.1.9');
-                proxyReq.setHeader('X-Client-IP', '192.168.1.9');
-                proxyReq.setHeader('X-Original-IP', '192.168.1.9');
-                proxyReq.setHeader('Client-IP', '192.168.1.9');
-                proxyReq.setHeader('Remote-Addr', '192.168.1.9');
+                // Headers para simular IP correto
+                proxyReq.setHeader('X-Forwarded-For', '192.168.1.11');
+                proxyReq.setHeader('X-Real-IP', '192.168.1.11');
+                proxyReq.setHeader('X-Client-IP', '192.168.1.11');
+                proxyReq.setHeader('X-Original-IP', '192.168.1.11');
+                proxyReq.setHeader('Client-IP', '192.168.1.11');
+                proxyReq.setHeader('Remote-Addr', '192.168.1.11');
+                proxyReq.setHeader('X-Forwarded-Proto', 'https');
+                proxyReq.setHeader('X-Forwarded-Host', 'api-d1297.cloud.solaryum.com.br');
                 
-                console.log('Headers enviados:', proxyReq.getHeaders());
+                console.log('📋 Headers enviados:', proxyReq.getHeaders());
               });
               proxy.on('proxyRes', (proxyRes, req, _res) => {
-                console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-                console.log('Response headers:', proxyRes.headers);
+                console.log('✅ Resposta recebida:', proxyRes.statusCode, req.url);
+                console.log('📋 Headers da resposta:', proxyRes.headers);
               });
             },
           }

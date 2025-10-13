@@ -35,3 +35,79 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(209 213 219) rgb(243 244 246);
+  }
+  
+  .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+    background-color: rgb(209 213 219);
+    border-radius: 0.5rem;
+    border: 1px solid rgb(243 244 246);
+  }
+  
+  .scrollbar-track-gray-100::-webkit-scrollbar-track {
+    background-color: rgb(243 244 246);
+    border-radius: 0.5rem;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar:horizontal {
+    height: 12px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar:vertical {
+    width: 12px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-corner {
+    background-color: rgb(243 244 246);
+  }
+  
+  /* Scrollbar horizontal para Kanban - FORÇA VISIBILIDADE */
+  .kanban-scroll {
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    scrollbar-width: auto !important;
+    scrollbar-color: #d1d5db #f3f4f6 !important;
+  }
+  
+  .kanban-scroll::-webkit-scrollbar {
+    height: 16px !important;
+    width: 16px !important;
+    display: block !important;
+  }
+  
+  .kanban-scroll::-webkit-scrollbar-track {
+    background: #f3f4f6 !important;
+    border-radius: 8px !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  
+  .kanban-scroll::-webkit-scrollbar-thumb {
+    background: #d1d5db !important;
+    border-radius: 8px !important;
+    border: 2px solid #f3f4f6 !important;
+    min-width: 20px !important;
+  }
+  
+  .kanban-scroll::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af !important;
+  }
+  
+  .kanban-scroll::-webkit-scrollbar-corner {
+    background: #f3f4f6 !important;
+  }
+  
+  /* Garantir que scrollbar seja sempre visível */
+  .kanban-scroll::-webkit-scrollbar:horizontal {
+    height: 16px !important;
+    display: block !important;
+  }
+}

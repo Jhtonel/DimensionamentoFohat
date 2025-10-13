@@ -22,10 +22,6 @@
       "type": "number",
       "description": "Valor da tarifa por kWh"
     },
-    "potencia_placa_padrao_w": {
-      "type": "number",
-      "description": "Potência padrão da placa em W"
-    },
     "eficiencia_sistema": {
       "type": "number",
       "description": "Eficiência do sistema (0-1)"

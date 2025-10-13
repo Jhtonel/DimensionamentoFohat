@@ -16,6 +16,7 @@ import { createPageUrl } from "@/utils";
 import { motion } from "framer-motion";
 import cepService from "../services/cepService";
 import solaryumApi from "../services/solaryumApi";
+import { getIrradianciaByCity } from "../utils/irradianciaUtils";
 import { useProjectCosts } from "../hooks/useProjectCosts";
 
 import DimensionamentoResults from "../components/projetos/DimensionamentoResults.jsx";
@@ -89,6 +90,7 @@ export default function NovoProjeto() {
   });
   const [loadingProdutos, setLoadingProdutos] = useState(false);
   const [loadingFiltros, setLoadingFiltros] = useState(false);
+  const [quantidadesCalculadas, setQuantidadesCalculadas] = useState({ paineis: 0, inversores: 0, estruturas: 0, acessorios: 0 });
 
   useEffect(() => {
     loadData();
@@ -103,7 +105,7 @@ export default function NovoProjeto() {
     };
 
     calculateCosts();
-  }, [formData.potencia_kw, formData.tipo_instalacao, formData.regiao, formData.tipo_telhado, formData.consumo_mensal_kwh, calculateRealTimeCosts]);
+  }, [formData.potencia_kw, formData.tipo_instalacao, formData.regiao, formData.tipo_telhado, calculateRealTimeCosts]);
 
   const loadData = async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -387,7 +389,7 @@ export default function NovoProjeto() {
       console.log('📋 Filtros recebidos:', filtros);
       
       // Calcula a potência se ainda não foi calculada
-      let potenciaCalculada = formData.potencia_kw || calcularPotenciaSistema(formData.consumo_mensal_kwh);
+      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade);
       
       // Garante potência mínima de 3kW para evitar erro na API
       if (!potenciaCalculada || potenciaCalculada <= 0) {
@@ -688,7 +690,7 @@ export default function NovoProjeto() {
       console.log('formData atual:', formData);
       
       // Calcula a potência se ainda não foi calculada
-      const potenciaCalculada = formData.potencia_kw || calcularPotenciaSistema(formData.consumo_mensal_kwh);
+      const potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade);
       console.log('Potência calculada:', potenciaCalculada);
       
       // Atualiza a potência no formData
@@ -739,14 +741,54 @@ export default function NovoProjeto() {
 
   // Calcula automaticamente a potência do sistema baseada no consumo
   useEffect(() => {
+    const calcularPotenciaAutomatica = async () => {
     const consumoMensal = parseFloat(formData.consumo_mensal_kwh) || 0;
-    if (consumoMensal > 0) {
-      const potenciaCalculada = calcularPotenciaSistema(consumoMensal);
+      const cidade = formData.cidade || 'São José dos Campos';
+      
+      // Só calcula se há consumo válido e se a potência ainda não foi calculada
+      if (consumoMensal > 0 && !formData.potencia_kw) {
+        try {
+          console.log('🔄 Calculando potência automaticamente...');
+          const potenciaCalculada = await calcularPotenciaSistema(consumoMensal, cidade);
       if (potenciaCalculada !== formData.potencia_kw) {
         handleChange("potencia_kw", potenciaCalculada);
       }
-    }
-  }, [formData.consumo_mensal_kwh]);
+        } catch (error) {
+          console.error('❌ Erro ao calcular potência automaticamente:', error);
+        }
+      }
+    };
+
+    // Debounce para evitar múltiplas chamadas
+    const timeoutId = setTimeout(calcularPotenciaAutomatica, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData.consumo_mensal_kwh, formData.cidade]);
+
+  // Calcula quantidades automaticamente quando os dados mudam
+  useEffect(() => {
+    const calcularQuantidadesAutomaticas = async () => {
+      // Só calcula se há dados suficientes E se já há uma potência calculada
+      const consumoKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
+      const consumoReais = parseFloat(formData.consumo_mensal_reais) || 0;
+      const potenciaKw = parseFloat(formData.potencia_kw) || 0;
+      
+      if ((consumoKwh > 0 || consumoReais > 0) && potenciaKw > 0) {
+        try {
+          console.log('🔄 Calculando quantidades automaticamente...');
+          const quantidades = await calcularQuantidades();
+          setQuantidadesCalculadas(quantidades);
+        } catch (error) {
+          console.error('❌ Erro ao calcular quantidades automaticamente:', error);
+        }
+      }
+    };
+
+    // Debounce para evitar múltiplas chamadas
+    const timeoutId = setTimeout(calcularQuantidadesAutomaticas, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.potencia_kw, formData.cidade]);
 
   // Verifica se algum tipo de consumo foi preenchido
   const temConsumoPreenchido = () => {
@@ -759,7 +801,7 @@ export default function NovoProjeto() {
   };
 
   // Função auxiliar para calcular quantidades de forma robusta
-  const calcularQuantidades = () => {
+  const calcularQuantidades = async () => {
     // Tenta obter consumo de diferentes campos
     const consumoKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
     const consumoReais = parseFloat(formData.consumo_mensal_reais) || 0;
@@ -779,7 +821,14 @@ export default function NovoProjeto() {
       console.log('Consumo estimado a partir do valor em reais:', consumoParaCalculo, 'kWh');
     }
     
-    const potenciaKw = formData.potencia_kw || calcularPotenciaSistema(consumoParaCalculo) || 3.0;
+    // Usa a potência já calculada ou calcula uma nova se necessário
+    let potenciaKw = formData.potencia_kw;
+    
+    // Só calcula nova potência se não houver uma já definida
+    if (!potenciaKw || potenciaKw <= 0) {
+      potenciaKw = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade) || 3.0;
+    }
+    
     console.log('Calculando quantidades para potência:', potenciaKw, 'kW');
     
     const quantidades = {
@@ -808,36 +857,57 @@ export default function NovoProjeto() {
     return quantidades;
   };
 
-  const calcularPotenciaSistema = (consumoMensalKwh) => {
-    console.log('🔢 calcularPotenciaSistema chamado com:', consumoMensalKwh);
-    if (!consumoMensalKwh || consumoMensalKwh <= 0) {
-      console.log('⚠️ Consumo inválido, retornando potência padrão de 3kW');
-      return 3.0; // Retorna 3kW em vez de 0
-    }
-    
-    // Irradiância média anual no Brasil (kWh/m²/dia)
-    const irradianciaMedia = 5.0; // Valor padrão, pode ser ajustado por região
+  const calcularPotenciaSistema = async (consumoMensalKwh, cidade = 'São José dos Campos') => {
+    try {
+      // Busca dados reais de irradiância da cidade
+      const irradianciaData = await getIrradianciaByCity(cidade);
+      
+      if (!irradianciaData) {
+        console.warn('⚠️ Cidade não encontrada nos dados de irradiância:', cidade);
+        // Fallback para valores padrão
+        const irradianciaMedia = 5.0;
+        const eficienciaSistema = 0.80;
+        const fatorCorrecao = 1.03;
+        const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
+        const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10;
+        return Math.max(resultado, 3.0);
+      }
+      
+      // A irradiância está em Wh/m²/dia, convertemos para kWh/m²/dia
+      // Dividimos por 1000 para converter Wh para kWh
+      const irradianciaDiaria = irradianciaData.annual / 1000;
     
     // Eficiência do sistema (80%)
     const eficienciaSistema = 0.80;
     
-    // Consumo anual em kWh
-    const consumoAnualKwh = consumoMensalKwh * 12;
-    
-    // Consumo diário médio em kWh
-    const consumoDiarioKwh = consumoAnualKwh / 365;
-    
-    // Potência necessária em kW
-    const potenciaNecessariaKw = consumoDiarioKwh / (irradianciaMedia * eficienciaSistema);
+      // Fator de correção adicional (perdas do sistema)
+      const fatorCorrecao = 1.05; // 5% de perdas adicionais
+      
+      // Fórmula: (Consumo do cliente em kWh/mês)/((irradiancia da região*eficiencia de 80%)*30,4) * fatorCorrecao
+      const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaDiaria * eficienciaSistema) * 30.4)) * fatorCorrecao;
     
     const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10; // Arredonda para 1 casa decimal
-    console.log('🔢 Potência calculada:', resultado, 'kW');
+      console.log('🔢 Potência calculada:', resultado, 'kW');
+      console.log('📊 Cidade:', cidade, '- Irradiancia anual:', irradianciaData.annual, 'kWh/m²/ano');
+      console.log('📊 Irradiancia diária:', irradianciaDiaria.toFixed(2), 'kWh/m²/dia');
+      console.log('📊 Fórmula aplicada: ', consumoMensalKwh, 'kWh/mês ÷ ((', irradianciaDiaria.toFixed(2), 'kWh/m²/dia × ', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', resultado, 'kW');
+      console.log('📊 Cálculo detalhado: ', consumoMensalKwh, '÷ ((', irradianciaDiaria.toFixed(2), '×', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', consumoMensalKwh, '÷ (', (irradianciaDiaria * eficienciaSistema).toFixed(2), '× 30,4) ×', fatorCorrecao, '=', consumoMensalKwh, '÷', ((irradianciaDiaria * eficienciaSistema) * 30.4).toFixed(2), '×', fatorCorrecao, '=', potenciaNecessariaKw.toFixed(2));
     
     // Garantir potência mínima de 3 kW
     const potenciaFinal = Math.max(resultado, 3.0);
-    console.log('🔢 Potência final (mínimo 3kW):', potenciaFinal, 'kW');
+      console.log('🔢 Potência final (mínimo 3kW):', potenciaFinal, 'kW');
     
     return potenciaFinal;
+    } catch (error) {
+      console.error('❌ Erro ao calcular potência:', error);
+      // Fallback para valores padrão em caso de erro
+      const irradianciaMedia = 5.0;
+      const eficienciaSistema = 0.80;
+      const fatorCorrecao = 1.03;
+      const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
+      const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10;
+      return Math.max(resultado, 3.0);
+    }
   };
 
   const calcularCustoHomologacao = (potenciaKwp) => {
@@ -1277,7 +1347,7 @@ export default function NovoProjeto() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
+                              </div>
 
                           {/* Filtro por Marca de Inversor */}
                           <div>
@@ -1302,7 +1372,7 @@ export default function NovoProjeto() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
+                              </div>
 
                           {/* Filtro por Potência do Painel */}
                           <div>
@@ -1327,7 +1397,7 @@ export default function NovoProjeto() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
+                        </div>
 
                           {/* Filtro por Tipo de Inversor */}
                           <div>
@@ -1372,9 +1442,9 @@ export default function NovoProjeto() {
                                 <SelectItem value="preco_maior_menor">Maior para Menor</SelectItem>
                               </SelectContent>
                             </Select>
-                          </div>
+                              </div>
+                            </div>
                         </div>
-                      </div>
                     )}
 
                     {/* Seletor de Kits */}
@@ -1392,7 +1462,7 @@ export default function NovoProjeto() {
                         >
                           Limpar Filtros
                         </Button>
-                      </div>
+                          </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {produtosDisponiveis.map((kit) => (
@@ -1502,12 +1572,12 @@ export default function NovoProjeto() {
                     </div>
                     )}
 
-                    {/* Botão para avançar para a aba de custos */}
+                    {/* Botão flutuante para avançar para a aba de custos */}
                     {produtosDisponiveis.length > 0 && (
-                      <div className="flex justify-end mt-8">
+                      <div className="fixed bottom-6 right-6 z-50">
                         <Button 
                           onClick={() => setActiveTab('custos')}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
                         >
                           Avançar para Custos
                         </Button>
@@ -1526,17 +1596,16 @@ export default function NovoProjeto() {
                               <h4 className="font-semibold text-gray-700 mb-2">Equipamentos Selecionados:</h4>
                               <div className="space-y-1 text-sm">
                                 {(() => {
-                                  const quantidades = calcularQuantidades();
                                   return (
                                     <>
                                       {produtosSelecionados.paineis && (
                                         <div>
                                           <p className="font-medium">• {produtosSelecionados.paineis.descricao} - {produtosSelecionados.paineis.modelo}</p>
                                           <p className="text-xs text-gray-500 ml-2">
-                                            Quantidade: {quantidades.paineis} módulos
+                                            Quantidade: {quantidadesCalculadas.paineis} módulos
                                           </p>
                                           <p className="text-xs text-gray-500 ml-2">
-                                            Potência total: {quantidades.potenciaTotal.toFixed(1)} kW
+                                            Potência total: {quantidadesCalculadas.potenciaTotal?.toFixed(1) || '0.0'} kW
                                           </p>
                                         </div>
                                       )}
@@ -1544,7 +1613,7 @@ export default function NovoProjeto() {
                                         <div>
                                           <p className="font-medium">• {produtosSelecionados.inversores.descricao} - {produtosSelecionados.inversores.modelo}</p>
                                           <p className="text-xs text-gray-500 ml-2">
-                                            Quantidade: {quantidades.inversores} inversor(es)
+                                            Quantidade: {quantidadesCalculadas.inversores} inversor(es)
                                           </p>
                                         </div>
                                       )}
@@ -1552,7 +1621,7 @@ export default function NovoProjeto() {
                                         <div>
                                           <p className="font-medium">• {produtosSelecionados.estruturas.descricao} - {produtosSelecionados.estruturas.modelo}</p>
                                           <p className="text-xs text-gray-500 ml-2">
-                                            Quantidade: {quantidades.estruturas} estruturas
+                                            Quantidade: {quantidadesCalculadas.estruturas} estruturas
                                           </p>
                                         </div>
                                       )}

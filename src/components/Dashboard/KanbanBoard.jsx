@@ -133,21 +133,27 @@ export default function KanbanBoard({ projetos, onUpdate }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Pipeline de Vendas</h2>
-          <p className="text-gray-600 mt-1">Gerencie seus projetos por estágio</p>
+    <div className="space-y-6 max-h-full">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Pipeline de Vendas</h2>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Gerencie seus projetos por estágio</p>
         </div>
-        <Link to={createPageUrl("NovoProjeto")}>
-          <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Projeto
+        <Link to={createPageUrl("NovoProjeto")} className="flex-shrink-0">
+          <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30 text-xs sm:text-sm">
+            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">Novo Projeto</span>
+            <span className="xs:hidden">Novo</span>
           </Button>
         </Link>
       </div>
 
-      <div className="flex gap-6 overflow-x-auto pb-4">
+      <div 
+        className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-4 max-h-[calc(100vh-250px)] sm:max-h-[calc(100vh-300px)] lg:max-h-[calc(100vh-350px)]" 
+        style={{
+          width: '100%'
+        }}
+      >
         {statusOrder.map((status) => {
           const config = statusConfig[status];
           const Icon = config.icon;
@@ -158,26 +164,26 @@ export default function KanbanBoard({ projetos, onUpdate }) {
               key={status}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex-shrink-0 w-80 ${config.bgColor} rounded-xl p-4 border border-gray-200`}
+              className={`flex-shrink-0 w-80 ${config.bgColor} rounded-xl p-3 sm:p-4 border border-gray-200 max-h-full flex flex-col`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, status)}
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${config.color}`}>
-                    <Icon className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${config.color} flex-shrink-0`}>
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <div>
-                    <h3 className={`font-semibold ${config.textColor}`}>{config.label}</h3>
-                    <p className="text-sm text-gray-500">{projetosStatus.length} projetos</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`font-semibold text-sm sm:text-base ${config.textColor} truncate`}>{config.label}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">{projetosStatus.length} projetos</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="w-4 h-4" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 sm:h-8 sm:w-8 p-0 flex-shrink-0">
+                  <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Button>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-3 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <AnimatePresence>
                   {projetosStatus.map((projeto) => (
                     <motion.div
@@ -191,33 +197,33 @@ export default function KanbanBoard({ projetos, onUpdate }) {
                       className="cursor-move"
                     >
                       <Card className="hover:shadow-md transition-shadow duration-200 bg-white/80 backdrop-blur-sm">
-                        <CardContent className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-semibold text-gray-900 text-sm line-clamp-2">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="space-y-2 sm:space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-semibold text-gray-900 text-xs sm:text-sm line-clamp-2 flex-1 min-w-0">
                                 {projeto.nome_projeto || 'Projeto sem nome'}
                               </h4>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs flex-shrink-0">
                                 {projeto.prioridade || 'Normal'}
                               </Badge>
                             </div>
                             
-                            <div className="space-y-2 text-xs text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <User className="w-3 h-3" />
+                            <div className="space-y-1.5 sm:space-y-2 text-xs text-gray-600">
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <User className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">
                                   {projeto.cliente?.nome || 'Cliente não definido'}
                                 </span>
                               </div>
                               
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="w-3 h-3" />
-                                <span>{formatCurrency(projeto.preco_final)}</span>
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <DollarSign className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{formatCurrency(projeto.preco_final)}</span>
                               </div>
                               
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3 h-3" />
-                                <span>{formatDate(projeto.created_date)}</span>
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <Calendar className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{formatDate(projeto.created_date)}</span>
                               </div>
                             </div>
 
@@ -234,9 +240,9 @@ export default function KanbanBoard({ projetos, onUpdate }) {
                 </AnimatePresence>
                 
                 {projetosStatus.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <Icon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Nenhum projeto neste estágio</p>
+                  <div className="text-center py-4 sm:py-6 lg:py-8 text-gray-400">
+                    <Icon className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs sm:text-sm">Nenhum projeto neste estágio</p>
                   </div>
                 )}
               </div>

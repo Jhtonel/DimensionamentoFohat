@@ -58,30 +58,31 @@ export default function Dashboard() {
   const stats = calcularStats();
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="w-full space-y-8">
+    <div className="h-full max-h-full p-2 sm:p-4 md:p-6 lg:p-8 overflow-auto min-w-0">
+      <div className="w-full space-y-4 sm:space-y-6 min-w-0">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
         >
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-gray-600 mt-2">Visão geral do seu pipeline de vendas</p>
+            <p className="text-sm sm:text-base text-gray-600 mt-1 sm:mt-2">Visão geral do seu pipeline de vendas</p>
           </div>
-          <div className="flex gap-3 w-full md:w-auto">
-            <Link to={createPageUrl("Clientes")} className="flex-1 md:flex-none">
-              <Button className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Cliente
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+            <Link to={createPageUrl("Clientes")} className="flex-1 sm:flex-none">
+              <Button className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30 text-xs sm:text-sm">
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">Novo Cliente</span>
+                <span className="xs:hidden">Novo</span>
               </Button>
             </Link>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <StatsCard
             title="Total de Clientes"
             value={stats.totalClientes}
@@ -112,7 +113,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="glass-card border-0 shadow-2xl rounded-xl p-6">
+        <div className="glass-card border-0 shadow-2xl rounded-xl p-2 sm:p-4 lg:p-6 max-h-[calc(100vh-300px)] sm:max-h-[calc(100vh-350px)] lg:max-h-[calc(100vh-400px)] overflow-hidden min-w-0">
           <KanbanBoard projetos={projetos} onUpdate={loadData} />
         </div>
       </div>

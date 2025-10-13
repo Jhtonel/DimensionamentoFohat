@@ -6,7 +6,7 @@
 export const SOLARYUM_CONFIG = {
   // URL base da API
   BASE_URL: import.meta.env.DEV 
-    ? 'http://192.168.1.9:3002/api/solaryum'  // Proxy local para contornar CORS
+    ? 'http://192.168.1.11:3002/api/solaryum'  // Proxy local para contornar CORS
     : 'https://api-d1297.cloud.solaryum.com.br',  // URL direta em produção
   
   // Chave da API (configurar via variável de ambiente)

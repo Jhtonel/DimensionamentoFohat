@@ -36,8 +36,8 @@ let configuracoesData = [
     id: '1',
     chave: 'tarifa_enel',
     tipo: 'tarifa',
-    concessionaria: 'Enel',
-    tarifa_kwh: 0.6,
+    concessionaria: 'Enel SP',
+    tarifa_kwh: 0.83,
     created_date: new Date().toISOString()
   },
   {
@@ -47,9 +47,58 @@ let configuracoesData = [
     potencia_placa_padrao_w: 600,
     eficiencia_sistema: 0.80,
     created_date: new Date().toISOString()
+  },
+  {
+    id: '3',
+    chave: 'tarifa_cpfl_piratininga',
+    tipo: 'tarifa',
+    concessionaria: 'CPFL Piratininga',
+    tarifa_kwh: 0.81,
+    created_date: new Date().toISOString()
+  },
+  {
+    id: '4',
+    chave: 'tarifa_cpfl_paulista',
+    tipo: 'tarifa',
+    concessionaria: 'CPFL Paulista',
+    tarifa_kwh: 0.80,
+    created_date: new Date().toISOString()
+  },
+  {
+    id: '5',
+    chave: 'tarifa_cpfl_santa_cruz',
+    tipo: 'tarifa',
+    concessionaria: 'CPFL Santa Cruz',
+    tarifa_kwh: 0.79,
+    created_date: new Date().toISOString()
+  },
+  {
+    id: '6',
+    chave: 'tarifa_edp',
+    tipo: 'tarifa',
+    concessionaria: 'EDP SP',
+    tarifa_kwh: 0.82,
+    created_date: new Date().toISOString()
+  },
+  {
+    id: '7',
+    chave: 'tarifa_neoenergia_elektro',
+    tipo: 'tarifa',
+    concessionaria: 'Neoenergia Elektro',
+    tarifa_kwh: 0.79,
+    created_date: new Date().toISOString()
+  },
+  {
+    id: '8',
+    chave: 'tarifa_energia_sul',
+    tipo: 'tarifa',
+    concessionaria: 'Energia Sul',
+    tarifa_kwh: 0.80,
+    created_date: new Date().toISOString()
   }
 ];
 
+// Dados de irradiação solar - integração com CSV real
 let irradiacaoData = [
   {
     id: '1',
@@ -127,10 +176,94 @@ class Projeto extends BaseEntity {
 
 class Configuracao extends BaseEntity {
   static data = configuracoesData;
+
+  // Método para buscar tarifa por concessionária
+  static async getTarifaByConcessionaria(concessionaria) {
+    try {
+      const { obterConcessionaria } = await import('../utils/tarifasUtils');
+      const concessionariaData = obterConcessionaria(concessionaria);
+      
+      if (!concessionariaData) {
+        throw new Error(`Concessionária "${concessionaria}" não encontrada`);
+      }
+
+      return concessionariaData.tarifas.residencial.totalComImpostos;
+    } catch (error) {
+      console.error('Erro ao buscar tarifa:', error);
+      throw error;
+    }
+  }
+
+  // Método para calcular consumo baseado no valor em reais
+  static async calcularConsumoPorValor(valorReais, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde') {
+    try {
+      const { calcularConsumoPorValor } = await import('../utils/tarifasUtils');
+      return await calcularConsumoPorValor(valorReais, concessionaria, tipoConsumo, bandeira);
+    } catch (error) {
+      console.error('Erro ao calcular consumo por valor:', error);
+      throw error;
+    }
+  }
+
+  // Método para calcular valor baseado no consumo
+  static async calcularValorPorConsumo(consumoKwh, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde') {
+    try {
+      const { calcularValorPorConsumo } = await import('../utils/tarifasUtils');
+      return await calcularValorPorConsumo(consumoKwh, concessionaria, tipoConsumo, bandeira);
+    } catch (error) {
+      console.error('Erro ao calcular valor por consumo:', error);
+      throw error;
+    }
+  }
 }
 
 class IrradiacaoSolar extends BaseEntity {
   static data = irradiacaoData;
+
+  // Método para buscar irradiação por cidade usando dados reais do CSV
+  static async getByCity(cityName) {
+    try {
+      const { getIrradianciaByCity } = await import('../utils/irradianciaUtils');
+      return await getIrradianciaByCity(cityName);
+    } catch (error) {
+      console.error('Erro ao buscar irradiação por cidade:', error);
+      return null;
+    }
+  }
+
+  // Método para calcular potência da usina
+  static async calculatePower(cityName, areaPainel, eficienciaPainel = 0.2) {
+    try {
+      const { getIrradianciaByCity, calcularPotenciaUsina } = await import('../utils/irradianciaUtils');
+      const irradianciaData = await getIrradianciaByCity(cityName);
+      
+      if (!irradianciaData) {
+        throw new Error(`Cidade "${cityName}" não encontrada`);
+      }
+
+      return calcularPotenciaUsina(irradianciaData.annual, areaPainel, eficienciaPainel);
+    } catch (error) {
+      console.error('Erro ao calcular potência:', error);
+      throw error;
+    }
+  }
+
+  // Método para calcular energia mensal
+  static async calculateMonthlyEnergy(cityName, areaPainel, eficienciaPainel = 0.2) {
+    try {
+      const { getIrradianciaByCity, calcularEnergiaMensal } = await import('../utils/irradianciaUtils');
+      const irradianciaData = await getIrradianciaByCity(cityName);
+      
+      if (!irradianciaData) {
+        throw new Error(`Cidade "${cityName}" não encontrada`);
+      }
+
+      return calcularEnergiaMensal(irradianciaData, areaPainel, eficienciaPainel);
+    } catch (error) {
+      console.error('Erro ao calcular energia mensal:', error);
+      throw error;
+    }
+  }
 }
 
 export { Cliente, Projeto, Configuracao, IrradiacaoSolar };

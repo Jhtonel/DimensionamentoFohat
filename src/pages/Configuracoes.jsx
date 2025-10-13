@@ -105,7 +105,12 @@ export default function Configuracoes() {
         <div className="space-y-6">
           <Card className="glass-card border-0 shadow-2xl">
             <CardHeader className="border-b border-sky-100">
-              <CardTitle className="text-2xl font-bold text-sky-700">Tarifas das Concessionárias</CardTitle>
+              <CardTitle className="text-2xl font-bold text-sky-700 flex items-center justify-between">
+                <span>Tarifas das Concessionárias</span>
+                <span className="text-sm font-normal text-gray-600 bg-sky-100 px-3 py-1 rounded-full">
+                  {tarifas.length} concessionárias
+                </span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               <Card className="bg-sky-50 border-sky-200">
@@ -151,14 +156,16 @@ export default function Configuracoes() {
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {tarifas.map((tarifa) => (
                   <Card key={tarifa.id} className="bg-white border-sky-200 hover:shadow-lg transition-shadow">
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-bold text-gray-900">{tarifa.concessionaria}</h4>
-                          <p className="text-3xl font-bold text-sky-600 mt-1">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-900 truncate" title={tarifa.concessionaria}>
+                            {tarifa.concessionaria}
+                          </h4>
+                          <p className="text-2xl font-bold text-sky-600 mt-1">
                             R$ {tarifa.tarifa_kwh?.toFixed(3)}
                           </p>
                           <p className="text-xs text-gray-500">por kWh</p>
@@ -167,7 +174,7 @@ export default function Configuracoes() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteTarifa(tarifa.id)}
-                          className="text-red-600 hover:bg-red-50"
+                          className="text-red-600 hover:bg-red-50 flex-shrink-0"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -181,12 +188,12 @@ export default function Configuracoes() {
                             const updated = { ...tarifa, tarifa_kwh: parseFloat(e.target.value) };
                             setTarifas(prev => prev.map(t => t.id === tarifa.id ? updated : t));
                           }}
-                          className="bg-gray-50"
+                          className="bg-gray-50 flex-1"
                         />
                         <Button
                           size="sm"
                           onClick={() => handleUpdateTarifa(tarifa)}
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-green-600 hover:bg-green-700 flex-shrink-0"
                         >
                           <Save className="w-4 h-4" />
                         </Button>
@@ -203,18 +210,6 @@ export default function Configuracoes() {
               <CardTitle className="text-2xl font-bold text-sky-700">Equipamentos</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Potência Padrão da Placa (W)</Label>
-                  <Input
-                    type="number"
-                    value={equipamentos.potencia_placa_padrao_w || ""}
-                    onChange={(e) => setEquipamentos(prev => ({ ...prev, potencia_placa_padrao_w: parseFloat(e.target.value) }))}
-                    className="bg-white/50 border-sky-200"
-                  />
-                </div>
-              </div>
-
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-4">
                   <h4 className="font-semibold text-blue-900 mb-3">Custos Fixos por Projeto</h4>
