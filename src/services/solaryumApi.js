@@ -143,11 +143,19 @@ class SolaryumApiService {
    */
   async calcularCustosProjeto(dimensionamentoData) {
     try {
+      console.log('🔍 calcularCustosProjeto iniciado com:', dimensionamentoData);
+      
       // Monta kit customizado usando o endpoint Montar_Kits
+      console.log('🔍 Chamando montarKitCustomizado...');
       const kitCustomizado = await this.montarKitCustomizado(dimensionamentoData);
+      console.log('🔍 Kit customizado retornado:', kitCustomizado);
       
       // Calcula custos baseado no kit montado
-      return this.calcularCustosComKit(kitCustomizado, dimensionamentoData);
+      console.log('🔍 Chamando calcularCustosComKit...');
+      const custos = this.calcularCustosComKit(kitCustomizado, dimensionamentoData);
+      console.log('🔍 Custos calculados:', custos);
+      
+      return custos;
     } catch (error) {
       console.error('❌ Erro ao calcular custos do projeto:', error);
       console.log('📋 Response completa do erro:', error);
@@ -204,6 +212,8 @@ class SolaryumApiService {
     const queryParams = new URLSearchParams();
     queryParams.append('token', this.apiKey); // Token como query parameter
     queryParams.append('potenciaDoKit', dimensionamentoData.potencia_kw);
+    console.log('🔍 Potência do kit enviada:', dimensionamentoData.potencia_kw, typeof dimensionamentoData.potencia_kw);
+    console.log('🔍 Valor após append:', queryParams.get('potenciaDoKit'));
     queryParams.append('tensao', this.mapTensao(dimensionamentoData.tensao));
     queryParams.append('fase', this.mapFase(dimensionamentoData.fase));
     queryParams.append('telhados', this.mapTipoTelhado(dimensionamentoData.tipo_telhado));
@@ -227,7 +237,7 @@ class SolaryumApiService {
     }
     if (dimensionamentoData.potenciaPainel) {
       queryParams.append('potenciaDoPainel', dimensionamentoData.potenciaPainel);
-      console.log('🔍 Filtro por potência do painel:', dimensionamentoData.potenciaPainel);
+      console.log('🔍 Filtro por potência do painel:', dimensionamentoData.potenciaPainel, typeof dimensionamentoData.potenciaPainel);
     }
     if (dimensionamentoData.tipoInv) {
       queryParams.append('tipoInv', dimensionamentoData.tipoInv);
@@ -236,9 +246,11 @@ class SolaryumApiService {
 
     const url = `${endpoint}?${queryParams.toString()}`;
     console.log('🔍 Fazendo GET request para:', url);
+    console.log('🔍 Query params string:', queryParams.toString());
     console.log('📊 Dados enviados:', dimensionamentoData);
     console.log('🔧 Parâmetros mapeados:', {
       potenciaDoKit: dimensionamentoData.potencia_kw,
+      potenciaDoPainel: dimensionamentoData.potenciaPainel,
       tensao: this.mapTensao(dimensionamentoData.tensao),
       fase: this.mapFase(dimensionamentoData.fase),
       telhados: this.mapTipoTelhado(dimensionamentoData.tipo_telhado),
@@ -515,11 +527,28 @@ class SolaryumApiService {
    * Calcula custos baseado no kit montado pela API
    */
   calcularCustosComKit(kitMontado, dimensionamentoData) {
+    console.log('🔍 calcularCustosComKit iniciado com:');
+    console.log('  - kitMontado:', kitMontado);
+    console.log('  - dimensionamentoData:', dimensionamentoData);
+    
     const potencia = dimensionamentoData.potencia_kw || 5;
     
+    // Verifica se kitMontado é válido
+    if (!kitMontado || !Array.isArray(kitMontado) || kitMontado.length === 0) {
+      console.warn('⚠️ Kit montado inválido ou vazio, usando valores padrão');
+      return this.getMockCustos(dimensionamentoData);
+    }
+    
+    // Pega o primeiro kit da lista
+    const kit = kitMontado[0];
+    console.log('🔍 Kit selecionado:', kit);
+    
     // Extrai informações do kit montado
-    const componentes = kitMontado.componentes || {};
-    const custoTotalKit = kitMontado.precoTotal || 0;
+    const componentes = kit.composicao || [];
+    const custoTotalKit = kit.precoTotal || 0;
+    
+    console.log('🔍 Componentes:', componentes);
+    console.log('🔍 Custo total do kit:', custoTotalKit);
     
     // Calcula custos de equipamentos baseado no kit
     const custoEquipamentos = custoTotalKit;
@@ -528,8 +557,8 @@ class SolaryumApiService {
     return {
       equipamentos: {
         kit: {
-          nome: kitMontado.nome || 'Kit Solar Customizado',
-          potencia: kitMontado.potenciaTotal || potencia,
+          nome: kit.nome || 'Kit Solar Customizado',
+          potencia: kit.potencia || potencia,
           componentes: componentes,
           total: custoEquipamentos
         },
@@ -556,6 +585,45 @@ class SolaryumApiService {
         { total: custoEquipamentos },
         { total: custoInstalacao }
       )
+    };
+  }
+
+  /**
+   * Retorna custos mock quando não há kits disponíveis
+   */
+  getMockCustos(dimensionamentoData) {
+    const potencia = dimensionamentoData.potencia_kw || 5;
+    const custoEquipamentos = potencia * 8000; // R$ 8.000 por kW
+    const custoInstalacao = potencia * 2000; // R$ 2.000 por kW
+    
+    return {
+      equipamentos: {
+        kit: {
+          nome: 'Kit Solar Estimado',
+          potencia: potencia,
+          componentes: [],
+          total: custoEquipamentos
+        },
+        total: custoEquipamentos
+      },
+      instalacao: {
+        mao_obra: {
+          dias: Math.ceil(potencia / 2),
+          valor_dia: 300,
+          total: Math.ceil(potencia / 2) * 300
+        },
+        equipamentos_instalacao: {
+          total: custoInstalacao * 0.5
+        },
+        transporte: {
+          total: custoInstalacao * 0.2
+        },
+        outros: {
+          total: custoInstalacao * 0.3
+        },
+        total: custoInstalacao
+      },
+      total: custoEquipamentos + custoInstalacao
     };
   }
 

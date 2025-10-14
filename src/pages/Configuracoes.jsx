@@ -255,6 +255,27 @@ export default function Configuracoes() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="border-t border-green-300 pt-2 mt-2">
+                      <p className="font-semibold text-green-900">Margem Desejada:</p>
+                      <div className="ml-4 mt-1 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Margem base:</span>
+                          <span className="font-semibold">25%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Comissão vendedor:</span>
+                          <span className="font-semibold">5% (padrão)</span>
+                        </div>
+                        <div className="flex justify-between text-green-700">
+                          <span className="font-semibold">Margem total:</span>
+                          <span className="font-semibold">30%</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-2">
+                          MargemDesejada = 25% + comissão do vendedor
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

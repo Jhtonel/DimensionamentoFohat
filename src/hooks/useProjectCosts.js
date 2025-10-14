@@ -27,6 +27,15 @@ export const useProjectCosts = () => {
       // Verifica se a API está disponível
       const isApiAvailable = await solaryumApi.checkApiHealth();
       setApiAvailable(isApiAvailable);
+      
+      console.log('🔍 API disponível:', isApiAvailable);
+
+      if (!isApiAvailable) {
+        console.log('⚠️ API não disponível, usando dados mock');
+        const mockCosts = solaryumApi.getMockCustos(dimensionamentoData);
+        setCosts(mockCosts);
+        return mockCosts;
+      }
 
       // Busca os custos usando o novo método
       const projectCosts = await solaryumApi.calcularCustosProjeto(dimensionamentoData);
@@ -34,14 +43,16 @@ export const useProjectCosts = () => {
       
       return projectCosts;
     } catch (err) {
-      const errorMessage = err.message || 'Erro ao buscar custos do projeto';
-      setError(errorMessage);
       console.error('❌ Erro ao buscar custos:', err);
       console.log('📋 Response completa do erro:', err);
       
-      // Não usa dados mock - mantém erro
-      setCosts(null);
-      return null;
+      // Em caso de erro, usa dados mock
+      console.log('⚠️ Erro na API, usando dados mock como fallback');
+      const mockCosts = solaryumApi.getMockCustos(dimensionamentoData);
+      setCosts(mockCosts);
+      setApiAvailable(false);
+      
+      return mockCosts;
     } finally {
       setLoading(false);
     }
@@ -62,18 +73,36 @@ export const useProjectCosts = () => {
     console.log('=== INÍCIO calculateRealTimeCosts ===');
     console.log('calculateRealTimeCosts chamado com:', formData);
     
+    // Validação dos dados obrigatórios
+    if (!formData) {
+      console.error('❌ formData é null ou undefined');
+      setError('Dados do formulário são obrigatórios');
+      return null;
+    }
+    
+    if (!formData.potencia_kw || formData.potencia_kw <= 0) {
+      console.error('❌ Potência inválida:', formData.potencia_kw);
+      setError('Potência do sistema é obrigatória');
+      return null;
+    }
+    
     const dimensionamentoData = {
       potencia_kw: parseFloat(formData.potencia_kw) || 0,
       tipo_instalacao: formData.tipo_instalacao || 'residencial',
       regiao: formData.regiao || 'sudeste',
       tipo_telhado: formData.tipo_telhado || 'ceramico',
-      consumo_mensal: parseFloat(formData.consumo_mensal) || 0,
+      consumo_mensal: parseFloat(formData.consumo_mensal_kwh) || parseFloat(formData.consumo_mensal_reais) || 0,
       tensao: formData.tensao || '220',
       fase: formData.fase || 'monofasico',
-      complexidade: formData.complexidade || 'media'
+      complexidade: formData.complexidade || 'media',
+      ibge: formData.ibge || null,
+      marcaPainel: formData.marcaPainel || null,
+      marcaInversor: formData.marcaInversor || null,
+      potenciaPainel: formData.potenciaPainel || null,
+      tipoInv: formData.tipoInv || null
     };
 
-    console.log('dimensionamentoData:', dimensionamentoData);
+    console.log('dimensionamentoData preparado:', dimensionamentoData);
     console.log('potencia_kw:', dimensionamentoData.potencia_kw);
 
     // Só busca se tiver dados mínimos

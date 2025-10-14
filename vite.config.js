@@ -14,6 +14,14 @@ export default defineConfig({
         port: 3002,
         host: '192.168.1.11', // IP correto para contornar CORS
         open: true,
+        allowedHosts: [
+          'localhost',
+          '127.0.0.1',
+          '192.168.1.11',
+          '.ngrok.io',
+          '.ngrok-free.app',
+          '.ngrok.app'
+        ],
         proxy: {
           '/api/solaryum': {
             target: 'https://api-d1297.cloud.solaryum.com.br',

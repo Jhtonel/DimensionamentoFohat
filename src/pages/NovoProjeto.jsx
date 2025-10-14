@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Projeto, Cliente, Configuracao, IrradiacaoSolar } from "@/entities";
 import { InvokeLLM } from "@/integrations/Core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,7 @@ export default function NovoProjeto() {
   const [todosOsKits, setTodosOsKits] = useState([]); // Todos os kits recebidos da API
   const [kitsFiltrados, setKitsFiltrados] = useState([]); // Kits após aplicar filtros locais
   const [kitSelecionado, setKitSelecionado] = useState(null);
+  const [kitSelecionadoJson, setKitSelecionadoJson] = useState(null); // JSON completo do kit
   const [filtrosDisponiveis, setFiltrosDisponiveis] = useState({
     marcasPaineis: [],
     marcasInversores: [],
@@ -99,8 +100,20 @@ export default function NovoProjeto() {
   // Calcula custos em tempo real quando os dados do formulário mudam
   useEffect(() => {
     const calculateCosts = async () => {
+      console.log('🔄 useEffect calculateCosts executado');
+      console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
+      console.log('  - formData completo:', formData);
+      
       if (formData.potencia_kw && formData.potencia_kw > 0) {
-        await calculateRealTimeCosts(formData);
+        console.log('✅ Potência válida, chamando calculateRealTimeCosts...');
+        try {
+          const resultado = await calculateRealTimeCosts(formData);
+          console.log('📊 Resultado do calculateRealTimeCosts:', resultado);
+        } catch (error) {
+          console.error('❌ Erro no calculateRealTimeCosts:', error);
+        }
+      } else {
+        console.log('❌ Potência inválida ou não definida');
       }
     };
 
@@ -387,17 +400,37 @@ export default function NovoProjeto() {
       setFiltrosDisponiveis(filtros);
       
       console.log('📋 Filtros recebidos:', filtros);
+      console.log('📊 Potências de painéis nos filtros:', filtros.potenciasPaineis);
       
       // Calcula a potência se ainda não foi calculada
-      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade);
+      const margemAdicional = {
+        percentual: parseFloat(formData.margem_adicional_percentual) || 0,
+        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+      };
+      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade, margemAdicional);
       
-      // Garante potência mínima de 3kW para evitar erro na API
+      console.log('🔍 Debug da potência:');
+      console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
+      console.log('  - potenciaCalculada:', potenciaCalculada, typeof potenciaCalculada);
+      console.log('  - Consumo mensal:', formData.consumo_mensal_kwh);
+      console.log('  - Cidade:', formData.cidade);
+      console.log('  - Margem adicional:', margemAdicional);
+      
+      // Força recálculo se potenciaCalculada for muito baixa
+      if (potenciaCalculada < 1.0) {
+        console.warn('⚠️ Potência muito baixa, forçando recálculo...');
+        potenciaCalculada = await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade, margemAdicional);
+        console.log('🔍 Potência recalculada:', potenciaCalculada);
+      }
+      
+      // Garante potência válida para evitar erro na API
       if (!potenciaCalculada || potenciaCalculada <= 0) {
-        potenciaCalculada = 3.0;
-        console.log('⚠️ Potência inválida, usando padrão de 3kW');
+        potenciaCalculada = 1.0; // Potência mínima reduzida para 1kW
+        console.log('⚠️ Potência inválida, usando padrão de 1kW');
       }
 
       // Prepara dados base para montagem dos kits
+      console.log('🔢 Potência calculada para dadosBase:', potenciaCalculada, typeof potenciaCalculada);
       const dadosBase = {
         potencia_kw: potenciaCalculada,
         tipo_telhado: formData.tipo_telhado || 'ceramico',
@@ -465,12 +498,15 @@ export default function NovoProjeto() {
           
           for (const tipoInv of tiposInversor) {
             console.log(`🔍 Preparando requisição para ${potenciaPainel}W + tipo ${tipoInv}...`);
+            console.log(`📊 Valor original da potência:`, potenciaPainel, typeof potenciaPainel);
             
             const dadosComFiltros = {
               ...dadosBase,
-              potenciaPainel: potenciaPainel.toString(),
+              potenciaPainel: parseFloat(potenciaPainel),
               tipoInv: tipoInv.toString()
             };
+            
+            console.log(`📤 Dados enviados para API:`, dadosComFiltros);
             
             requisicoes.push(
               solaryumApi.montarKitCustomizado(dadosComFiltros)
@@ -508,9 +544,36 @@ export default function NovoProjeto() {
         
         // Processa cada kit como uma opção completa
         todosOsKits.forEach((kit, index) => {
+          // Função para gerar o título do kit no novo formato
+          const gerarTituloKit = (composicao) => {
+            if (!composicao || !Array.isArray(composicao)) return `Kit Solar ${kit.potencia}kWp`;
+            
+            let marcaPainel = '';
+            let marcaInversor = '';
+            
+            composicao.forEach(componente => {
+              if (componente.agrupamento === 'Painel') {
+                marcaPainel = componente.marca || 'N/A';
+              }
+              if (componente.agrupamento === 'Inversor') {
+                marcaInversor = componente.marca || 'N/A';
+              }
+            });
+            
+            if (marcaPainel && marcaInversor) {
+              return `Kit Solar ${kit.potencia}kWp: ${marcaPainel} - ${marcaInversor}`;
+            } else if (marcaPainel) {
+              return `Kit Solar ${kit.potencia}kWp: ${marcaPainel}`;
+            } else if (marcaInversor) {
+              return `Kit Solar ${kit.potencia}kWp: ${marcaInversor}`;
+            }
+            
+            return `Kit Solar ${kit.potencia}kWp`;
+          };
+
           const kitProcessado = {
             id: kit.idProduto || `kit-${index}`,
-            nome: `Kit Solar ${kit.potencia}kW`,
+            nome: gerarTituloKit(kit.composicao),
             potencia: kit.potencia || 0,
             area: kit.area || 0,
             precoTotal: kit.precoVenda || 0,
@@ -690,8 +753,14 @@ export default function NovoProjeto() {
       console.log('formData atual:', formData);
       
       // Calcula a potência se ainda não foi calculada
-      const potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade);
-      console.log('Potência calculada:', potenciaCalculada);
+      const margemAdicional = {
+        percentual: parseFloat(formData.margem_adicional_percentual) || 0,
+        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+      };
+      const potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade, margemAdicional);
+      console.log('🔍 Debug calculateRealTimeCosts:');
+      console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
+      console.log('  - potenciaCalculada:', potenciaCalculada, typeof potenciaCalculada);
       
       // Atualiza a potência no formData
       if (!formData.potencia_kw) {
@@ -745,13 +814,22 @@ export default function NovoProjeto() {
     const consumoMensal = parseFloat(formData.consumo_mensal_kwh) || 0;
       const cidade = formData.cidade || 'São José dos Campos';
       
-      // Só calcula se há consumo válido e se a potência ainda não foi calculada
-      if (consumoMensal > 0 && !formData.potencia_kw) {
+      // Calcula sempre que houver consumo válido
+      if (consumoMensal > 0) {
         try {
           console.log('🔄 Calculando potência automaticamente...');
-          const potenciaCalculada = await calcularPotenciaSistema(consumoMensal, cidade);
+          const margemAdicional = {
+            percentual: parseFloat(formData.margem_adicional_percentual) || 0,
+            kwh: parseFloat(formData.margem_adicional_kwh) || 0
+          };
+          const potenciaCalculada = await calcularPotenciaSistema(consumoMensal, cidade, margemAdicional);
+          console.log('🔄 Potência calculada automaticamente:', potenciaCalculada, typeof potenciaCalculada);
+          console.log('🔄 Valor atual do formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
       if (potenciaCalculada !== formData.potencia_kw) {
+        console.log('🔄 Atualizando formData.potencia_kw de', formData.potencia_kw, 'para', potenciaCalculada);
         handleChange("potencia_kw", potenciaCalculada);
+      } else {
+        console.log('🔄 Potência já está atualizada, não precisa alterar');
       }
         } catch (error) {
           console.error('❌ Erro ao calcular potência automaticamente:', error);
@@ -763,7 +841,19 @@ export default function NovoProjeto() {
     const timeoutId = setTimeout(calcularPotenciaAutomatica, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [formData.consumo_mensal_kwh, formData.cidade]);
+  }, [formData.consumo_mensal_kwh, formData.cidade, formData.margem_adicional_percentual, formData.margem_adicional_kwh]);
+
+  // Monitora mudanças no JSON do kit selecionado
+  useEffect(() => {
+    if (kitSelecionadoJson) {
+      console.log('💾 JSON do kit selecionado foi salvo:', kitSelecionadoJson);
+    }
+  }, [kitSelecionadoJson]);
+
+  // Monitora mudanças nas quantidades calculadas
+  useEffect(() => {
+    console.log('🔄 quantidadesCalculadas mudou:', quantidadesCalculadas);
+  }, [quantidadesCalculadas]);
 
   // Calcula quantidades automaticamente quando os dados mudam
   useEffect(() => {
@@ -826,7 +916,11 @@ export default function NovoProjeto() {
     
     // Só calcula nova potência se não houver uma já definida
     if (!potenciaKw || potenciaKw <= 0) {
-      potenciaKw = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade) || 3.0;
+      const margemAdicional = {
+        percentual: parseFloat(formData.margem_adicional_percentual) || 0,
+        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+      };
+      potenciaKw = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional) || 1.0;
     }
     
     console.log('Calculando quantidades para potência:', potenciaKw, 'kW');
@@ -857,8 +951,82 @@ export default function NovoProjeto() {
     return quantidades;
   };
 
-  const calcularPotenciaSistema = async (consumoMensalKwh, cidade = 'São José dos Campos') => {
+  // Função para calcular quantidades baseadas no kit selecionado
+  const calcularQuantidadesDoKit = useCallback((kit) => {
+    console.log('🔍 calcularQuantidadesDoKit chamada com:', kit);
+    console.log('🔍 Kit completo:', JSON.stringify(kit, null, 2));
+    
+    if (!kit) {
+      console.log('❌ Kit inválido');
+      return { paineis: 0, inversores: 0, estruturas: 0, potenciaTotal: 0 };
+    }
+
+    // Tenta diferentes estruturas possíveis para os componentes
+    let componentes = kit.composicao || kit.componentes || kit.itens || [];
+    
+    if (!componentes || !Array.isArray(componentes)) {
+      console.log('❌ Componentes não encontrados ou não é array:', componentes);
+      return { paineis: 0, inversores: 0, estruturas: 0, potenciaTotal: 0 };
+    }
+
+    let paineis = 0;
+    let inversores = 0;
+    let estruturas = 0;
+
+    console.log('📋 Analisando componentes do kit:', componentes.length, 'componentes encontrados');
+    componentes.forEach((componente, index) => {
+      console.log(`  ${index + 1}. Agrupamento: "${componente.agrupamento}" | Descrição: "${componente.descricao}" | Qtd: ${componente.qtd || componente.quantidade || 0}`);
+      
+      const quantidade = componente.qtd || componente.quantidade || 0;
+      
+      if (componente.agrupamento === 'Painel') {
+        paineis += quantidade;
+        console.log(`    ✅ Adicionado ${quantidade} painéis. Total: ${paineis}`);
+      } else if (componente.agrupamento === 'Inversor') {
+        inversores += quantidade;
+        console.log(`    ✅ Adicionado ${quantidade} inversores. Total: ${inversores}`);
+      } else if (componente.agrupamento === 'Estrutura') {
+        estruturas += quantidade;
+        console.log(`    ✅ Adicionado ${quantidade} estruturas. Total: ${estruturas}`);
+      }
+    });
+
+    const resultado = {
+      paineis,
+      inversores,
+      estruturas,
+      potenciaTotal: kit.potencia || 0
+    };
+    
+    console.log('📊 Resultado final das quantidades:', resultado);
+    return resultado;
+  }, []);
+
+  const calcularPotenciaSistema = async (consumoMensalKwh, cidade = 'São José dos Campos', margemAdicional = {}) => {
     try {
+      console.log('🔢 Calculando potência do sistema...');
+      console.log('📊 Consumo mensal:', consumoMensalKwh, 'kWh');
+      console.log('📊 Cidade:', cidade);
+      console.log('📊 Margem adicional:', margemAdicional);
+      
+      if (!consumoMensalKwh || consumoMensalKwh <= 0) {
+        console.log('❌ Consumo inválido:', consumoMensalKwh);
+        return null;
+      }
+
+      // Aplica margem adicional ao consumo
+      let consumoComMargem = consumoMensalKwh;
+      if (margemAdicional.percentual && margemAdicional.percentual > 0) {
+        consumoComMargem = consumoMensalKwh * (1 + margemAdicional.percentual / 100);
+        console.log('📊 Aplicando margem percentual:', margemAdicional.percentual + '%');
+      } else if (margemAdicional.kwh && margemAdicional.kwh > 0) {
+        consumoComMargem = consumoMensalKwh + margemAdicional.kwh;
+        console.log('📊 Aplicando margem em kWh:', margemAdicional.kwh + ' kWh/mês');
+      }
+      
+      console.log('📊 Consumo com margem:', consumoComMargem, 'kWh/mês');
+      console.log('📊 Consumo original:', consumoMensalKwh, 'kWh/mês');
+
       // Busca dados reais de irradiância da cidade
       const irradianciaData = await getIrradianciaByCity(cidade);
       
@@ -867,46 +1035,52 @@ export default function NovoProjeto() {
         // Fallback para valores padrão
         const irradianciaMedia = 5.0;
         const eficienciaSistema = 0.80;
-        const fatorCorrecao = 1.03;
-        const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
-        const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10;
+        const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha
+        const potenciaNecessariaKw = (consumoComMargem / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
+        const resultado = Math.round(potenciaNecessariaKw * 100) / 100;
         return Math.max(resultado, 3.0);
       }
       
-      // A irradiância está em Wh/m²/dia, convertemos para kWh/m²/dia
-      // Dividimos por 1000 para converter Wh para kWh
+      // A irradiância anual está em Wh/m²/dia (média diária anual)
+      // Convertemos para kWh/m²/dia dividindo por 1000
       const irradianciaDiaria = irradianciaData.annual / 1000;
     
     // Eficiência do sistema (80%)
     const eficienciaSistema = 0.80;
     
       // Fator de correção adicional (perdas do sistema)
-      const fatorCorrecao = 1.05; // 5% de perdas adicionais
+      const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha (2.92kWp)
       
       // Fórmula: (Consumo do cliente em kWh/mês)/((irradiancia da região*eficiencia de 80%)*30,4) * fatorCorrecao
-      const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaDiaria * eficienciaSistema) * 30.4)) * fatorCorrecao;
+      const potenciaNecessariaKw = (consumoComMargem / ((irradianciaDiaria * eficienciaSistema) * 30.4)) * fatorCorrecao;
+      
+      console.log('🔢 Cálculo detalhado da potência:');
+      console.log('  - Consumo com margem:', consumoComMargem, 'kWh/mês');
+      console.log('  - Irradiancia diária:', irradianciaDiaria, 'kWh/m²/dia');
+      console.log('  - Eficiência sistema:', eficienciaSistema);
+      console.log('  - Fator correção:', fatorCorrecao);
+      console.log('  - Potência necessária (antes do arredondamento):', potenciaNecessariaKw, 'kW');
     
-    const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10; // Arredonda para 1 casa decimal
+    const resultado = Math.round(potenciaNecessariaKw * 100) / 100; // Arredonda para 2 casas decimais
       console.log('🔢 Potência calculada:', resultado, 'kW');
       console.log('📊 Cidade:', cidade, '- Irradiancia anual:', irradianciaData.annual, 'kWh/m²/ano');
       console.log('📊 Irradiancia diária:', irradianciaDiaria.toFixed(2), 'kWh/m²/dia');
-      console.log('📊 Fórmula aplicada: ', consumoMensalKwh, 'kWh/mês ÷ ((', irradianciaDiaria.toFixed(2), 'kWh/m²/dia × ', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', resultado, 'kW');
-      console.log('📊 Cálculo detalhado: ', consumoMensalKwh, '÷ ((', irradianciaDiaria.toFixed(2), '×', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', consumoMensalKwh, '÷ (', (irradianciaDiaria * eficienciaSistema).toFixed(2), '× 30,4) ×', fatorCorrecao, '=', consumoMensalKwh, '÷', ((irradianciaDiaria * eficienciaSistema) * 30.4).toFixed(2), '×', fatorCorrecao, '=', potenciaNecessariaKw.toFixed(2));
+      console.log('📊 Fórmula aplicada: ', consumoComMargem, 'kWh/mês ÷ ((', irradianciaDiaria.toFixed(2), 'kWh/m²/dia × ', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', resultado, 'kW');
+      console.log('📊 Cálculo detalhado: ', consumoComMargem, '÷ ((', irradianciaDiaria.toFixed(2), '×', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', consumoComMargem, '÷ (', (irradianciaDiaria * eficienciaSistema).toFixed(2), '× 30,4) ×', fatorCorrecao, '=', consumoComMargem, '÷', ((irradianciaDiaria * eficienciaSistema) * 30.4).toFixed(2), '×', fatorCorrecao, '=', potenciaNecessariaKw.toFixed(2));
     
-    // Garantir potência mínima de 3 kW
-    const potenciaFinal = Math.max(resultado, 3.0);
-      console.log('🔢 Potência final (mínimo 3kW):', potenciaFinal, 'kW');
+    // Retorna a potência calculada sem restrição mínima
+    console.log('🔢 Potência calculada:', resultado, 'kW');
     
-    return potenciaFinal;
+    return resultado;
     } catch (error) {
       console.error('❌ Erro ao calcular potência:', error);
       // Fallback para valores padrão em caso de erro
       const irradianciaMedia = 5.0;
       const eficienciaSistema = 0.80;
-      const fatorCorrecao = 1.03;
-      const potenciaNecessariaKw = (consumoMensalKwh / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
-      const resultado = Math.ceil(potenciaNecessariaKw * 10) / 10;
-      return Math.max(resultado, 3.0);
+      const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha
+      const potenciaNecessariaKw = (consumoComMargem / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
+      const resultado = Math.round(potenciaNecessariaKw * 100) / 100;
+      return resultado;
     }
   };
 
@@ -917,6 +1091,31 @@ export default function NovoProjeto() {
     if (potenciaKwp <= 50) return 865;
     if (potenciaKwp <= 75) return 1065;
     return 1265;
+  };
+
+  // Nova função para calcular custo operacional com os valores atualizados
+  const calcularCustoOperacional = (quantidadePlacas, potenciaKwp, custoEquipamentos) => {
+    const instalacao = quantidadePlacas * 200; // R$200/placa
+    const caAterramento = quantidadePlacas * 100; // R$100/placa
+    const homologacao = calcularCustoHomologacao(potenciaKwp);
+    const placasSinalizacao = 60; // R$60/projeto
+    const despesasGerais = instalacao * 0.1; // 10% da instalação
+
+    return {
+      equipamentos: custoEquipamentos,
+      instalacao,
+      caAterramento,
+      homologacao,
+      placasSinalizacao,
+      despesasGerais,
+      total: custoEquipamentos + instalacao + caAterramento + homologacao + placasSinalizacao + despesasGerais
+    };
+  };
+
+  // Função para calcular preço de venda
+  const calcularPrecoVenda = (custoOperacional, comissaoVendedor = 5) => {
+    const margemDesejada = (25 + comissaoVendedor) / 100; // 25% + comissão
+    return custoOperacional / (1 - margemDesejada);
   };
 
   const calcularDimensionamento = async () => {
@@ -1229,7 +1428,8 @@ export default function NovoProjeto() {
                     </RadioGroup>
 
                     {tipoConsumo === "medio" && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-4 mt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Consumo Mensal (R$)</Label>
                           <Input
@@ -1250,6 +1450,110 @@ export default function NovoProjeto() {
                             placeholder="Consumo médio em kWh"
                             className="bg-white"
                           />
+                          </div>
+                        </div>
+
+                        {/* Campo de Margem Adicional */}
+                        <div className="border-t border-blue-200 pt-4">
+                          <div className="space-y-3">
+                            <Label className="text-blue-700 font-semibold">Margem Adicional</Label>
+                            <p className="text-sm text-gray-600">
+                              Adicione uma margem de segurança para crescimento futuro ou variações de consumo
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Margem em %</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    value={formData.margem_adicional_percentual || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_percentual", value);
+                                      // Limpa o campo de kWh quando % é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_kwh", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 20"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">%</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: 20% = sistema 20% maior que o consumo atual
+                                </p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>OU Margem em kWh</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    value={formData.margem_adicional_kwh || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_kwh", value);
+                                      // Limpa o campo de % quando kWh é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_percentual", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 50"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">kWh/mês</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: 50 kWh/mês = sistema gera 50 kWh/mês a mais
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Resumo da Margem */}
+                            {(() => {
+                              const consumoAtual = parseFloat(formData.consumo_mensal_kwh) || 0;
+                              const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
+                              const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+                              
+                              if (consumoAtual > 0 && (margemPercentual > 0 || margemKwh > 0)) {
+                                const consumoComMargem = margemPercentual > 0 
+                                  ? consumoAtual * (1 + margemPercentual / 100)
+                                  : consumoAtual + margemKwh;
+                                
+                                return (
+                                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                    <div className="text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Consumo atual:</span>
+                                        <span className="font-semibold">{consumoAtual.toFixed(1)} kWh/mês</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Consumo com margem:</span>
+                                        <span className="font-semibold text-blue-700">{consumoComMargem.toFixed(1)} kWh/mês</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Margem aplicada:</span>
+                                        <span className="font-semibold text-green-600">
+                                          {margemPercentual > 0 
+                                            ? `+${margemPercentual}%` 
+                                            : `+${margemKwh} kWh/mês`
+                                          }
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1473,7 +1777,33 @@ export default function NovoProjeto() {
                               ? 'border-blue-500 bg-blue-50 shadow-lg'
                               : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
                           }`}
-                          onClick={() => setKitSelecionado(kit)}
+                          onClick={() => {
+                            console.log('🔍 Kit selecionado:', kit);
+                            
+                            // Salva o JSON completo do kit para uso futuro
+                            const kitJsonCompleto = JSON.stringify(kit, null, 2);
+                            console.log('💾 Salvando JSON completo do kit:', kitJsonCompleto);
+                            setKitSelecionadoJson(kitJsonCompleto);
+                            
+                            // Salva também o objeto para uso imediato
+                            setKitSelecionado(kit);
+                            
+                            // Calcula quantidades baseadas no kit selecionado
+                            console.log('🔄 Chamando calcularQuantidadesDoKit...');
+                            const quantidades = calcularQuantidadesDoKit(kit);
+                            console.log('📊 Quantidades calculadas do kit:', quantidades);
+                            setQuantidadesCalculadas(quantidades);
+                            
+                            // Atualiza a potência baseada no kit
+                            if (kit.potencia && kit.potencia !== formData.potencia_kw) {
+                              console.log('🔄 Atualizando potência de', formData.potencia_kw, 'para', kit.potencia);
+                              handleChange("potencia_kw", kit.potencia);
+                            }
+                            
+                            console.log('📊 Quantidades finais:', quantidades);
+                            console.log('📊 Estado quantidadesCalculadas atualizado para:', quantidades);
+                            console.log('💾 JSON completo salvo em kitSelecionadoJson');
+                          }}
                         >
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
@@ -1574,7 +1904,7 @@ export default function NovoProjeto() {
 
                     {/* Botão flutuante para avançar para a aba de custos */}
                     {produtosDisponiveis.length > 0 && (
-                      <div className="fixed bottom-6 right-6 z-50">
+                      <div className="sticky bottom-6 right-6 z-50 float-right">
                         <Button 
                           onClick={() => setActiveTab('custos')}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
@@ -1666,6 +1996,61 @@ export default function NovoProjeto() {
                   });
                   return null;
                 })()}
+
+                {/* Seletor de Comissão do Vendedor */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-blue-600" />
+                      Configurações de Venda
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="comissao-vendedor">Comissão do Vendedor</Label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              id="comissao-vendedor"
+                              type="range"
+                              min="1"
+                              max="10"
+                              step="0.5"
+                              value={formData.comissao_vendedor || 5}
+                              onChange={(e) => handleChange("comissao_vendedor", parseFloat(e.target.value))}
+                              className="flex-1"
+                            />
+                            <span className="text-sm font-semibold w-12 text-center">
+                              {formData.comissao_vendedor || 5}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Margem desejada: {25 + (formData.comissao_vendedor || 5)}% (25% + comissão)
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Resumo da Margem</Label>
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <div className="flex justify-between text-sm">
+                              <span>Margem base:</span>
+                              <span className="font-semibold">25%</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Comissão vendedor:</span>
+                              <span className="font-semibold">{formData.comissao_vendedor || 5}%</span>
+                            </div>
+                            <hr className="my-1" />
+                            <div className="flex justify-between font-semibold text-blue-700">
+                              <span>Margem total:</span>
+                              <span>{25 + (formData.comissao_vendedor || 5)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
                 {costsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
@@ -1679,191 +2064,284 @@ export default function NovoProjeto() {
                       {apiAvailable ? 'Usando dados da API Solaryum' : 'Usando dados estimados'}
                     </p>
                   </div>
-                ) : costs ? (
+                ) : costs || kitSelecionado ? (
                   <div className="space-y-6">
-                    {/* Status da API */}
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        {apiAvailable ? (
-                          <>
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm text-green-700">API Solaryum conectada</span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                            <span className="text-sm text-yellow-700">Usando dados estimados</span>
-                          </>
+                    {/* Debug Info - Temporário */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <h4 className="font-semibold mb-2 text-yellow-800">Debug - Kit Selecionado:</h4>
+                      <div className="grid grid-cols-1 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Quantidades calculadas:</span>
+                          <pre className="text-xs mt-1 bg-white p-2 rounded border">{JSON.stringify(quantidadesCalculadas, null, 2)}</pre>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Kit selecionado (resumo):</span>
+                          <div className="text-xs mt-1">
+                            {kitSelecionado ? (
+                              <>
+                                <p>Nome: {kitSelecionado.nome}</p>
+                                <p>Potência: {kitSelecionado.potencia}kW</p>
+                                <p>Preço: {formatCurrency(kitSelecionado.precoTotal)}</p>
+                                <p>Componentes: {kitSelecionado.composicao?.length || kitSelecionado.componentes?.length || kitSelecionado.itens?.length || 0}</p>
+                              </>
+                            ) : (
+                              <p>Nenhum kit selecionado</p>
+                            )}
+                          </div>
+                        </div>
+                        {kitSelecionadoJson && (
+                          <div>
+                            <span className="text-gray-600">JSON completo do kit:</span>
+                            <pre className="text-xs mt-1 bg-white p-2 rounded border max-h-40 overflow-y-auto">{kitSelecionadoJson}</pre>
+                          </div>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Potência: {formData.potencia_kw || 0} kW
-                      </div>
                     </div>
-
-                    {/* Resumo de Custos */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Card className="border-green-200 bg-green-50">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                            Custos do Projeto
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Equipamentos:</span>
-                            <span className="font-semibold">{formatCurrency(costs.total.equipamentos)}</span>
+                    
+                    {/* Informação do Kit Selecionado */}
+                    {kitSelecionado && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Check className="w-5 h-5 text-blue-600" />
+                          <h4 className="font-semibold text-blue-800">Kit Selecionado</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Nome:</span>
+                            <span className="font-semibold ml-2">{kitSelecionado.nome}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Instalação:</span>
-                            <span className="font-semibold">{formatCurrency(costs.total.instalacao)}</span>
+                          <div>
+                            <span className="text-gray-600">Potência:</span>
+                            <span className="font-semibold ml-2">{kitSelecionado.potencia}kW</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Subtotal:</span>
-                            <span className="font-semibold">{formatCurrency(costs.total.subtotal)}</span>
+                          <div>
+                            <span className="text-gray-600">Preço:</span>
+                            <span className="font-semibold ml-2 text-green-600">{formatCurrency(kitSelecionado.precoTotal)}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Impostos (18%):</span>
-                            <span className="font-semibold">{formatCurrency(costs.total.impostos)}</span>
-                          </div>
-                          <hr className="border-gray-300" />
-                          <div className="flex justify-between text-lg font-bold text-green-700">
-                            <span>Total:</span>
-                            <span>{formatCurrency(costs.total.total)}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="border-blue-200 bg-blue-50">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5 text-blue-600" />
-                            Economia Estimada
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Definição de Valores */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-green-600">💰</span>
+                          Definição de Valores
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
                           {(() => {
-                            const savings = calculateMonthlySavings(costs.total.total, parseFloat(formData.consumo_mensal_kwh) || 0);
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || 0;
+                            // Usa preço do kit selecionado se disponível, senão usa da API
+                            const custoEquipamentos = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            
                             return (
                               <>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Economia Mensal:</span>
-                                  <span className="font-semibold text-green-600">{formatCurrency(savings?.economiaMensal || 0)}</span>
+                                <div className="grid grid-cols-4 gap-4 text-sm font-semibold border-b pb-2">
+                                  <div>Produto/Serviço</div>
+                                  <div className="text-right">Custo Unitário</div>
+                                  <div className="text-right">Quantidade</div>
+                                  <div className="text-right">Custo Total</div>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Economia Anual:</span>
-                                  <span className="font-semibold text-green-600">{formatCurrency(savings?.economiaAnual || 0)}</span>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Equipamentos</div>
+                                  <div className="text-right">{formatCurrency(custoEquipamentos)}</div>
+                                  <div className="text-right">1,00</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoEquipamentos)}</div>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Payback:</span>
-                                  <span className="font-semibold">{(savings?.paybackAnos || 0).toFixed(1)} anos</span>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Instalação</div>
+                                  <div className="text-right">R$ 200,00</div>
+                                  <div className="text-right">{quantidadePlacas},00</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.instalacao)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>CA e Aterramento</div>
+                                  <div className="text-right">R$ 100,00</div>
+                                  <div className="text-right">{quantidadePlacas},00</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.caAterramento)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Homologação</div>
+                                  <div className="text-right">{formatCurrency(custoOp.homologacao)}</div>
+                                  <div className="text-right">1,00</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.homologacao)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Placas Sinalização</div>
+                                  <div className="text-right">R$ 20,00</div>
+                                  <div className="text-right">3,00</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.placasSinalizacao)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Despesas gerais instalação</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.despesasGerais)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm font-bold text-green-600 border-t pt-2">
+                                  <div>Custo Operacional</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right">{formatCurrency(custoOp.total)}</div>
                                 </div>
                               </>
                             );
                           })()}
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Detalhamento de Equipamentos */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Detalhamento de Equipamentos</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Painéis Solares</h4>
-                            <div className="text-sm text-gray-600">
-                              <p>Quantidade: {costs.equipamentos.paineis?.quantidade || 0}</p>
-                              <p>Preço unitário: {formatCurrency(costs.equipamentos.paineis?.preco_unitario || 0)}</p>
-                              <p className="font-semibold">Total: {formatCurrency(costs.equipamentos.paineis?.total || 0)}</p>
-                              {costs.equipamentos.paineis?.produto && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                  {costs.equipamentos.paineis.produto.descricao} - {costs.equipamentos.paineis.produto.modelo}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Inversores</h4>
-                            <div className="text-sm text-gray-600">
-                              <p>Quantidade: {costs.equipamentos.inversores?.quantidade || 0}</p>
-                              <p>Preço unitário: {formatCurrency(costs.equipamentos.inversores?.preco_unitario || 0)}</p>
-                              <p className="font-semibold">Total: {formatCurrency(costs.equipamentos.inversores?.total || 0)}</p>
-                              {costs.equipamentos.inversores?.produto && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                  {costs.equipamentos.inversores.produto.descricao} - {costs.equipamentos.inversores.produto.modelo}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Estruturas</h4>
-                            <div className="text-sm text-gray-600">
-                              <p>Quantidade: {costs.equipamentos.estruturas?.quantidade || 0}</p>
-                              <p>Preço unitário: {formatCurrency(costs.equipamentos.estruturas?.preco_unitario || 0)}</p>
-                              <p className="font-semibold">Total: {formatCurrency(costs.equipamentos.estruturas?.total || 0)}</p>
-                              {costs.equipamentos.estruturas?.produto && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                  {costs.equipamentos.estruturas.produto.descricao} - {costs.equipamentos.estruturas.produto.modelo}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Outros Equipamentos</h4>
-                            <div className="text-sm text-gray-600">
-                              <p className="font-semibold">Total: {formatCurrency(costs.equipamentos.outros?.total || 0)}</p>
-                              {costs.equipamentos.outros?.produtos && costs.equipamentos.outros.produtos.length > 0 && (
-                                <div className="mt-2 space-y-1">
-                                  {costs.equipamentos.outros.produtos.map((produto, index) => (
-                                    <p key={index} className="text-xs text-blue-600">
-                                      {produto.descricao} - {formatCurrency(produto.precoVenda)}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       </CardContent>
                     </Card>
 
-                    {/* Detalhamento de Instalação */}
+                    {/* Performance - DRE do Projeto */}
                     <Card>
                       <CardHeader>
-                        <CardTitle>Detalhamento de Instalação</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-blue-600">📊</span>
+                          Performance - DRE do Projeto
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Mão de Obra</h4>
-                            <div className="text-sm text-gray-600">
-                              <p>Dias: {costs.instalacao.mao_obra?.dias || 0}</p>
-                              <p>Valor por dia: {formatCurrency(costs.instalacao.mao_obra?.valor_dia || 0)}</p>
-                              <p className="font-semibold">Total: {formatCurrency(costs.instalacao.mao_obra?.total || 0)}</p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Equipamentos de Instalação</h4>
-                            <div className="text-sm text-gray-600">
-                              <p className="font-semibold">Total: {formatCurrency(costs.instalacao.equipamentos_instalacao?.total || 0)}</p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Transporte</h4>
-                            <div className="text-sm text-gray-600">
-                              <p className="font-semibold">Total: {formatCurrency(costs.instalacao.transporte?.total || 0)}</p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">Outros</h4>
-                            <div className="text-sm text-gray-600">
-                              <p className="font-semibold">Total: {formatCurrency(costs.instalacao.outros?.total || 0)}</p>
-                            </div>
-                          </div>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {(() => {
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || 0;
+                            // Usa preço do kit selecionado se disponível, senão usa da API
+                            const custoEquipamentos = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            const comissaoVendedor = formData.comissao_vendedor || 5;
+                            const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
+                            
+                            // Cálculos baseados no Excel
+                            const kitFotovoltaico = custoEquipamentos;
+                            const comissao = precoVenda * (comissaoVendedor / 100);
+                            const recebido = precoVenda - kitFotovoltaico - comissao;
+                            const despesasObra = custoOp.instalacao + custoOp.caAterramento + custoOp.despesasGerais;
+                            const despesasDiretoria = precoVenda * 0.01; // 1%
+                            const impostos = precoVenda * 0.033; // 3.3%
+                            const lldi = recebido - despesasObra - despesasDiretoria - impostos;
+                            const divisaoLucro = lldi * 0.4; // 40%
+                            const fundoCaixa = lldi * 0.2; // 20%
+                            
+                            return (
+                              <>
+                                <div className="grid grid-cols-3 gap-4 text-sm font-semibold border-b pb-2">
+                                  <div>Descrição</div>
+                                  <div className="text-right">Valor</div>
+                                  <div className="text-right">%</div>
+                      </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Preço de venda</div>
+                                  <div className="text-right font-semibold text-green-600">{formatCurrency(precoVenda)}</div>
+                                  <div className="text-right font-semibold">100,0%</div>
+                      </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Kit Fotovoltaico</div>
+                                  <div className="text-right">{formatCurrency(kitFotovoltaico)}</div>
+                                  <div className="text-right">{((kitFotovoltaico / precoVenda) * 100).toFixed(1)}%</div>
+                    </div>
+
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Comissão</div>
+                                  <div className="text-right">{formatCurrency(comissao)}</div>
+                                  <div className="text-right">{((comissao / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Recebido</div>
+                                  <div className="text-right">{formatCurrency(recebido)}</div>
+                                  <div className="text-right">{((recebido / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Despesas Obra</div>
+                                  <div className="text-right">{formatCurrency(despesasObra)}</div>
+                                  <div className="text-right">{((despesasObra / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Despesas Diretoria</div>
+                                  <div className="text-right">{formatCurrency(despesasDiretoria)}</div>
+                                  <div className="text-right">{((despesasDiretoria / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Impostos</div>
+                                  <div className="text-right">{formatCurrency(impostos)}</div>
+                                  <div className="text-right">{((impostos / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm font-bold text-blue-600 border-t pt-2">
+                                  <div>LLDI</div>
+                                  <div className="text-right">{formatCurrency(lldi)}</div>
+                                  <div className="text-right">{((lldi / precoVenda) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Divisão de Lucro</div>
+                                  <div className="text-right">{formatCurrency(divisaoLucro)}</div>
+                                  <div className="text-right">-</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 text-sm py-1">
+                                  <div>Fundo Caixa</div>
+                                  <div className="text-right">{formatCurrency(fundoCaixa)}</div>
+                                  <div className="text-right">-</div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Parâmetros */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-purple-600">⚙️</span>
+                          Parâmetros
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {(() => {
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || 0;
+                            // Usa preço do kit selecionado se disponível, senão usa da API
+                            const custoEquipamentos = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            const comissaoVendedor = formData.comissao_vendedor || 5;
+                            const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
+                            
+                            const rPorKwp = precoVenda / potenciaKwp;
+                            const rPorPlaca = precoVenda / quantidadePlacas;
+                            
+                            return (
+                              <>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">R$/kWp:</div>
+                                  <div className="text-right font-semibold">{formatCurrency(rPorKwp)}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">R$/Placa:</div>
+                                  <div className="text-right font-semibold">{formatCurrency(rPorPlaca)}</div>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </CardContent>
                     </Card>
@@ -1920,31 +2398,50 @@ export default function NovoProjeto() {
                         <CardHeader className="pb-3">
                           <CardTitle className="text-lg flex items-center gap-2">
                             <DollarSign className="w-5 h-5 text-green-600" />
-                            Custos do Projeto
+                            Custo Operacional
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
+                          {(() => {
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || 0;
+                            const custoEquipamentos = kitSelecionado.precoTotal || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            
+                            return (
+                              <>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Equipamentos:</span>
-                            <span className="font-semibold">{formatCurrency(kitSelecionado.precoTotal)}</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.equipamentos)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Instalação:</span>
-                            <span className="font-semibold">{formatCurrency(kitSelecionado.precoTotal * 0.15)}</span>
+                                  <span className="text-gray-600">Instalação (R$200/placa):</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.instalacao)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Subtotal:</span>
-                            <span className="font-semibold">{formatCurrency(kitSelecionado.precoTotal * 1.15)}</span>
+                                  <span className="text-gray-600">CA e Aterramento (R$100/placa):</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.caAterramento)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Impostos (18%):</span>
-                            <span className="font-semibold">{formatCurrency(kitSelecionado.precoTotal * 1.15 * 0.18)}</span>
+                                  <span className="text-gray-600">Homologação:</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.homologacao)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Placas de Sinalização:</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.placasSinalizacao)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Despesas Gerais (10%):</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.despesasGerais)}</span>
                           </div>
                           <hr className="border-gray-300" />
                           <div className="flex justify-between text-lg font-bold text-green-700">
-                            <span>Total:</span>
-                            <span>{formatCurrency(kitSelecionado.precoTotal * 1.15 * 1.18)}</span>
+                                  <span>Custo Operacional:</span>
+                                  <span>{formatCurrency(custoOp.total)}</span>
                           </div>
+                              </>
+                            );
+                          })()}
                         </CardContent>
                       </Card>
 
@@ -1952,20 +2449,47 @@ export default function NovoProjeto() {
                         <CardHeader className="pb-3">
                           <CardTitle className="text-lg flex items-center gap-2">
                             <TrendingUp className="w-5 h-5 text-blue-600" />
-                            Economia Estimada
+                            Preço de Venda
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {(() => {
-                            const totalProjeto = kitSelecionado.precoTotal * 1.15 * 1.18;
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || 0;
+                            const custoEquipamentos = kitSelecionado.precoTotal || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            const comissaoVendedor = formData.comissao_vendedor || 5;
+                            const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
+                            const margemDesejada = 25 + comissaoVendedor;
                             const consumoMensal = parseFloat(formData.consumo_mensal_kwh) || 0;
                             const tarifaKwh = 0.75; // Tarifa média
                             const economiaMensal = consumoMensal * tarifaKwh * 0.95;
                             const economiaAnual = economiaMensal * 12;
-                            const paybackAnos = totalProjeto / economiaAnual;
+                            const paybackAnos = precoVenda / economiaAnual;
                             
                             return (
                               <>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo Operacional:</span>
+                                  <span className="font-semibold">{formatCurrency(custoOp.total)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Margem Desejada:</span>
+                                  <span className="font-semibold">{margemDesejada}%</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Comissão Vendedor:</span>
+                                  <span className="font-semibold">{comissaoVendedor}%</span>
+                                </div>
+                                <hr className="border-gray-300" />
+                                <div className="flex justify-between text-lg font-bold text-blue-700">
+                                  <span>Preço de Venda:</span>
+                                  <span>{formatCurrency(precoVenda)}</span>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-2">
+                                  Fórmula: Custo Operacional ÷ (1 - {margemDesejada/100})
+                                </div>
+                                <hr className="border-gray-300 mt-3" />
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Economia Mensal:</span>
                                   <span className="font-semibold text-green-600">{formatCurrency(economiaMensal)}</span>
@@ -2022,6 +2546,18 @@ export default function NovoProjeto() {
                   <div className="text-center py-8">
                     <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">Preencha os dados básicos para calcular os custos</p>
+                  </div>
+                )}
+
+                {/* Botão flutuante para avançar para a aba de resultados */}
+                {(costs || kitSelecionado) && (
+                  <div className="sticky bottom-6 right-6 z-50 float-right">
+                    <Button 
+                      onClick={() => setActiveTab('resultados')}
+                      className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
+                    >
+                      Avançar para Resultados
+                    </Button>
                   </div>
                 )}
               </TabsContent>
