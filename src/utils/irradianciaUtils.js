@@ -12,12 +12,18 @@ let irradianciaData = null;
  */
 export async function loadIrradianciaData() {
   if (irradianciaData) {
+    console.log('📊 Usando dados de irradiância do cache');
     return irradianciaData;
   }
 
   try {
+    console.log('📊 Carregando dados de irradiância do CSV...');
     const response = await fetch('/src/data/irradiancia.csv');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const csvText = await response.text();
+    console.log('📊 CSV carregado com sucesso, tamanho:', csvText.length, 'caracteres');
     
     const lines = csvText.split('\n');
     const headers = lines[0].split(';');
@@ -64,21 +70,49 @@ export async function loadIrradianciaData() {
  * @returns {Promise<Object|null>} Dados de irradiância da cidade ou null se não encontrada
  */
 export async function getIrradianciaByCity(cityName) {
+  console.log('🔍 Buscando irradiância para cidade:', cityName);
   const data = await loadIrradianciaData();
+  
+  if (!data || data.length === 0) {
+    console.log('❌ Nenhum dado de irradiância carregado');
+    return null;
+  }
+  
+  console.log('📊 Total de cidades carregadas:', data.length);
   
   // Busca exata primeiro
   let city = data.find(item => 
     item.name.toLowerCase() === cityName.toLowerCase()
   );
   
-  // Se não encontrar, busca parcial
-  if (!city) {
-    city = data.find(item => 
-      item.name.toLowerCase().includes(cityName.toLowerCase())
-    );
+  if (city) {
+    console.log('✅ Cidade encontrada (busca exata):', city.name, 'Irradiância:', city.annual);
+    return city;
   }
   
-  return city || null;
+  // Se não encontrar, busca parcial
+  city = data.find(item => 
+    item.name.toLowerCase().includes(cityName.toLowerCase())
+  );
+  
+  if (city) {
+    console.log('✅ Cidade encontrada (busca parcial):', city.name, 'Irradiância:', city.annual);
+    return city;
+  }
+  
+  // Fallback: usar São José dos Campos como padrão
+  console.log('⚠️ Cidade não encontrada, usando São José dos Campos como fallback');
+  const fallbackCity = data.find(item => 
+    item.name.toLowerCase().includes('são josé dos campos')
+  );
+  
+  if (fallbackCity) {
+    console.log('✅ Fallback encontrado:', fallbackCity.name, 'Irradiância:', fallbackCity.annual);
+    return fallbackCity;
+  }
+  
+  console.log('❌ Nenhuma cidade encontrada, nem fallback');
+  return null;
 }
 
 /**

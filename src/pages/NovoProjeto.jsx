@@ -69,7 +69,10 @@ export default function NovoProjeto() {
   const [todosOsKits, setTodosOsKits] = useState([]); // Todos os kits recebidos da API
   const [kitsFiltrados, setKitsFiltrados] = useState([]); // Kits após aplicar filtros locais
   const [kitSelecionado, setKitSelecionado] = useState(null);
-  const [kitSelecionadoJson, setKitSelecionadoJson] = useState(null); // JSON completo do kit
+  const [kitSelecionadoJson, setKitSelecionadoJson] = useState(null);
+  const [selecionandoKit, setSelecionandoKit] = useState(false);
+  const [projecoesFinanceiras, setProjecoesFinanceiras] = useState(null);
+  const [irradianciaData, setIrradianciaData] = useState(null); // JSON completo do kit
   const [filtrosDisponiveis, setFiltrosDisponiveis] = useState({
     marcasPaineis: [],
     marcasInversores: [],
@@ -863,14 +866,25 @@ export default function NovoProjeto() {
       const consumoReais = parseFloat(formData.consumo_mensal_reais) || 0;
       const potenciaKw = parseFloat(formData.potencia_kw) || 0;
       
-      if ((consumoKwh > 0 || consumoReais > 0) && potenciaKw > 0) {
+      console.log('🔄 Verificando se deve calcular quantidades automaticamente:', {
+        consumoKwh,
+        consumoReais,
+        potenciaKw,
+        kitSelecionado: !!kitSelecionado,
+        quantidadesAtuais: quantidadesCalculadas
+      });
+      
+      if ((consumoKwh > 0 || consumoReais > 0) && potenciaKw > 0 && !kitSelecionado) {
         try {
           console.log('🔄 Calculando quantidades automaticamente...');
           const quantidades = await calcularQuantidades();
+          console.log('📊 Quantidades calculadas automaticamente:', quantidades);
           setQuantidadesCalculadas(quantidades);
         } catch (error) {
           console.error('❌ Erro ao calcular quantidades automaticamente:', error);
         }
+      } else if (kitSelecionado) {
+        console.log('⚠️ Kit selecionado, mantendo quantidades do kit:', quantidadesCalculadas);
       }
     };
 
@@ -878,7 +892,7 @@ export default function NovoProjeto() {
     const timeoutId = setTimeout(calcularQuantidadesAutomaticas, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.potencia_kw, formData.cidade]);
+  }, [formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.potencia_kw, formData.cidade, kitSelecionado]);
 
   // Verifica se algum tipo de consumo foi preenchido
   const temConsumoPreenchido = () => {
@@ -892,6 +906,12 @@ export default function NovoProjeto() {
 
   // Função auxiliar para calcular quantidades de forma robusta
   const calcularQuantidades = async () => {
+    // Se já há um kit selecionado, não recalcular quantidades automaticamente
+    if (kitSelecionado) {
+      console.log('⚠️ Kit já selecionado, não recalculando quantidades automaticamente');
+      return quantidadesCalculadas;
+    }
+
     // Tenta obter consumo de diferentes campos
     const consumoKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
     const consumoReais = parseFloat(formData.consumo_mensal_reais) || 0;
@@ -913,6 +933,12 @@ export default function NovoProjeto() {
     
     // Usa a potência já calculada ou calcula uma nova se necessário
     let potenciaKw = formData.potencia_kw;
+    
+    // Garantir potência mínima para a API (2kW)
+    if (potenciaKw < 2.0) {
+      console.log('⚠️ Potência muito baixa para API, ajustando para 2kW');
+      potenciaKw = 2.0;
+    }
     
     // Só calcula nova potência se não houver uma já definida
     if (!potenciaKw || potenciaKw <= 0) {
@@ -955,7 +981,7 @@ export default function NovoProjeto() {
   const calcularQuantidadesDoKit = useCallback((kit) => {
     console.log('🔍 calcularQuantidadesDoKit chamada com:', kit);
     console.log('🔍 Kit completo:', JSON.stringify(kit, null, 2));
-    
+
     if (!kit) {
       console.log('❌ Kit inválido');
       return { paineis: 0, inversores: 0, estruturas: 0, potenciaTotal: 0 };
@@ -963,7 +989,7 @@ export default function NovoProjeto() {
 
     // Tenta diferentes estruturas possíveis para os componentes
     let componentes = kit.composicao || kit.componentes || kit.itens || [];
-    
+
     if (!componentes || !Array.isArray(componentes)) {
       console.log('❌ Componentes não encontrados ou não é array:', componentes);
       return { paineis: 0, inversores: 0, estruturas: 0, potenciaTotal: 0 };
@@ -976,9 +1002,9 @@ export default function NovoProjeto() {
     console.log('📋 Analisando componentes do kit:', componentes.length, 'componentes encontrados');
     componentes.forEach((componente, index) => {
       console.log(`  ${index + 1}. Agrupamento: "${componente.agrupamento}" | Descrição: "${componente.descricao}" | Qtd: ${componente.qtd || componente.quantidade || 0}`);
-      
+
       const quantidade = componente.qtd || componente.quantidade || 0;
-      
+
       if (componente.agrupamento === 'Painel') {
         paineis += quantidade;
         console.log(`    ✅ Adicionado ${quantidade} painéis. Total: ${paineis}`);
@@ -997,10 +1023,54 @@ export default function NovoProjeto() {
       estruturas,
       potenciaTotal: kit.potencia || 0
     };
-    
+
     console.log('📊 Resultado final das quantidades:', resultado);
     return resultado;
   }, []);
+
+  // Função para selecionar kit de forma robusta
+  const selecionarKit = useCallback(async (kit) => {
+    console.log('🔍 Selecionando kit:', kit.id, kit.nome);
+    
+    // Evitar múltiplas seleções simultâneas
+    if (selecionandoKit) {
+      console.log('⚠️ Já selecionando um kit, ignorando...');
+      return;
+    }
+    
+    setSelecionandoKit(true);
+    
+    try {
+      // Salva o JSON completo do kit para uso futuro
+      const kitJsonCompleto = JSON.stringify(kit, null, 2);
+      setKitSelecionadoJson(kitJsonCompleto);
+      
+      // Calcula quantidades imediatamente
+      const quantidades = calcularQuantidadesDoKit(kit);
+      console.log('📊 Quantidades calculadas:', quantidades);
+      
+      // Atualiza todos os estados de uma vez usando função de atualização
+      setKitSelecionado(kit);
+      setQuantidadesCalculadas(quantidades);
+      
+      // Atualiza a potência baseada no kit
+      if (kit.potencia && kit.potencia !== formData.potencia_kw) {
+        console.log('🔄 Atualizando potência de', formData.potencia_kw, 'para', kit.potencia);
+        handleChange("potencia_kw", kit.potencia);
+      }
+      
+      console.log('✅ Kit selecionado com sucesso!');
+      
+      // Pequeno delay para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (error) {
+      console.error('❌ Erro ao selecionar kit:', error);
+    } finally {
+      setSelecionandoKit(false);
+    }
+  }, [calcularQuantidadesDoKit, formData.potencia_kw, handleChange, selecionandoKit]);
+
 
   const calcularPotenciaSistema = async (consumoMensalKwh, cidade = 'São José dos Campos', margemAdicional = {}) => {
     try {
@@ -1028,9 +1098,9 @@ export default function NovoProjeto() {
       console.log('📊 Consumo original:', consumoMensalKwh, 'kWh/mês');
 
       // Busca dados reais de irradiância da cidade
-      const irradianciaData = await getIrradianciaByCity(cidade);
+      const irradianciaDataLocal = await getIrradianciaByCity(cidade);
       
-      if (!irradianciaData) {
+      if (!irradianciaDataLocal) {
         console.warn('⚠️ Cidade não encontrada nos dados de irradiância:', cidade);
         // Fallback para valores padrão
         const irradianciaMedia = 5.0;
@@ -1038,16 +1108,19 @@ export default function NovoProjeto() {
         const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha
         const potenciaNecessariaKw = (consumoComMargem / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
         const resultado = Math.round(potenciaNecessariaKw * 100) / 100;
-        return Math.max(resultado, 3.0);
+        return Math.max(resultado, 1.0);
       }
+      
+      // Salvar dados de irradiância no estado para uso posterior
+      setIrradianciaData(irradianciaDataLocal);
       
       // A irradiância anual está em Wh/m²/dia (média diária anual)
       // Convertemos para kWh/m²/dia dividindo por 1000
-      const irradianciaDiaria = irradianciaData.annual / 1000;
+      const irradianciaDiaria = irradianciaDataLocal.annual / 1000;
     
-    // Eficiência do sistema (80%)
-    const eficienciaSistema = 0.80;
-    
+      // Eficiência do sistema (80%)
+      const eficienciaSistema = 0.80;
+      
       // Fator de correção adicional (perdas do sistema)
       const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha (2.92kWp)
       
@@ -1061,26 +1134,19 @@ export default function NovoProjeto() {
       console.log('  - Fator correção:', fatorCorrecao);
       console.log('  - Potência necessária (antes do arredondamento):', potenciaNecessariaKw, 'kW');
     
-    const resultado = Math.round(potenciaNecessariaKw * 100) / 100; // Arredonda para 2 casas decimais
+      const resultado = Math.round(potenciaNecessariaKw * 100) / 100; // Arredonda para 2 casas decimais
       console.log('🔢 Potência calculada:', resultado, 'kW');
-      console.log('📊 Cidade:', cidade, '- Irradiancia anual:', irradianciaData.annual, 'kWh/m²/ano');
+      console.log('📊 Cidade:', cidade, '- Irradiancia anual:', irradianciaDataLocal.annual, 'kWh/m²/ano');
       console.log('📊 Irradiancia diária:', irradianciaDiaria.toFixed(2), 'kWh/m²/dia');
       console.log('📊 Fórmula aplicada: ', consumoComMargem, 'kWh/mês ÷ ((', irradianciaDiaria.toFixed(2), 'kWh/m²/dia × ', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', resultado, 'kW');
       console.log('📊 Cálculo detalhado: ', consumoComMargem, '÷ ((', irradianciaDiaria.toFixed(2), '×', eficienciaSistema, ') × 30,4) ×', fatorCorrecao, '=', consumoComMargem, '÷ (', (irradianciaDiaria * eficienciaSistema).toFixed(2), '× 30,4) ×', fatorCorrecao, '=', consumoComMargem, '÷', ((irradianciaDiaria * eficienciaSistema) * 30.4).toFixed(2), '×', fatorCorrecao, '=', potenciaNecessariaKw.toFixed(2));
     
-    // Retorna a potência calculada sem restrição mínima
-    console.log('🔢 Potência calculada:', resultado, 'kW');
-    
-    return resultado;
-    } catch (error) {
-      console.error('❌ Erro ao calcular potência:', error);
-      // Fallback para valores padrão em caso de erro
-      const irradianciaMedia = 5.0;
-      const eficienciaSistema = 0.80;
-      const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha
-      const potenciaNecessariaKw = (consumoComMargem / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
-      const resultado = Math.round(potenciaNecessariaKw * 100) / 100;
+      // Retorna a potência calculada sem restrição mínima
       return resultado;
+      
+    } catch (error) {
+      console.error('❌ Erro ao calcular potência do sistema:', error);
+      return 1.0; // Fallback para evitar erro na API
     }
   };
 
@@ -1216,6 +1282,189 @@ export default function NovoProjeto() {
   const concessionarias = Object.values(configs)
     .filter(c => c.tipo === "tarifa")
     .map(c => c.concessionaria);
+
+  // ===== FUNÇÕES DE CÁLCULO FINANCEIRO (chamadas apenas ao final do processo) =====
+  
+  // Função para calcular geração mensal
+  const calcularGeracaoMensal = (potenciaKw, irradianciaMensal, eficiencia = 0.85, fatorCorrecao = 1.066) => {
+    // Geração mensal = Potência (kW) × Irradiação mensal (kWh/m²) × Eficiência × Fator de correção
+    return potenciaKw * irradianciaMensal * eficiencia * fatorCorrecao;
+  };
+
+  // Função para calcular projeções financeiras de 25 anos
+  const calcularProjecoesFinanceiras = (consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal) => {
+    const anos = 25;
+    const aumentoTarifaAnual = 0.0034; // 0.34% ao ano
+    const perdaEficienciaAnual = 0.008; // 0.8% ao ano
+    const eficienciaInicial = 0.85;
+    const fatorCorrecao = 1.066;
+
+    const projecoes = {
+      geracaoMensal: [],
+      geracaoAnual: [],
+      consumoMensal: [],
+      consumoAnual: [],
+      tarifaMensal: [],
+      contaMensal: [],
+      contaAnual: [],
+      economiaMensal: [],
+      economiaAnual: [],
+      economiaAcumulada: [],
+      fluxoCaixa: [],
+      fluxoCaixaAcumulado: [],
+      payback: null
+    };
+
+    let economiaAcumulada = 0;
+    let fluxoCaixaAcumulado = 0;
+    let paybackEncontrado = false;
+
+    for (let ano = 1; ano <= anos; ano++) {
+      // Calcular eficiência atual (perda de 0.8% ao ano)
+      const eficienciaAtual = ano === 1 ? eficienciaInicial : eficienciaInicial * Math.pow(1 - perdaEficienciaAnual, ano - 1);
+      
+      // Calcular tarifa atual (aumento de 0.34% ao ano)
+      const tarifaAtualAno = ano === 1 ? tarifaAtual : tarifaAtual * Math.pow(1 + aumentoTarifaAnual, ano - 1);
+      
+      // Calcular consumo mensal (aumento de 0.34% ao ano)
+      const consumoMensalAtual = ano === 1 ? consumoMensalKwh : consumoMensalKwh * Math.pow(1 + aumentoTarifaAnual, ano - 1);
+
+      // Calcular geração mensal
+      const geracaoMensalAtual = calcularGeracaoMensal(potenciaKw, irradianciaMensal, eficienciaAtual, fatorCorrecao);
+      
+      // Calcular valores anuais
+      const geracaoAnualAtual = geracaoMensalAtual * 12;
+      const consumoAnualAtual = consumoMensalAtual * 12;
+      
+      // Calcular conta mensal sem solar
+      const contaMensalSemSolar = consumoMensalAtual * tarifaAtualAno;
+      const contaAnualSemSolar = contaMensalSemSolar * 12;
+      
+      // Calcular economia mensal e anual
+      const economiaMensalAtual = Math.max(0, geracaoMensalAtual - consumoMensalAtual) * tarifaAtualAno;
+      const economiaAnualAtual = economiaMensalAtual * 12;
+      
+      // Calcular fluxo de caixa (economia - custos de distribuição)
+      const custoDistribuicao = contaMensalSemSolar * 0.1; // Estimativa: 10% da conta como taxa de distribuição
+      const fluxoCaixaMensal = economiaMensalAtual - custoDistribuicao;
+      const fluxoCaixaAnual = fluxoCaixaMensal * 12;
+      
+      // Acumular valores
+      economiaAcumulada += economiaAnualAtual;
+      fluxoCaixaAcumulado += fluxoCaixaAnual;
+      
+      // Verificar payback (quando fluxo acumulado fica positivo)
+      if (!paybackEncontrado && fluxoCaixaAcumulado > 0) {
+        projecoes.payback = ano;
+        paybackEncontrado = true;
+      }
+
+      // Armazenar dados do ano
+      projecoes.geracaoMensal.push(geracaoMensalAtual);
+      projecoes.geracaoAnual.push(geracaoAnualAtual);
+      projecoes.consumoMensal.push(consumoMensalAtual);
+      projecoes.consumoAnual.push(consumoAnualAtual);
+      projecoes.tarifaMensal.push(tarifaAtualAno);
+      projecoes.contaMensal.push(contaMensalSemSolar);
+      projecoes.contaAnual.push(contaAnualSemSolar);
+      projecoes.economiaMensal.push(economiaMensalAtual);
+      projecoes.economiaAnual.push(economiaAnualAtual);
+      projecoes.economiaAcumulada.push(economiaAcumulada);
+      projecoes.fluxoCaixa.push(fluxoCaixaAnual);
+      projecoes.fluxoCaixaAcumulado.push(fluxoCaixaAcumulado);
+    }
+
+    return projecoes;
+  };
+
+  // Função para calcular todas as variáveis necessárias para a proposta
+  const calcularTodasAsVariaveis = async () => {
+    if (!kitSelecionado || !formData.consumo_mensal_kwh) {
+      console.log('⚠️ Dados insuficientes para calcular variáveis');
+      console.log('📊 Kit selecionado:', !!kitSelecionado);
+      console.log('📊 Consumo mensal kWh:', formData.consumo_mensal_kwh);
+      return null;
+    }
+
+    console.log('💰 Calculando todas as variáveis para a proposta...');
+    
+    const potenciaKw = kitSelecionado.potencia || formData.potencia_kw || 0;
+    const consumoMensalKwh = formData.consumo_mensal_kwh;
+    
+    // Calcular tarifa automaticamente se não estiver definida
+    let tarifaAtual = formData.tarifa_energia;
+    if (!tarifaAtual && formData.consumo_mensal_reais) {
+      tarifaAtual = parseFloat(formData.consumo_mensal_reais) / parseFloat(consumoMensalKwh);
+      console.log('📊 Tarifa calculada automaticamente:', tarifaAtual);
+    } else if (!tarifaAtual) {
+      // Usar tarifa padrão se não houver dados
+      tarifaAtual = 0.75; // R$ 0,75 por kWh
+      console.log('📊 Usando tarifa padrão:', tarifaAtual);
+    }
+    
+    // Buscar dados de irradiância se não estiverem disponíveis
+    let irradianciaDataLocal = irradianciaData;
+    if (!irradianciaDataLocal) {
+      console.log('📊 Buscando dados de irradiância...');
+      irradianciaDataLocal = await getIrradianciaByCity(formData.cidade || 'São José dos Campos');
+      if (irradianciaDataLocal) {
+        setIrradianciaData(irradianciaDataLocal);
+      }
+    }
+    
+    if (!irradianciaDataLocal) {
+      console.log('⚠️ Não foi possível obter dados de irradiância, usando dados padrão');
+      // Dados padrão para São José dos Campos (5152 Wh/m²/dia)
+      irradianciaDataLocal = {
+        name: 'São José dos Campos (Padrão)',
+        annual: 5152,
+        monthly: {
+          jan: 4500, feb: 4200, mar: 4000, apr: 3800,
+          may: 3500, jun: 3200, jul: 3400, aug: 3800,
+          sep: 4200, oct: 4500, nov: 4600, dec: 4700
+        }
+      };
+      console.log('📊 Usando dados padrão de irradiância:', irradianciaDataLocal.annual);
+    }
+    
+    const irradianciaMensal = irradianciaDataLocal.annual / 12; // Irradiação média mensal
+    
+    console.log('📊 Dados para cálculo:', {
+      potenciaKw,
+      consumoMensalKwh,
+      tarifaAtual,
+      irradianciaMensal
+    });
+    
+    const projecoes = calcularProjecoesFinanceiras(consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal);
+    setProjecoesFinanceiras(projecoes);
+    
+    console.log('✅ Todas as variáveis calculadas:', projecoes);
+    return projecoes;
+  };
+
+  // Função para gerar proposta e avançar para resultados
+  const gerarPropostaEAvançar = async () => {
+    try {
+      console.log('🎯 Gerando proposta e avançando para resultados...');
+      
+      // Sempre calcular as variáveis para garantir dados atualizados
+      console.log('📊 Calculando variáveis financeiras...');
+      await calcularTodasAsVariaveis();
+      
+      // Aguardar um pouco para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Avançar para a aba de resultados
+      setActiveTab('resultados');
+      
+      console.log('✅ Navegação para resultados concluída!');
+      
+    } catch (error) {
+      console.error('❌ Erro ao gerar proposta e avançar:', error);
+      alert('Erro ao gerar proposta: ' + error.message);
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -1772,42 +2021,35 @@ export default function NovoProjeto() {
                         {produtosDisponiveis.map((kit) => (
                         <Card 
                           key={kit.id}
-                          className={`cursor-pointer transition-all ${
+                          className={`cursor-pointer transition-all duration-200 ${
                             kitSelecionado?.id === kit.id
-                              ? 'border-blue-500 bg-blue-50 shadow-lg'
-                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                              ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                              : selecionandoKit
+                              ? 'border-yellow-400 bg-yellow-50 shadow-md ring-1 ring-yellow-200'
+                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:bg-gray-50'
                           }`}
-                          onClick={() => {
-                            console.log('🔍 Kit selecionado:', kit);
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             
-                            // Salva o JSON completo do kit para uso futuro
-                            const kitJsonCompleto = JSON.stringify(kit, null, 2);
-                            console.log('💾 Salvando JSON completo do kit:', kitJsonCompleto);
-                            setKitSelecionadoJson(kitJsonCompleto);
-                            
-                            // Salva também o objeto para uso imediato
-                            setKitSelecionado(kit);
-                            
-                            // Calcula quantidades baseadas no kit selecionado
-                            console.log('🔄 Chamando calcularQuantidadesDoKit...');
-                            const quantidades = calcularQuantidadesDoKit(kit);
-                            console.log('📊 Quantidades calculadas do kit:', quantidades);
-                            setQuantidadesCalculadas(quantidades);
-                            
-                            // Atualiza a potência baseada no kit
-                            if (kit.potencia && kit.potencia !== formData.potencia_kw) {
-                              console.log('🔄 Atualizando potência de', formData.potencia_kw, 'para', kit.potencia);
-                              handleChange("potencia_kw", kit.potencia);
+                            // Evitar seleção duplicada
+                            if (kitSelecionado?.id === kit.id) {
+                              console.log('⚠️ Kit já selecionado, ignorando clique');
+                              return;
                             }
                             
-                            console.log('📊 Quantidades finais:', quantidades);
-                            console.log('📊 Estado quantidadesCalculadas atualizado para:', quantidades);
-                            console.log('💾 JSON completo salvo em kitSelecionadoJson');
+                            // Usar função robusta para seleção
+                            await selecionarKit(kit);
                           }}
                         >
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
-                              <CardTitle className="text-lg">{kit.nome}</CardTitle>
+                              <CardTitle className="text-lg">
+                                {kit.nome}
+                                {selecionandoKit && kitSelecionado?.id === kit.id && (
+                                  <span className="ml-2 text-yellow-600 text-sm">⏳ Selecionando...</span>
+                                )}
+                              </CardTitle>
                               {kitSelecionado?.id === kit.id && (
                                 <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                                   <Check className="w-4 h-4 text-white" />
@@ -1989,6 +2231,8 @@ export default function NovoProjeto() {
                     costs,
                     apiAvailable,
                     temConsumoPreenchido: temConsumoPreenchido(),
+                    quantidadesCalculadas,
+                    kitSelecionado: kitSelecionado?.id,
                     produtosSelecionados: {
                       paineis: !!produtosSelecionados.paineis,
                       inversores: !!produtosSelecionados.inversores
@@ -2066,37 +2310,6 @@ export default function NovoProjeto() {
                   </div>
                 ) : costs || kitSelecionado ? (
                   <div className="space-y-6">
-                    {/* Debug Info - Temporário */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <h4 className="font-semibold mb-2 text-yellow-800">Debug - Kit Selecionado:</h4>
-                      <div className="grid grid-cols-1 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Quantidades calculadas:</span>
-                          <pre className="text-xs mt-1 bg-white p-2 rounded border">{JSON.stringify(quantidadesCalculadas, null, 2)}</pre>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Kit selecionado (resumo):</span>
-                          <div className="text-xs mt-1">
-                            {kitSelecionado ? (
-                              <>
-                                <p>Nome: {kitSelecionado.nome}</p>
-                                <p>Potência: {kitSelecionado.potencia}kW</p>
-                                <p>Preço: {formatCurrency(kitSelecionado.precoTotal)}</p>
-                                <p>Componentes: {kitSelecionado.composicao?.length || kitSelecionado.componentes?.length || kitSelecionado.itens?.length || 0}</p>
-                              </>
-                            ) : (
-                              <p>Nenhum kit selecionado</p>
-                            )}
-                          </div>
-                        </div>
-                        {kitSelecionadoJson && (
-                          <div>
-                            <span className="text-gray-600">JSON completo do kit:</span>
-                            <pre className="text-xs mt-1 bg-white p-2 rounded border max-h-40 overflow-y-auto">{kitSelecionadoJson}</pre>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                     
                     {/* Informação do Kit Selecionado */}
                     {kitSelecionado && (
@@ -2549,28 +2762,30 @@ export default function NovoProjeto() {
                   </div>
                 )}
 
-                {/* Botão flutuante para avançar para a aba de resultados */}
+                {/* Botão flutuante para gerar proposta e avançar para resultados */}
                 {(costs || kitSelecionado) && (
                   <div className="sticky bottom-6 right-6 z-50 float-right">
                     <Button 
-                      onClick={() => setActiveTab('resultados')}
+                      onClick={gerarPropostaEAvançar}
                       className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
                     >
-                      Avançar para Resultados
+                      Gerar Proposta e Avançar
                     </Button>
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="resultados">
-                {resultados && (
-                  <DimensionamentoResults 
-                    resultados={resultados}
-                    formData={formData}
-                    onSave={handleSave}
-                    loading={loading}
-                  />
-                )}
+                <DimensionamentoResults 
+                  resultados={resultados}
+                  formData={formData}
+                  onSave={handleSave}
+                  loading={loading}
+                  projecoesFinanceiras={projecoesFinanceiras}
+                  kitSelecionado={kitSelecionado}
+                  clientes={clientes}
+                  configs={configs}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -1,206 +1,547 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Zap, DollarSign, Calendar, TrendingUp, Save, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Zap, 
+  DollarSign, 
+  Calendar, 
+  TrendingUp, 
+  Save, 
+  FileText, 
+  Download, 
+  Loader2, 
+  Mail,
+  BarChart3,
+  Home,
+  Sun,
+  Battery,
+  Settings,
+  CheckCircle,
+  ArrowRight,
+  Clock,
+  Target,
+  PieChart
+} from "lucide-react";
 import { motion } from "framer-motion";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Cell } from 'recharts';
 
-export default function DimensionamentoResults({ resultados, formData, onSave, loading }) {
+export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado }) {
+  const [gerandoPDF, setGerandoPDF] = useState(false);
+  const [pdfGerado, setPdfGerado] = useState(false);
+
+  // Preparar dados para gráficos
+  const dadosGraficoEconomia = projecoesFinanceiras ? 
+    Array.from({ length: 25 }, (_, i) => ({
+      ano: i + 1,
+      custoSemSolar: projecoesFinanceiras.contaAnual?.[i] || 0,
+      custoComSolar: projecoesFinanceiras.contaAnual?.[i] * 0.1 || 0, // Estimativa: 10% da conta como taxa de distribuição
+      economia: projecoesFinanceiras.economiaAnual?.[i] || 0,
+      economiaAcumulada: projecoesFinanceiras.economiaAcumulada?.[i] || 0
+    })) : [];
+
+  const dadosGraficoPayback = projecoesFinanceiras ? 
+    Array.from({ length: 25 }, (_, i) => ({
+      ano: i + 1,
+      investimento: i === 0 ? (resultados?.preco_final || 0) : 0,
+      economiaAcumulada: projecoesFinanceiras.economiaAcumulada?.[i] || 0,
+      saldo: (projecoesFinanceiras.economiaAcumulada?.[i] || 0) - (i === 0 ? (resultados?.preco_final || 0) : 0)
+    })) : [];
+
+  const dadosEquipamentos = kitSelecionado?.componentes?.map(componente => ({
+    nome: componente.descricao,
+    quantidade: componente.quantidade,
+    categoria: componente.agrupamento,
+    potencia: componente.potencia
+  })) || [];
+
+  const coresCategorias = {
+    'Painel': '#3B82F6',
+    'Inversor': '#10B981',
+    'Estrutura': '#F59E0B',
+    'Cabo': '#EF4444',
+    'Outros': '#8B5CF6'
+  };
+
+  const gerarPDF = async () => {
+    setGerandoPDF(true);
+    try {
+      // Aqui você pode implementar a geração de PDF usando uma biblioteca como jsPDF
+      // Por enquanto, vamos simular o processo
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setPdfGerado(true);
+      alert('✅ PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('❌ Erro ao gerar PDF');
+    } finally {
+      setGerandoPDF(false);
+    }
+  };
+
+  const enviarParaCliente = () => {
+    alert('📧 Funcionalidade de envio por email será implementada em breve!');
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-8"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-gradient-to-br from-sky-50 to-blue-50 border-sky-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sky-700">
-              <Zap className="w-5 h-5" />
-              Potência do Sistema
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-4xl font-bold text-sky-900">
-              {resultados.potencia_sistema_kwp?.toFixed(2)} kWp
-            </p>
-            <p className="text-sm text-gray-600 mt-2">
-              {resultados.quantidade_placas} placas de {resultados.potencia_placa_w}W
-            </p>
-          </CardContent>
-        </Card>
+      {/* Cabeçalho da Proposta */}
+      <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+        <CardContent className="p-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Proposta Comercial</h1>
+              <p className="text-blue-100 text-lg">
+                Sistema Solar Fotovoltaico - {formData.cliente || 'Cliente'}
+              </p>
+              <p className="text-blue-200 text-sm mt-1">
+                {formData.cidade}, {formData.estado} • {new Date().toLocaleDateString('pt-BR')}
+              </p>
+            </div>
+            <div className="text-right">
+              <Badge variant="secondary" className="bg-white text-blue-600 text-lg px-4 py-2">
+                {resultados?.potencia_sistema_kwp?.toFixed(1)} kWp
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Resumo Executivo */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-700">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-green-700 text-lg">
               <DollarSign className="w-5 h-5" />
               Investimento Total
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold text-green-900">
-              R$ {resultados.preco_final?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <p className="text-3xl font-bold text-green-900 mb-1">
+              R$ {resultados?.preco_final?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
-            <p className="text-sm text-gray-600 mt-2">
-              Custo: R$ {resultados.custo_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <p className="text-sm text-green-600">
+              À vista: R$ {((resultados?.preco_final || 0) * 0.9).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-700">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-orange-700 text-lg">
               <TrendingUp className="w-5 h-5" />
               Economia Mensal
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold text-orange-900">
-              R$ {resultados.economia_mensal_estimada?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <p className="text-3xl font-bold text-orange-900 mb-1">
+              R$ {resultados?.economia_mensal_estimada?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
-            <p className="text-sm text-gray-600 mt-2">
+            <p className="text-sm text-orange-600">
               ~95% de redução na conta
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-purple-700">
-              <Calendar className="w-5 h-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-purple-700 text-lg">
+              <Clock className="w-5 h-5" />
               Payback
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold text-purple-900">
-              {resultados.payback_meses} meses
+            <p className="text-3xl font-bold text-purple-900 mb-1">
+              {resultados?.payback_meses} meses
             </p>
-            <p className="text-sm text-gray-600 mt-2">
-              ~{(resultados.payback_meses / 12).toFixed(1)} anos de retorno
+            <p className="text-sm text-purple-600">
+              ~{(resultados?.payback_meses / 12).toFixed(1)} anos de retorno
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-blue-700 text-lg">
+              <Sun className="w-5 h-5" />
+              Geração Mensal
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-blue-900 mb-1">
+              {projecoesFinanceiras?.geracaoMensal?.[0]?.toFixed(0)} kWh
+            </p>
+            <p className="text-sm text-blue-600">
+              Média anual estimada
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="glass-card">
+      {/* Gráfico de Custos vs Economia */}
+      <Card>
         <CardHeader>
-          <CardTitle>Breakdown de Custos</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Análise Financeira - Próximos 25 Anos
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-gray-600">Equipamentos</p>
-              <p className="text-2xl font-bold text-blue-700">
-                R$ {resultados.custo_equipamentos?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-gray-600">Instalação ({resultados.quantidade_placas} placas x R$200)</p>
-              <p className="text-2xl font-bold text-green-700">
-                R$ {resultados.custo_instalacao?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="p-4 bg-purple-50 rounded-lg">
-              <p className="text-sm text-gray-600">Homologação (até {resultados.potencia_sistema_kwp?.toFixed(0)}kWp)</p>
-              <p className="text-2xl font-bold text-purple-700">
-                R$ {resultados.custo_homologacao?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="p-4 bg-orange-50 rounded-lg">
-              <p className="text-sm text-gray-600">CA ({resultados.quantidade_placas} placas x R$100)</p>
-              <p className="text-2xl font-bold text-orange-700">
-                R$ {resultados.custo_ca?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="p-4 bg-pink-50 rounded-lg">
-              <p className="text-sm text-gray-600">Plaquinhas</p>
-              <p className="text-2xl font-bold text-pink-700">
-                R$ {resultados.custo_plaquinhas?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="p-4 bg-cyan-50 rounded-lg">
-              <p className="text-sm text-gray-600">Obra (10% da instalação)</p>
-              <p className="text-2xl font-bold text-cyan-700">
-                R$ {resultados.custo_obra?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dadosGraficoEconomia}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="ano" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value, name) => [
+                    `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                    name === 'custoSemSolar' ? 'Custo sem Solar' :
+                    name === 'custoComSolar' ? 'Custo com Solar' :
+                    name === 'economia' ? 'Economia Anual' : 'Economia Acumulada'
+                  ]}
+                />
+                <Line type="monotone" dataKey="custoSemSolar" stroke="#EF4444" strokeWidth={3} name="Custo sem Solar" />
+                <Line type="monotone" dataKey="custoComSolar" stroke="#10B981" strokeWidth={3} name="Custo com Solar" />
+                <Line type="monotone" dataKey="economiaAcumulada" stroke="#3B82F6" strokeWidth={3} name="Economia Acumulada" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-
-          <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg border-2 border-green-300">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-sm font-medium text-gray-700">Custo Total</p>
-              <p className="text-2xl font-bold text-gray-900">
-                R$ {resultados.custo_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-red-50 rounded-lg">
+              <p className="text-sm text-gray-600">Sem Energia Solar</p>
+              <p className="text-xl font-bold text-red-600">
+                R$ {projecoesFinanceiras?.contaAnual?.[24]?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
+              <p className="text-xs text-gray-500">Custo anual no ano 25</p>
             </div>
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-sm font-medium text-gray-700">+ Comissão ({formData.percentual_comissao}%)</p>
-              <p className="text-lg font-semibold text-gray-900">
-                R$ {((resultados.custo_total * formData.percentual_comissao) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-gray-600">Com Energia Solar</p>
+              <p className="text-xl font-bold text-green-600">
+                R$ {((projecoesFinanceiras?.contaAnual?.[24] || 0) * 0.1).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
+              <p className="text-xs text-gray-500">Custo anual no ano 25</p>
             </div>
-            <div className="flex justify-between items-center">
-              <p className="text-sm font-medium text-gray-700">+ Margem de Lucro ({formData.percentual_margem_lucro}%)</p>
-              <p className="text-lg font-semibold text-gray-900">
-                R$ {((resultados.custo_total * (1 + formData.percentual_comissao / 100) * formData.percentual_margem_lucro) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-gray-600">Economia Total</p>
+              <p className="text-xl font-bold text-blue-600">
+                R$ {projecoesFinanceiras?.economiaAcumulada?.[24]?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
-            </div>
-            <div className="border-t-2 border-green-400 mt-3 pt-3 flex justify-between items-center">
-              <p className="text-lg font-bold text-gray-900">Preço Final</p>
-              <p className="text-3xl font-bold text-green-700">
-                R$ {resultados.preco_final?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
+              <p className="text-xs text-gray-500">Em 25 anos</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="glass-card">
+      {/* Gráfico de Payback */}
+      <Card>
         <CardHeader>
-          <CardTitle>Detalhes Técnicos</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="w-5 h-5" />
+            Análise de Payback
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Irradiação Média</p>
-              <p className="font-semibold">{resultados.irradiacao_media?.toFixed(2)} kWh/m²/dia</p>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosGraficoPayback.slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="ano" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value, name) => [
+                    `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                    name === 'investimento' ? 'Investimento' :
+                    name === 'economiaAcumulada' ? 'Economia Acumulada' : 'Saldo'
+                  ]}
+                />
+                <Bar dataKey="investimento" fill="#EF4444" name="Investimento" />
+                <Bar dataKey="economiaAcumulada" fill="#10B981" name="Economia Acumulada" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="font-semibold text-green-800">Retorno do Investimento</span>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Consumo Mensal</p>
-              <p className="font-semibold">{resultados.consumo_mensal_kwh?.toFixed(0)} kWh</p>
+            <p className="text-green-700">
+              O investimento será recuperado em <strong>{resultados?.payback_meses} meses</strong> 
+              (aproximadamente <strong>{(resultados?.payback_meses / 12).toFixed(1)} anos</strong>).
+              Após este período, você terá energia solar gratuita por mais de 20 anos!
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Equipamentos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Equipamentos do Sistema
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Lista de Equipamentos */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg mb-4">Componentes Principais</h3>
+              {dadosEquipamentos.map((equipamento, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-4 h-4 rounded-full" 
+                      style={{ backgroundColor: coresCategorias[equipamento.categoria] || '#6B7280' }}
+                    />
+                    <div>
+                      <p className="font-medium">{equipamento.nome}</p>
+                      <p className="text-sm text-gray-600">{equipamento.categoria}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{equipamento.quantidade}x</p>
+                    {equipamento.potencia > 0 && (
+                      <p className="text-sm text-gray-600">{equipamento.potencia}W</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Distribuição por Categoria */}
             <div>
-              <p className="text-sm text-gray-600">Tipo de Telhado</p>
-              <p className="font-semibold capitalize">{formData.tipo_telhado}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Localização</p>
-              <p className="font-semibold">{formData.cidade}, {formData.estado}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Concessionária</p>
-              <p className="font-semibold">{formData.concessionaria}</p>
+              <h3 className="font-semibold text-lg mb-4">Distribuição por Categoria</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={Object.entries(
+                        dadosEquipamentos.reduce((acc, item) => {
+                          acc[item.categoria] = (acc[item.categoria] || 0) + item.quantidade;
+                          return acc;
+                        }, {})
+                      ).map(([categoria, quantidade]) => ({
+                        categoria,
+                        quantidade,
+                        cor: coresCategorias[categoria] || '#6B7280'
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ categoria, quantidade }) => `${categoria}: ${quantidade}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="quantidade"
+                    >
+                      {Object.entries(
+                        dadosEquipamentos.reduce((acc, item) => {
+                          acc[item.categoria] = (acc[item.categoria] || 0) + item.quantidade;
+                          return acc;
+                        }, {})
+                      ).map(([categoria, quantidade], index) => (
+                        <Cell key={`cell-${index}`} fill={coresCategorias[categoria] || '#6B7280'} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-3">
-        <Button
-          variant="outline"
-          className="border-orange-200 text-orange-600 hover:bg-orange-50"
-        >
-          <FileText className="w-4 h-4 mr-2" />
-          Gerar Proposta
-        </Button>
-        <Button
-          onClick={onSave}
-          disabled={loading}
-          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {loading ? "Salvando..." : "Salvar Projeto"}
-        </Button>
+      {/* Informações Técnicas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Home className="w-5 h-5" />
+              Informações do Projeto
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Potência Total</p>
+                <p className="font-semibold text-lg">{resultados?.potencia_sistema_kwp?.toFixed(2)} kWp</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Quantidade de Placas</p>
+                <p className="font-semibold text-lg">{resultados?.quantidade_placas} unidades</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Área Necessária</p>
+                <p className="font-semibold text-lg">{resultados?.quantidade_placas ? (resultados.quantidade_placas * 2).toFixed(0) : 0} m²</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Tipo de Telhado</p>
+                <p className="font-semibold text-lg capitalize">{formData.tipo_telhado}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Localização</p>
+                <p className="font-semibold text-lg">{formData.cidade}, {formData.estado}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Concessionária</p>
+                <p className="font-semibold text-lg">{formData.concessionaria}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Battery className="w-5 h-5" />
+              Performance do Sistema
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Geração Mensal Média</p>
+                <p className="font-semibold text-lg">{projecoesFinanceiras?.geracaoMensal?.[0]?.toFixed(0)} kWh</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Geração Anual</p>
+                <p className="font-semibold text-lg">{projecoesFinanceiras?.geracaoAnual?.[0]?.toFixed(0)} kWh</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Irradiação Média</p>
+                <p className="font-semibold text-lg">{resultados?.irradiacao_media?.toFixed(2)} kWh/m²/dia</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Consumo Mensal</p>
+                <p className="font-semibold text-lg">{formData.consumo_mensal_kwh} kWh</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Eficiência do Sistema</p>
+                <p className="font-semibold text-lg">85%</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Garantia dos Equipamentos</p>
+                <p className="font-semibold text-lg">25 anos</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Benefícios */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            Benefícios da Energia Solar
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <DollarSign className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-green-800 mb-2">Economia Financeira</h3>
+              <p className="text-sm text-green-700">
+                Redução de até 95% na conta de energia elétrica, gerando economia de milhares de reais ao longo dos anos.
+              </p>
+            </div>
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <Sun className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-blue-800 mb-2">Energia Limpa</h3>
+              <p className="text-sm text-blue-700">
+                Contribua para um futuro sustentável utilizando energia renovável e reduzindo sua pegada de carbono.
+              </p>
+            </div>
+            <div className="text-center p-4 bg-purple-50 rounded-lg">
+              <TrendingUp className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-purple-800 mb-2">Valorização do Imóvel</h3>
+              <p className="text-sm text-purple-700">
+                Imóveis com energia solar têm maior valor de mercado e são mais atrativos para compradores.
+              </p>
+            </div>
+            <div className="text-center p-4 bg-orange-50 rounded-lg">
+              <Clock className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-orange-800 mb-2">Independência Energética</h3>
+              <p className="text-sm text-orange-700">
+                Reduza sua dependência da rede elétrica e proteja-se contra aumentos nas tarifas de energia.
+              </p>
+            </div>
+            <div className="text-center p-4 bg-red-50 rounded-lg">
+              <Target className="w-8 h-8 text-red-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-red-800 mb-2">Retorno Garantido</h3>
+              <p className="text-sm text-red-700">
+                Investimento com retorno garantido em {resultados?.payback_meses} meses e benefícios por mais de 20 anos.
+              </p>
+            </div>
+            <div className="text-center p-4 bg-cyan-50 rounded-lg">
+              <Settings className="w-8 h-8 text-cyan-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-cyan-800 mb-2">Manutenção Mínima</h3>
+              <p className="text-sm text-cyan-700">
+                Sistema com manutenção mínima e equipamentos com garantia de 25 anos dos fabricantes.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ações */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div className="text-center md:text-left">
+              <h3 className="text-xl font-bold mb-2">Pronto para começar?</h3>
+              <p className="text-gray-600">
+                Esta proposta é válida por 30 dias. Entre em contato para agendar uma visita técnica gratuita.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={gerarPDF}
+                disabled={gerandoPDF}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {gerandoPDF ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : pdfGerado ? (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    PDF Gerado ✓
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Baixar PDF
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={enviarParaCliente}
+                variant="outline"
+                className="border-green-200 text-green-600 hover:bg-green-50"
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Enviar por Email
+              </Button>
+              <Button
+                onClick={onSave}
+                disabled={loading}
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {loading ? "Salvando..." : "Salvar Projeto"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }

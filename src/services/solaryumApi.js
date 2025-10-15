@@ -73,7 +73,7 @@ class SolaryumApiService {
       console.error('❌ Erro na requisição para Solaryum API:', error);
       
       // Se for um erro de rede (CORS, DNS, etc.)
-      if (error.name === 'TypeError' || error.message.includes('fetch')) {
+      if (error.name === 'TypeError' || (error.message && error.message.includes('fetch'))) {
         const networkError = {
           errorType: 'NETWORK_ERROR',
           message: error.message,

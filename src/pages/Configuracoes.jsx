@@ -11,6 +11,7 @@ export default function Configuracoes() {
   const [configs, setConfigs] = useState([]);
   const [tarifas, setTarifas] = useState([]);
   const [equipamentos, setEquipamentos] = useState({});
+  const [propostaConfigs, setPropostaConfigs] = useState({});
   const [loading, setLoading] = useState(false);
   const [novaTarifa, setNovaTarifa] = useState({ concessionaria: "", tarifa_kwh: "" });
 
@@ -44,6 +45,50 @@ export default function Configuracoes() {
         tipo: "equipamento",
         eficiencia_sistema: 0.80
       });
+    }
+
+    // Carregar configurações de proposta
+    const propostaConfig = configsData.find(c => c.chave === "proposta_configs");
+    if (propostaConfig) {
+      setPropostaConfigs(propostaConfig);
+    } else {
+      const newPropostaConfig = {
+        chave: "proposta_configs",
+        tipo: "proposta",
+        aumento_anual_energia: 4.1,
+        margem_base: 25,
+        comissao_vendedor_padrao: 5,
+        custo_instalacao_por_placa: 200,
+        custo_ca_aterramento_por_placa: 100,
+        custo_placas_sinalizacao: 60,
+        percentual_despesas_gerais: 10,
+        percentual_despesas_diretoria: 1,
+        percentual_impostos: 3.3,
+        percentual_divisao_lucro: 40,
+        percentual_fundo_caixa: 20,
+        vendedor_nome: "Representante Comercial",
+        vendedor_cargo: "Especialista em Energia Solar",
+        vendedor_telefone: "(11) 99999-9999",
+        vendedor_email: "contato@empresa.com"
+      };
+      setPropostaConfigs(newPropostaConfig);
+    }
+  };
+
+  const handleSavePropostaConfigs = async () => {
+    setLoading(true);
+    try {
+      if (propostaConfigs.id) {
+        await Configuracao.update(propostaConfigs.id, propostaConfigs);
+      } else {
+        await Configuracao.create(propostaConfigs);
+      }
+      alert('Configurações de proposta salvas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar configurações de proposta:', error);
+      alert('Erro ao salvar configurações de proposta');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -288,6 +333,180 @@ export default function Configuracoes() {
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Salvar Equipamentos
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card border-0 shadow-2xl">
+            <CardHeader className="border-b border-sky-100">
+              <CardTitle className="text-2xl font-bold text-sky-700">Configurações de Proposta</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-700">Parâmetros Financeiros</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Aumento Anual da Energia (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.aumento_anual_energia || 4.1}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, aumento_anual_energia: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Margem Base (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.margem_base || 25}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, margem_base: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Comissão Vendedor Padrão (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.comissao_vendedor_padrao || 5}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, comissao_vendedor_padrao: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-700">Custos Operacionais</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Custo Instalação por Placa (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_instalacao_por_placa || 200}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_instalacao_por_placa: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Custo CA/Aterramento por Placa (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_ca_aterramento_por_placa || 100}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_ca_aterramento_por_placa: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Custo Placas Sinalização (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_placas_sinalizacao || 60}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_placas_sinalizacao: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-700">Percentuais DRE</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Despesas Gerais (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_despesas_gerais || 10}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_despesas_gerais: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Despesas Diretoria (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_despesas_diretoria || 1}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_despesas_diretoria: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Impostos (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_impostos || 3.3}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_impostos: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-700">Distribuição de Lucro</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Divisão de Lucro (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_divisao_lucro || 40}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_divisao_lucro: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Fundo Caixa (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_fundo_caixa || 20}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_fundo_caixa: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-700">Dados do Vendedor</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nome do Vendedor</Label>
+                    <Input
+                      value={propostaConfigs.vendedor_nome || "Representante Comercial"}
+                      onChange={(e) => setPropostaConfigs(prev => ({ ...prev, vendedor_nome: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Cargo</Label>
+                    <Input
+                      value={propostaConfigs.vendedor_cargo || "Especialista em Energia Solar"}
+                      onChange={(e) => setPropostaConfigs(prev => ({ ...prev, vendedor_cargo: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Telefone</Label>
+                    <Input
+                      value={propostaConfigs.vendedor_telefone || "(11) 99999-9999"}
+                      onChange={(e) => setPropostaConfigs(prev => ({ ...prev, vendedor_telefone: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>E-mail</Label>
+                    <Input
+                      value={propostaConfigs.vendedor_email || "contato@empresa.com"}
+                      onChange={(e) => setPropostaConfigs(prev => ({ ...prev, vendedor_email: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleSavePropostaConfigs} 
+                  disabled={loading}
+                  className="bg-sky-600 hover:bg-sky-700 text-white"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Salvar Configurações
                 </Button>
               </div>
             </CardContent>
