@@ -71,10 +71,11 @@
 
   .page{
     position:relative;
-    width:100%;
-    height:100vh; /* altura um pouco menor que 100vh */
+    width:297mm; /* A4 paisagem - largura */
+    height:210mm; /* A4 paisagem - altura */
     overflow:hidden;
     border-bottom:1px solid var(--n-200);
+    margin:0 auto; /* Centralizar */
   }
 
   /* áreas internas com grid de layout */
@@ -86,6 +87,12 @@
     grid-template-columns: repeat(12, 1fr);
     gap:24px;
     align-content:stretch;
+  }
+
+  /* Ajuste específico para slide 2 */
+  #slide-02 .page-inner{
+    padding:48px;
+    gap:32px;
   }
 
   /* helpers de cor/fundo */
@@ -255,9 +262,11 @@
 
   .como-funciona{
     width:100%;
-    height:100%;
+    height:auto;
+    max-height:100%;
     object-fit:contain;
-    grid-column:7 / span 6;
+    grid-column:8 / span 4;
+    align-self:center;
   }
 
   .como-funciona-texto{
@@ -267,6 +276,7 @@
     flex-direction:column;
     justify-content:center;
     height:100%;
+    align-self:center;
   }
 
   .cenario-atual-content{
@@ -443,12 +453,7 @@
     background:linear-gradient(to top, var(--red-400), var(--red-500));
     border-radius:4px 4px 0 0;
     min-height:20px;
-    transition:all 0.3s ease;
     height:var(--barra-height, 20px);
-  }
-
-  .barra:hover{
-    background:linear-gradient(to top, var(--red-500), var(--red-600));
   }
 
   .barra-ano .ano{
@@ -941,7 +946,6 @@
 
   .ponto-payback{
     position:absolute;
-    transform:translate(-50%, 50%);
   }
 
   .ponto-marker{
@@ -956,8 +960,7 @@
   .ponto-label{
     position:absolute;
     top:-40px;
-    left:50%;
-    transform:translateX(-50%);
+    left:0;
     background:var(--brand-primary);
     color:white;
     padding:4px 8px;
@@ -993,7 +996,6 @@
     background:var(--green-600);
     border:2px solid white;
     border-radius:50%;
-    transform:translate(-50%, 50%);
   }
 
   .grafico-linha-payback .eixo-x{
@@ -1086,12 +1088,6 @@
     background:var(--n-50);
     border-radius:8px;
     border-left:4px solid var(--brand-primary);
-    transition:all 0.3s ease;
-  }
-
-  .item-inclusao:hover{
-    background:var(--brand-50);
-    transform:translateX(4px);
   }
 
   .item-inclusao .icone{
@@ -1231,7 +1227,6 @@
     align-items:center;
     justify-content:space-between;
     width:100%;
-    max-width:1200px;
     margin-bottom:16px;
   }
 
@@ -1255,7 +1250,6 @@
     align-items:center;
     justify-content:flex-start;
     width:100%;
-    max-width:1200px;
     position:relative;
     margin-bottom:16px;
     gap:calc((100% - 72px) / 5);
@@ -1269,7 +1263,6 @@
     right:6px;
     height:4px;
     background:linear-gradient(90deg, var(--brand-primary) 0%, var(--green-500) 100%);
-    transform:translateY(-50%);
     z-index:1;
     border-radius:2px;
     box-shadow:0 2px 8px rgba(59, 130, 246, 0.3);
@@ -1303,7 +1296,7 @@
     display:flex;
     align-items: center;
     justify-content:space-between;
-    gap:16px;
+    width:100%;
   }
 
 
@@ -1611,7 +1604,6 @@
     width:8px;
     height:8px;
     border-radius:50%;
-    transform:translate(-50%, 50%);
   }
 
   .ponto-sem-solar{
@@ -1735,6 +1727,131 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+
+  /* Slide 01 - Capa da Proposta com Fundo Fohat */
+  .slide-01-cover{
+    background: var(--brand-primary);
+    background-image: url('/img/fohat.svg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color:white;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .slide-01-content{
+    position:relative;
+    z-index:2;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    padding:64px;
+  }
+
+  .slide-01-title{
+    font-size:72px;
+    font-weight:800;
+    line-height:1.1;
+    margin-bottom:32px;
+    color:white;
+    text-shadow:0 6px 12px rgba(0,0,0,0.6);
+  }
+
+  .slide-01-subtitle{
+    font-size:28px;
+    font-weight:600;
+    margin-bottom:48px;
+    color:white;
+    opacity:0.95;
+    text-shadow:0 4px 8px rgba(0,0,0,0.5);
+  }
+
+  .slide-01-client{
+    background:rgba(255,255,255,0.000000001);
+    border-radius:20px;
+    padding:48px;
+    border:2px solid rgba(255,255,255,0.3);
+    margin-top:200px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3);
+    backdrop-filter:blur(5px);
+    min-width:400px;
+  }
+
+  .slide-01-client h2{
+    font-size:32px;
+    font-weight:700;
+    margin-bottom:20px;
+    color:white;
+    text-shadow:0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  .slide-01-client p{
+    font-size:22px;
+    margin:12px 0;
+    color:white;
+    opacity:0.9;
+    text-shadow:0 2px 4px rgba(0,0,0,0.4);
+  }
+
+  .slide-01-footer{
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    background:rgba(0,0,0,0.4);
+    padding:24px 64px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    z-index:2;
+    border-top:1px solid rgba(255,255,255,0.3);
+    backdrop-filter:blur(10px);
+  }
+
+  .slide-01-vendedor{
+    color:white;
+  }
+
+  .slide-01-vendedor h3{
+    font-size:18px;
+    font-weight:700;
+    margin-bottom:8px;
+    color:white;
+    text-shadow:0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  .slide-01-vendedor p{
+    font-size:14px;
+    margin:4px 0;
+    color:white;
+    opacity:0.9;
+    text-shadow:0 1px 2px rgba(0,0,0,0.4);
+  }
+
+  .slide-01-logo{
+    width:120px;
+    height:auto;
+    filter:brightness(0) invert(1);
+    opacity:0.95;
+  }
+
+  .slide-01-date{
+    text-align:right;
+    color:white;
+  }
+
+  .slide-01-date p{
+    font-size:14px;
+    margin:4px 0;
+    color:white;
+    opacity:0.9;
+    text-shadow:0 1px 2px rgba(0,0,0,0.4);
+  }
+
   
 </style>
 </head>
@@ -1742,35 +1859,31 @@
 
 <div class="frame">
 
-  <!-- ====== SLIDE 01 ====== -->
-  <section id="slide-01" class="page bg-secondary">
-    <div class="page-inner">
-      <div class="slide-content-main" style="grid-column:1 / span 10; align-self:center; display:flex; flex-direction:column; justify-content:center; height:100%;">
-        <h1 class="title-xxl text-primary">Sistema <br> Fotovoltaico</h1>
-        <br><br>
-        <h2 class="lead" style="margin-top:12px">{{cliente_nome}}</h2>
-        <p class="lead" style="margin-top:12px">{{cliente_endereco}}</p>
-        <p class="lead" style="margin-top:12px">{{cliente_telefone}}</p>
+  <!-- ====== SLIDE 01 - CAPA DA PROPOSTA ====== -->
+  <section id="slide-01" class="page slide-01-cover">
+    <!-- Conteúdo principal -->
+    <div class="slide-01-content">
+      <div class="slide-01-client">
+        <h2>{{cliente_nome}}</h2>
+        <p>{{cliente_endereco}}</p>
+        <p>{{cliente_telefone}}</p>
       </div>
+    </div>
 
-      <!-- Footer com dados do vendedor -->
-      <div class="slide-footer-vendedor">
-        <!-- Linha azul decorativa -->
-        <div class="line-blue"></div>
-        
-        <!-- Dados do vendedor e data -->
-        <div class="vendedor-info">
-          <div class="vendedor-dados">
-            <p class="vendedor-nome">{{vendedor_nome}}</p>
-            <p class="vendedor-cargo">{{vendedor_cargo}}</p>
-            <p class="vendedor-contato">{{vendedor_telefone}} | {{vendedor_email}}</p>
-          </div>
-          <div class="data-proposta">
-            <p class="data-texto"> Data da proposta: {{data_proposta}}</p>
-            <img src="src/assets/img/logo.svg" alt="Logo" class="logo-vendedor">
-          </div>
-        </div>
+    <!-- Footer com dados do vendedor -->
+    <div class="slide-01-footer">
+      <div class="slide-01-vendedor">
+        <h3>{{vendedor_nome}}</h3>
+        <p>{{vendedor_cargo}}</p>
+        <p>{{vendedor_telefone}} | {{vendedor_email}}</p>
       </div>
+      
+      <div class="slide-01-date">
+        <p>Data da proposta:</p>
+        <p>{{data_proposta}}</p>
+      </div>
+      
+      <img src="/img/logo.svg" alt="Logo" class="slide-01-logo">
     </div>
   </section>
 
@@ -1795,7 +1908,7 @@
         </ul>
       </div>
 
-      <img src="src/assets/img/como-funciona.png" alt="Como Funciona" class="como-funciona">
+       <img src="/img/como-funciona.png" alt="Como Funciona" class="como-funciona">
     </div>
   </section>
 

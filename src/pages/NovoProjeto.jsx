@@ -29,6 +29,7 @@ export default function NovoProjeto() {
   const [loading, setLoading] = useState(false);
   const [calculando, setCalculando] = useState(false);
   const [activeTab, setActiveTab] = useState("basico");
+  const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
   
   // Hook para gerenciar custos via API Solaryum
@@ -1312,7 +1313,18 @@ export default function NovoProjeto() {
       economiaAcumulada: [],
       fluxoCaixa: [],
       fluxoCaixaAcumulado: [],
-      payback: null
+      payback: null,
+      payback_meses: null,
+      economia_mensal_estimada: 0,
+      economia_total_25_anos: 0,
+      geracao_media_mensal: 0,
+      creditos_anuais: 0,
+      custo_total_projeto: 0,
+      custo_equipamentos: 0,
+      custo_instalacao: 0,
+      custo_homologacao: 0,
+      custo_outros: 0,
+      margem_lucro: 0
     };
 
     let economiaAcumulada = 0;
@@ -1341,7 +1353,8 @@ export default function NovoProjeto() {
       const contaAnualSemSolar = contaMensalSemSolar * 12;
       
       // Calcular economia mensal e anual
-      const economiaMensalAtual = Math.max(0, geracaoMensalAtual - consumoMensalAtual) * tarifaAtualAno;
+      // Economia = menor valor entre geração e consumo, multiplicado pela tarifa
+      const economiaMensalAtual = Math.min(geracaoMensalAtual, consumoMensalAtual) * tarifaAtualAno;
       const economiaAnualAtual = economiaMensalAtual * 12;
       
       // Calcular fluxo de caixa (economia - custos de distribuição)
@@ -1356,6 +1369,7 @@ export default function NovoProjeto() {
       // Verificar payback (quando fluxo acumulado fica positivo)
       if (!paybackEncontrado && fluxoCaixaAcumulado > 0) {
         projecoes.payback = ano;
+        projecoes.payback_meses = ano * 12; // Converter para meses
         paybackEncontrado = true;
       }
 
@@ -1374,27 +1388,60 @@ export default function NovoProjeto() {
       projecoes.fluxoCaixaAcumulado.push(fluxoCaixaAcumulado);
     }
 
+    // Calcular valores finais
+    projecoes.economia_mensal_estimada = projecoes.economiaMensal[0] || 0;
+    projecoes.economia_total_25_anos = economiaAcumulada;
+    projecoes.geracao_media_mensal = projecoes.geracaoMensal[0] || 0;
+    projecoes.creditos_anuais = projecoes.geracaoAnual[0] || 0;
+    
+    // Se não encontrou payback, usar cálculo simples baseado na economia mensal
+    if (!projecoes.payback_meses) {
+      const economiaMensal = projecoes.economia_mensal_estimada;
+      if (economiaMensal > 0) {
+        // Estimativa de custo baseada na potência (R$ 3.000 por kWp)
+        const custoEstimado = potenciaKw * 3000;
+        projecoes.payback_meses = Math.ceil(custoEstimado / economiaMensal);
+        projecoes.payback = Math.ceil(projecoes.payback_meses / 12);
+      }
+    }
+
     return projecoes;
   };
 
   // Função para calcular todas as variáveis necessárias para a proposta
   const calcularTodasAsVariaveis = async () => {
-    if (!kitSelecionado || !formData.consumo_mensal_kwh) {
+    const temConsumoKwh = formData.consumo_mensal_kwh && parseFloat(formData.consumo_mensal_kwh) > 0;
+    const temConsumoReais = formData.consumo_mensal_reais && parseFloat(formData.consumo_mensal_reais) > 0;
+    
+    if (!kitSelecionado || (!temConsumoKwh && !temConsumoReais)) {
       console.log('⚠️ Dados insuficientes para calcular variáveis');
       console.log('📊 Kit selecionado:', !!kitSelecionado);
       console.log('📊 Consumo mensal kWh:', formData.consumo_mensal_kwh);
+      console.log('📊 Consumo mensal Reais:', formData.consumo_mensal_reais);
+      console.log('📊 Tem consumo kWh:', temConsumoKwh);
+      console.log('📊 Tem consumo Reais:', temConsumoReais);
       return null;
     }
 
     console.log('💰 Calculando todas as variáveis para a proposta...');
     
     const potenciaKw = kitSelecionado.potencia || formData.potencia_kw || 0;
-    const consumoMensalKwh = formData.consumo_mensal_kwh;
+    
+    // Calcular consumo em kWh se necessário
+    let consumoMensalKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
+    if (consumoMensalKwh <= 0 && temConsumoReais) {
+      // Se não tem kWh mas tem reais, calcular baseado na tarifa
+      const consumoReais = parseFloat(formData.consumo_mensal_reais);
+      const tarifaEstimada = 0.75; // R$ 0,75 por kWh (padrão)
+      consumoMensalKwh = consumoReais / tarifaEstimada;
+      console.log('📊 Consumo kWh calculado a partir do valor em reais:', consumoMensalKwh);
+    }
     
     // Calcular tarifa automaticamente se não estiver definida
     let tarifaAtual = formData.tarifa_energia;
-    if (!tarifaAtual && formData.consumo_mensal_reais) {
-      tarifaAtual = parseFloat(formData.consumo_mensal_reais) / parseFloat(consumoMensalKwh);
+    if (!tarifaAtual && temConsumoReais && consumoMensalKwh > 0) {
+      const consumoReais = parseFloat(formData.consumo_mensal_reais);
+      tarifaAtual = consumoReais / consumoMensalKwh;
       console.log('📊 Tarifa calculada automaticamente:', tarifaAtual);
     } else if (!tarifaAtual) {
       // Usar tarifa padrão se não houver dados
@@ -1437,9 +1484,24 @@ export default function NovoProjeto() {
     });
     
     const projecoes = calcularProjecoesFinanceiras(consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal);
+    
+    // Adicionar dados do kit às projeções
+    projecoes.custo_total_projeto = kitSelecionado?.precoTotal || 0;
+    projecoes.custo_equipamentos = kitSelecionado?.precoTotal * 0.7 || 0; // 70% do custo total
+    projecoes.custo_instalacao = kitSelecionado?.precoTotal * 0.2 || 0; // 20% do custo total
+    projecoes.custo_homologacao = kitSelecionado?.precoTotal * 0.05 || 0; // 5% do custo total
+    projecoes.custo_outros = kitSelecionado?.precoTotal * 0.05 || 0; // 5% do custo total
+    projecoes.margem_lucro = kitSelecionado?.precoTotal * 0.3 || 0; // 30% de margem
+    
     setProjecoesFinanceiras(projecoes);
     
     console.log('✅ Todas as variáveis calculadas:', projecoes);
+    console.log('💰 Valores financeiros calculados:', {
+      economia_mensal_estimada: projecoes.economia_mensal_estimada,
+      payback_meses: projecoes.payback_meses,
+      economia_total_25_anos: projecoes.economia_total_25_anos,
+      custo_total_projeto: projecoes.custo_total_projeto
+    });
     return projecoes;
   };
 
@@ -1454,6 +1516,9 @@ export default function NovoProjeto() {
       
       // Aguardar um pouco para garantir que o estado foi atualizado
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Ativar auto-geração da proposta
+      setAutoGenerateProposta(true);
       
       // Avançar para a aba de resultados
       setActiveTab('resultados');
@@ -2785,6 +2850,8 @@ export default function NovoProjeto() {
                   kitSelecionado={kitSelecionado}
                   clientes={clientes}
                   configs={configs}
+                  autoGenerateProposta={autoGenerateProposta}
+                  onAutoGenerateComplete={() => setAutoGenerateProposta(false)}
                 />
               </TabsContent>
             </Tabs>
