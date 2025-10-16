@@ -8,6 +8,7 @@ import sys
 import json
 import base64
 import tempfile
+import re
 import subprocess
 import uuid
 from datetime import datetime
@@ -126,6 +127,9 @@ def gerar_proposta_html(proposta_id):
         
         with open(template_path, 'r', encoding='utf-8') as f:
             template_html = f.read()
+        
+        print(f"🔍 Template carregado: {len(template_html)} caracteres")
+        print(f"🔍 Variáveis encontradas no template: {len(re.findall(r'\{\{[^}]+\}\}', template_html))}")
         
         # Substituir todas as variáveis {{}} no template
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
@@ -303,6 +307,8 @@ def gerar_proposta_html(proposta_id):
         template_html = template_html.replace('{{altura_ano_20_com_solar}}', str(int(((investimento_inicial + 2000) / gasto_maximo) * 100)))
         template_html = template_html.replace('{{altura_ano_25_com_solar}}', str(int(((investimento_inicial + 2500) / gasto_maximo) * 100)))
         
+        print(f"🔍 Variáveis restantes após substituições: {len(re.findall(r'\{\{[^}]+\}\}', template_html))}")
+        
         print(f"✅ Proposta HTML gerada: {proposta_id}")
         print(f"📊 Variáveis substituídas:")
         print(f"   - conta_atual_anual: {proposta_data.get('conta_atual_anual', 0)}")
@@ -313,7 +319,6 @@ def gerar_proposta_html(proposta_id):
         print(f"   - preco_final: {proposta_data.get('preco_final', 0)}")
         
         # Contar quantas variáveis {{}} ainda restam no template
-        import re
         variaveis_restantes = re.findall(r'\{\{[^}]+\}\}', template_html)
         print(f"🔍 Variáveis {{}} ainda não substituídas: {len(variaveis_restantes)}")
         if variaveis_restantes:

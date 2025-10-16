@@ -253,10 +253,17 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     }
   };
 
-  // Carregar template quando o componente montar
+  // Carregar template quando o componente montar (apenas se não foi processado pelo servidor)
   useEffect(() => {
+    // Não executar se o template já foi processado pelo servidor Python
+    if (templateContent && !templateContent.includes('{{')) {
+      console.log('🔄 Template já processado pelo servidor, pulando carregamento local');
+      return;
+    }
+    
     const loadTemplate = async () => {
       try {
+        console.log('🔄 Carregando template local (fallback)');
         const response = await fetch('/template.html');
         let templateHtml = await response.text();
         
@@ -276,7 +283,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           templateHtml = templateHtml.replace(/src="\/img\/como-funciona\.png"/g, `src="${comoFuncionaBase64}"`);
         }
         
-        // Substituir variáveis básicas
+        // Substituir variáveis básicas (apenas as que não foram processadas pelo servidor)
         const clienteSelecionado = clientes.find(c => c.id === formData?.cliente_id);
         templateHtml = templateHtml.replace(/{{cliente_nome}}/g, clienteSelecionado?.nome || 'Cliente');
         templateHtml = templateHtml.replace(/{{cliente_endereco}}/g, clienteSelecionado?.endereco_completo || 'Endereço não informado');
@@ -297,7 +304,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     };
     
     loadTemplate();
-  }, [formData, clientes, dadosSeguros, configs]);
+  }, [formData, clientes, dadosSeguros, configs, templateContent]);
 
   const salvarProposta = async () => {
     setIsGeneratingPDF(true);
@@ -342,14 +349,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         margem_lucro: dadosSeguros.margem_lucro || 0
       };
 
-            console.log('📊 Dados da proposta para o servidor:', propostaData);
-            console.log('💰 Valores financeiros específicos sendo enviados:', {
-              conta_atual_anual: propostaData.conta_atual_anual,
-              anos_payback: propostaData.anos_payback,
-              gasto_acumulado_payback: propostaData.gasto_acumulado_payback,
-              potencia_sistema: propostaData.potencia_sistema,
-              preco_final: propostaData.preco_final
-            });
+      console.log('📊 Dados da proposta para o servidor:', propostaData);
+      console.log('💰 Valores financeiros específicos sendo enviados:', {
+        conta_atual_anual: propostaData.conta_atual_anual,
+        anos_payback: propostaData.anos_payback,
+        gasto_acumulado_payback: propostaData.gasto_acumulado_payback,
+        potencia_sistema: propostaData.potencia_sistema,
+        preco_final: propostaData.preco_final
+      });
+      console.log('🔍 DEBUG dadosSeguros completo:', dadosSeguros);
 
       // Salvar no servidor
       const result = await propostaService.salvarProposta(propostaData);
@@ -388,35 +396,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // Função para carregar template para preview
   const loadTemplateForPreview = async (proposta) => {
     try {
-      const response = await fetch('/template.html');
-      if (!response.ok) {
-        throw new Error('Erro ao carregar template');
-      }
+      // Usar o HTML já processado pelo servidor Python (que substitui todas as 109 variáveis)
+      // Em vez de fazer substituições locais limitadas
+      console.log('🔄 Usando HTML já processado pelo servidor Python');
       
-      let templateHtml = await response.text();
+      // O templateContent já foi definido pelo servidor Python com todas as variáveis substituídas
+      // Não precisamos fazer substituições locais aqui
       
-      // Substituir variáveis no template
-      templateHtml = templateHtml.replace(/{{cliente_nome}}/g, proposta.cliente_nome || 'Cliente');
-      templateHtml = templateHtml.replace(/{{cliente_endereco}}/g, proposta.cliente_endereco || 'Endereço não informado');
-      templateHtml = templateHtml.replace(/{{cliente_telefone}}/g, proposta.cliente_telefone || 'Telefone não informado');
-      templateHtml = templateHtml.replace(/{{potencia_sistema}}/g, proposta.potencia_sistema || '0');
-      templateHtml = templateHtml.replace(/{{preco_final}}/g, proposta.preco_final || '0');
-      templateHtml = templateHtml.replace(/{{cidade}}/g, proposta.cidade || 'Projeto');
-      templateHtml = templateHtml.replace(/{{vendedor_nome}}/g, proposta.vendedor_nome || 'Representante Comercial');
-      templateHtml = templateHtml.replace(/{{vendedor_cargo}}/g, proposta.vendedor_cargo || 'Especialista em Energia Solar');
-      templateHtml = templateHtml.replace(/{{vendedor_telefone}}/g, proposta.vendedor_telefone || '(11) 99999-9999');
-      templateHtml = templateHtml.replace(/{{vendedor_email}}/g, proposta.vendedor_email || 'contato@empresa.com');
-      templateHtml = templateHtml.replace(/{{data_proposta}}/g, proposta.data_proposta || new Date().toLocaleDateString('pt-BR'));
-      
-      // Substituir variáveis financeiras
-      templateHtml = templateHtml.replace(/{{conta_atual_anual}}/g, proposta.conta_atual_anual || 0);
-      templateHtml = templateHtml.replace(/{{anos_payback}}/g, proposta.anos_payback || 0);
-      templateHtml = templateHtml.replace(/{{gasto_acumulado_payback}}/g, proposta.gasto_acumulado_payback || 0);
-      templateHtml = templateHtml.replace(/{{consumo_mensal_kwh}}/g, Number(proposta.consumo_mensal_kwh || 0).toFixed(0));
-      templateHtml = templateHtml.replace(/{{tarifa_energia}}/g, Number(proposta.tarifa_energia || 0.75).toFixed(3));
-      templateHtml = templateHtml.replace(/{{economia_mensal_estimada}}/g, proposta.economia_mensal_estimada || 0);
-      
-      setTemplateContent(templateHtml);
     } catch (error) {
       console.error('❌ Erro ao carregar template para preview:', error);
     }
