@@ -18,10 +18,20 @@ export default function ConsumoMesAMes({ consumos, onChange }) {
     newConsumos[index] = { mes: meses[index], kwh: value };
     onChange(newConsumos);
   };
+
+  const possuiCamposVazios = () => {
+    const arr = consumos && consumos.length > 0 ? consumos : meses.map(mes => ({ mes, kwh: '' }));
+    return arr.some(item => item.kwh === '' || item.kwh == null);
+  };
   const consumosArray = consumos && consumos.length > 0 ? consumos : meses.map(mes => ({ mes, kwh: "" }));
   return (
     <Card className="bg-white/80 mt-4">
       <CardContent className="p-4">
+        {possuiCamposVazios() && (
+          <div className="mb-3 text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">
+            Preencha todos os meses para continuar.
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {meses.map((mes, index) => (
             <div key={mes} className="space-y-2">

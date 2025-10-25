@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '../../components/ui/button';
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { propostaService } from '../../services/propostaService';
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete }) {
@@ -52,6 +50,36 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   }, [calcularContaAtualAnual, projecoesFinanceiras]);
 
   const getDadosSeguros = useCallback(() => {
+    // Verificar se todos os dados necessários estão disponíveis (relaxado)
+    if (!formData || !projecoesFinanceiras || !kitSelecionado) {
+      console.warn('Dados do projeto incompletos - prosseguindo com defaults');
+    }
+
+    if (!projecoesFinanceiras.payback_meses) {
+      console.warn('Payback não calculado - usando 0 para continuar');
+    }
+
+    if (!kitSelecionado.precoTotal) {
+      console.warn('Preço do kit não disponível - usando 0');
+    }
+
+    if (!formData.cliente_id) {
+      console.warn('Cliente não selecionado - prosseguindo com placeholders. Selecione um cliente para personalizar.');
+      // Opcional: usar o primeiro cliente, se existir
+      // const clienteDefault = (clientes && clientes.length > 0) ? clientes[0].id : null;
+      // Não interromper o fluxo; os campos do cliente terão valores padrão mais adiante
+    }
+
+    // Verificar se os dados financeiros estão disponíveis
+    const contaAtualAnual = calcularContaAtualAnual();
+    if (contaAtualAnual <= 0) {
+      console.warn('Conta anual não calculada - usando 0');
+    }
+
+    const gastoAcumuladoPayback = calcularGastoAcumuladoPayback();
+    if (gastoAcumuladoPayback <= 0) {
+      console.warn('Gasto acumulado não calculado - usando 0');
+    }
     const dadosBase = resultados || {};
     const kit = kitSelecionado || {};
     const projecoes = projecoesFinanceiras || {};
@@ -123,92 +151,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   }, [resultados, formData, projecoesFinanceiras, kitSelecionado, calcularContaAtualAnual, calcularGastoAcumuladoPayback]);
 
   const dadosSeguros = getDadosSeguros();
-
-  // Função de teste para gerar proposta com valores fixos
-  const gerarPropostaTeste = async () => {
-    setIsGeneratingPDF(true);
-
-    try {
-      console.log('🧪 TESTE: Gerando proposta com dados reais do cliente...');
-
-      const cliente = clientes.find(c => c.id === formData?.cliente_id);
-      
-      const propostaDataTeste = {
-        // Dados do cliente REAL
-        cliente_nome: cliente?.nome || 'Cliente Teste',
-        cliente_endereco: cliente?.endereco_completo || 'Endereço não informado',
-        cliente_telefone: cliente?.telefone || 'Telefone não informado',
-        
-        // Dados do projeto REAL
-        potencia_sistema: dadosSeguros.potencia_sistema_kwp || 1.17,
-        preco_final: dadosSeguros.preco_final || 3540.8,
-        cidade: formData?.cidade || 'São José dos Campos',
-        
-        // Dados do vendedor REAL
-        vendedor_nome: configs.vendedor_nome || 'Representante Comercial',
-        vendedor_cargo: configs.vendedor_cargo || 'Especialista em Energia Solar',
-        vendedor_telefone: configs.vendedor_telefone || '(11) 99999-9999',
-        vendedor_email: configs.vendedor_email || 'contato@empresa.com',
-        
-        // Dados financeiros CALCULADOS (não fixos)
-        conta_atual_anual: dadosSeguros.conta_atual_anual || 1200,
-        anos_payback: dadosSeguros.anos_payback || 3,
-        gasto_acumulado_payback: dadosSeguros.gasto_acumulado_payback || 3600,
-        consumo_mensal_kwh: formData?.consumo_mensal_kwh || 100,
-        tarifa_energia: dadosSeguros.tarifa_energia || 0.75,
-        economia_mensal_estimada: dadosSeguros.economia_mensal_estimada || 75,
-        
-        // Dados do kit REAL
-        quantidade_placas: dadosSeguros.quantidade_placas || 3,
-        potencia_placa_w: dadosSeguros.potencia_placa_w || 390,
-        area_necessaria: dadosSeguros.area_necessaria || 7.5,
-        irradiacao_media: dadosSeguros.irradiacao_media || 5.15,
-        geracao_media_mensal: dadosSeguros.geracao_media_mensal || 150,
-        creditos_anuais: dadosSeguros.creditos_anuais || 1800,
-        economia_total_25_anos: dadosSeguros.economia_total_25_anos || 25000,
-        payback_meses: dadosSeguros.payback_meses || 36,
-        
-        // Custos REAIS
-        custo_total_projeto: dadosSeguros.custo_total_projeto || 3540.8,
-        custo_equipamentos: dadosSeguros.custo_equipamentos || 2500,
-        custo_instalacao: dadosSeguros.custo_instalacao || 800,
-        custo_homologacao: dadosSeguros.custo_homologacao || 200,
-        custo_outros: dadosSeguros.custo_outros || 40.8,
-        margem_lucro: dadosSeguros.margem_lucro || 1000
-      };
-
-      console.log('🧪 TESTE: Dados da proposta teste (com dados reais):', propostaDataTeste);
-
-      const result = await propostaService.salvarProposta(propostaDataTeste);
-      
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-
-      const propostaId = result.proposta_id;
-      console.log('🧪 TESTE: Proposta salva com ID:', propostaId);
-
-      const htmlResult = await propostaService.gerarPropostaHTML(propostaId);
-      
-      if (!htmlResult.success) {
-        throw new Error(htmlResult.message);
-      }
-
-      console.log('🧪 TESTE: HTML da proposta gerado');
-
-      setPropostaData(propostaDataTeste);
-      setPropostaId(propostaId);
-      setPropostaSalva(true);
-      setShowPreview(true);
-      setTemplateContent(htmlResult.html_content);
-      
-    } catch (error) {
-      console.error('❌ Erro no teste:', error);
-      alert('Erro no teste: ' + error.message);
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
 
   // useEffect para auto-geração da proposta
   useEffect(() => {
@@ -329,6 +271,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         anos_payback: dadosSeguros.anos_payback || 0,
         gasto_acumulado_payback: dadosSeguros.gasto_acumulado_payback || 0,
         consumo_mensal_kwh: formData?.consumo_mensal_kwh || 0,
+        consumo_mes_a_mes: Array.isArray(formData?.consumo_mes_a_mes) ? formData.consumo_mes_a_mes : [],
         tarifa_energia: dadosSeguros.tarifa_energia || 0.75,
         economia_mensal_estimada: dadosSeguros.economia_mensal_estimada || 0,
         // Dados do kit
@@ -359,31 +302,26 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       });
       console.log('🔍 DEBUG dadosSeguros completo:', dadosSeguros);
 
-      // Salvar no servidor
-      const result = await propostaService.salvarProposta(propostaData);
-      
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-
-      const propostaId = result.proposta_id;
-      console.log('✅ Proposta salva no servidor com ID:', propostaId);
-
-      // Gerar HTML da proposta
-      const htmlResult = await propostaService.gerarPropostaHTML(propostaId);
+      // Salvar no servidor e gerar HTML usando o mesmo ID
+      const htmlResult = await propostaService.salvarEGerarHTML(propostaData);
       
       if (!htmlResult.success) {
         throw new Error(htmlResult.message);
       }
 
-      console.log('✅ HTML da proposta gerado');
+      const propostaId = htmlResult.proposta_id;
+      console.log('✅ Proposta salva e HTML gerado com ID:', propostaId);
 
       // Salvar dados para preview
       setPropostaData(propostaData);
       setPropostaId(propostaId);
       setPropostaSalva(true);
-      setShowPreview(true);
-      setTemplateContent(htmlResult.html_content);
+      
+      // Abrir proposta em nova aba (mostrará o PDF do backend)
+      window.open(`/proposta/${propostaId}`, '_blank');
+      
+      // Notificar sucesso
+      alert('Proposta gerada com sucesso! Abrindo em nova aba...');
       
     } catch (error) {
       console.error('❌ Erro ao salvar proposta:', error);
@@ -520,20 +458,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         <h1 className="text-3xl font-bold text-primary">Proposta Comercial</h1>
         <div className="flex gap-4">
         {!showPreview ? (
-          <div className="space-y-4">
-            <Button onClick={salvarProposta} disabled={isGeneratingPDF} className="bg-primary hover:bg-primary-dark text-white">
-              {isGeneratingPDF ? 'Gerando...' : 'Gerar Proposta'}
-            </Button>
-            
-            <Button 
-              onClick={gerarPropostaTeste} 
-              disabled={isGeneratingPDF} 
-              variant="outline"
-              className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
-            >
-              🧪 Teste com Dados Reais
-            </Button>
-          </div>
+          <Button onClick={salvarProposta} disabled={isGeneratingPDF} className="bg-primary hover:bg-primary-dark text-white">
+            {isGeneratingPDF ? 'Gerando...' : 'Gerar Proposta'}
+          </Button>
         ) : (
             <>
               <Button onClick={gerarPDF} disabled={isGeneratingPDF} className="bg-green-600 hover:bg-green-700 text-white">

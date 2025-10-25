@@ -1,0 +1,96 @@
+{
+  "6145fe49-1263-4e9c-96fd-3a6abfed57e6": {
+    "id": "6145fe49-1263-4e9c-96fd-3a6abfed57e6",
+    "nome": "João Silva",
+    "telefone": "(11) 99999-9999",
+    "email": "joao@email.com",
+    "enderecos": [
+      {
+        "logradouro": "Rua das Flores",
+        "numero": "123",
+        "complemento": "Apto 45",
+        "bairro": "Centro",
+        "cidade": "São Paulo",
+        "estado": "SP",
+        "cep": "01234-567",
+        "principal": true
+      }
+    ],
+    "created_by": "comum-test-uid",
+    "created_at": "2025-10-21T14:59:13.126559",
+    "updated_at": "2025-10-21T14:59:13.126561"
+  },
+  "1a4361dc-53a6-4754-bf22-11dd5b854ea2": {
+    "id": "1a4361dc-53a6-4754-bf22-11dd5b854ea2",
+    "nome": "Maria Santos",
+    "telefone": "(11) 88888-8888",
+    "email": "maria@email.com",
+    "enderecos": [
+      {
+        "logradouro": "Av. Paulista",
+        "numero": "1000",
+        "complemento": null,
+        "bairro": "Bela Vista",
+        "cidade": "São Paulo",
+        "estado": "SP",
+        "cep": "01310-100",
+        "principal": true
+      }
+    ],
+    "created_by": "admin-test-uid",
+    "created_at": "2025-10-21T14:59:13.126731",
+    "updated_at": "2025-10-21T14:59:13.126733"
+  },
+  "d726baa4-39e6-4e9b-8a38-a04f0b73eeb0": {
+    "id": "d726baa4-39e6-4e9b-8a38-a04f0b73eeb0",
+    "nome": "João Silva",
+    "telefone": "(11) 99999-9999",
+    "email": "joao@email.com",
+    "enderecos": [
+      {
+        "logradouro": "Rua das Flores",
+        "numero": "123",
+        "complemento": "Apto 45",
+        "bairro": "Centro",
+        "cidade": "São Paulo",
+        "estado": "SP",
+        "cep": "01234-567",
+        "principal": true
+      }
+    ],
+    "created_by": "comum-test-uid",
+    "created_at": "2025-10-21T15:04:21.407636",
+    "updated_at": "2025-10-21T15:04:21.407640"
+  },
+  "708eb3af-a4c4-449b-a9d4-777eb2fe3a42": {
+    "id": "708eb3af-a4c4-449b-a9d4-777eb2fe3a42",
+    "nome": "Maria Santos",
+    "telefone": "(11) 88888-8888",
+    "email": "maria@email.com",
+    "enderecos": [
+      {
+        "logradouro": "Av. Paulista",
+        "numero": "1000",
+        "complemento": null,
+        "bairro": "Bela Vista",
+        "cidade": "São Paulo",
+        "estado": "SP",
+        "cep": "01310-100",
+        "principal": true
+      }
+    ],
+    "created_by": "admin-test-uid",
+    "created_at": "2025-10-21T15:04:21.408500",
+    "updated_at": "2025-10-21T15:04:21.408503"
+  },
+  "337eb4fe-49b9-469e-be3f-32be4d961197": {
+    "id": "337eb4fe-49b9-469e-be3f-32be4d961197",
+    "nome": "João Silva",
+    "telefone": "(11) 99999-9999",
+    "email": "joao@teste.com",
+    "enderecos": [],
+    "created_by": "test-user",
+    "created_at": "2025-10-21T19:34:46.183504",
+    "updated_at": "2025-10-21T19:34:46.183701"
+  }
+}

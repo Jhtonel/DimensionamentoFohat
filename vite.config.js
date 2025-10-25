@@ -11,13 +11,13 @@ export default defineConfig({
     },
   },
       server: {
-        port: 3002,
-        host: '192.168.1.11', // IP correto para contornar CORS
+        port: 3003,
+        host: true,
         open: true,
         allowedHosts: [
           'localhost',
           '127.0.0.1',
-          '192.168.1.11',
+          '192.168.1.23',
           '.ngrok.io',
           '.ngrok-free.app',
           '.ngrok.app'
@@ -41,12 +41,12 @@ export default defineConfig({
                 proxyReq.setHeader('Host', 'api-d1297.cloud.solaryum.com.br');
                 
                 // Headers para simular IP correto
-                proxyReq.setHeader('X-Forwarded-For', '192.168.1.11');
-                proxyReq.setHeader('X-Real-IP', '192.168.1.11');
-                proxyReq.setHeader('X-Client-IP', '192.168.1.11');
-                proxyReq.setHeader('X-Original-IP', '192.168.1.11');
-                proxyReq.setHeader('Client-IP', '192.168.1.11');
-                proxyReq.setHeader('Remote-Addr', '192.168.1.11');
+                proxyReq.setHeader('X-Forwarded-For', '192.168.1.23');
+                proxyReq.setHeader('X-Real-IP', '192.168.1.23');
+                proxyReq.setHeader('X-Client-IP', '192.168.1.23');
+                proxyReq.setHeader('X-Original-IP', '192.168.1.23');
+                proxyReq.setHeader('Client-IP', '192.168.1.23');
+                proxyReq.setHeader('Remote-Addr', '192.168.1.23');
                 proxyReq.setHeader('X-Forwarded-Proto', 'https');
                 proxyReq.setHeader('X-Forwarded-Host', 'api-d1297.cloud.solaryum.com.br');
                 

@@ -1,0 +1,26 @@
+{
+  "uuwgQBTv25ffEvTM7kt5IG7ntRO2": {
+    "uid": "uuwgQBTv25ffEvTM7kt5IG7ntRO2",
+    "email": "admin@teste.com",
+    "nome": "Administrador",
+    "role": "admin",
+    "created_at": "2025-10-21T15:04:21.402885",
+    "updated_at": "2025-10-21T17:54:36.339034"
+  },
+  "MlAGDtd89NVi439ZuHWxdwhwtty2": {
+    "uid": "MlAGDtd89NVi439ZuHWxdwhwtty2",
+    "email": "usuario@teste.com",
+    "nome": "Usuário Comum",
+    "role": "comum",
+    "created_at": "2025-10-21T15:04:21.404457",
+    "updated_at": "2025-10-21T17:54:36.339055"
+  },
+  "test": {
+    "uid": "test",
+    "email": "test@test.com",
+    "nome": "Test",
+    "role": "admin",
+    "created_at": "2025-10-21T17:58:16.830242",
+    "updated_at": "2025-10-21T17:58:16.830938"
+  }
+}

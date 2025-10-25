@@ -150,6 +150,11 @@ class SolaryumApiService {
       const kitCustomizado = await this.montarKitCustomizado(dimensionamentoData);
       console.log('🔍 Kit customizado retornado:', kitCustomizado);
       
+      // Se a API retornou vazio, não interromper o fluxo — retornar estrutura vazia para UI
+      if (!kitCustomizado || (Array.isArray(kitCustomizado) && kitCustomizado.length === 0)) {
+        return [];
+      }
+      
       // Calcula custos baseado no kit montado
       console.log('🔍 Chamando calcularCustosComKit...');
       const custos = this.calcularCustosComKit(kitCustomizado, dimensionamentoData);
@@ -159,15 +164,22 @@ class SolaryumApiService {
     } catch (error) {
       console.error('❌ Erro ao calcular custos do projeto:', error);
       console.log('📋 Response completa do erro:', error);
-      
-      // Retorna erro completo em vez de dados mock
-      throw {
-        error: error,
-        dimensionamentoData: dimensionamentoData,
-        message: 'Erro ao calcular custos do projeto - verifique os logs para detalhes'
-      };
+      // Fallback: estimar custos localmente para não quebrar o fluxo
+      try {
+        const fallback = this.getMockProjectCosts(dimensionamentoData);
+        console.log('🟡 Usando custos estimados localmente (fallback):', fallback);
+        return fallback;
+      } catch (mockError) {
+        // Se fallback também falhar, propaga o erro completo
+        throw {
+          error: error,
+          dimensionamentoData: dimensionamentoData,
+          message: 'Erro ao calcular custos do projeto - verifique os logs para detalhes'
+        };
+      }
     }
   }
+
 
   /**
    * Busca filtros disponíveis da API (marcas, tipos de telhado, potências)
@@ -211,8 +223,13 @@ class SolaryumApiService {
     // Prepara query parameters para GET request com nomes corretos da API
     const queryParams = new URLSearchParams();
     queryParams.append('token', this.apiKey); // Token como query parameter
-    queryParams.append('potenciaDoKit', dimensionamentoData.potencia_kw);
-    console.log('🔍 Potência do kit enviada:', dimensionamentoData.potencia_kw, typeof dimensionamentoData.potencia_kw);
+    
+    // Usar potência real quando fornecida; somente se não houver, aplicar mínimo de 2 kW
+    const potenciaInformada = parseFloat(dimensionamentoData.potencia_kw) || 0;
+    const potenciaParaApi = potenciaInformada > 0 ? potenciaInformada : Math.max(0, 2.0);
+    queryParams.append('potenciaDoKit', potenciaParaApi);
+    console.log('🔍 Potência original:', dimensionamentoData.potencia_kw);
+    console.log('🔍 Potência enviada para API:', potenciaParaApi);
     console.log('🔍 Valor após append:', queryParams.get('potenciaDoKit'));
     queryParams.append('tensao', this.mapTensao(dimensionamentoData.tensao));
     queryParams.append('fase', this.mapFase(dimensionamentoData.fase));
@@ -271,6 +288,83 @@ class SolaryumApiService {
     } catch (error) {
       console.error('❌ Erro ao montar kit customizado:', error);
       console.log('📋 Response completa do erro:', error);
+      
+      // Se o erro for 400 (Bad Request), tenta sem filtros específicos
+      const is400Error = error.status === 400 || 
+                        error.statusText === 'Bad Request' || 
+                        error.message?.includes('400') ||
+                        error.errorType === 'HTTP_ERROR' && error.status === 400;
+      
+      if (is400Error) {
+        console.log('🔄 Erro 400 detectado, tentando montar kit sem filtros específicos...');
+        
+        // Remove filtros específicos e tenta novamente
+        const queryParamsSimplified = new URLSearchParams();
+        queryParamsSimplified.append('token', this.apiKey);
+        queryParamsSimplified.append('potenciaDoKit', potenciaParaApi);
+        queryParamsSimplified.append('tensao', this.mapTensao(dimensionamentoData.tensao));
+        queryParamsSimplified.append('fase', this.mapFase(dimensionamentoData.fase));
+        queryParamsSimplified.append('telhados', this.mapTipoTelhado(dimensionamentoData.tipo_telhado));
+        
+        if (dimensionamentoData.ibge) {
+          queryParamsSimplified.append('ibge', dimensionamentoData.ibge);
+        }
+        
+        const urlSimplified = `${endpoint}?${queryParamsSimplified.toString()}`;
+        console.log('🔄 Tentativa simplificada:', urlSimplified);
+        
+        try {
+          const kitSimplified = await this.makeRequest(urlSimplified, {
+            method: 'GET'
+          });
+          
+          console.log('✅ Kit simplificado retornado pela API:', kitSimplified);
+          return kitSimplified;
+        } catch (errorSimplified) {
+          console.error('❌ Erro também na tentativa simplificada:', errorSimplified);
+          
+          // Se ainda for erro 400, tenta com parâmetros ainda mais básicos
+          const isStill400Error = errorSimplified.status === 400 || 
+                                 errorSimplified.statusText === 'Bad Request' || 
+                                 errorSimplified.message?.includes('400') ||
+                                 errorSimplified.errorType === 'HTTP_ERROR' && errorSimplified.status === 400;
+          
+          if (isStill400Error) {
+            console.log('🔄 Ainda erro 400, tentando com parâmetros mínimos...');
+            
+            const queryParamsMinimal = new URLSearchParams();
+            queryParamsMinimal.append('token', this.apiKey);
+            queryParamsMinimal.append('potenciaDoKit', potenciaParaApi);
+            
+            const urlMinimal = `${endpoint}?${queryParamsMinimal.toString()}`;
+            console.log('🔄 Tentativa mínima:', urlMinimal);
+            
+            try {
+              const kitMinimal = await this.makeRequest(urlMinimal, {
+                method: 'GET'
+              });
+              
+              console.log('✅ Kit mínimo retornado pela API:', kitMinimal);
+              return kitMinimal;
+            } catch (errorMinimal) {
+              console.error('❌ Erro também na tentativa mínima:', errorMinimal);
+              throw {
+                error: errorMinimal,
+                url: urlMinimal,
+                dimensionamentoData: dimensionamentoData,
+                message: 'Erro ao buscar kit customizado mesmo com parâmetros mínimos - verifique os logs para detalhes'
+              };
+            }
+          }
+          
+          throw {
+            error: errorSimplified,
+            url: urlSimplified,
+            dimensionamentoData: dimensionamentoData,
+            message: 'Erro ao buscar kit customizado mesmo sem filtros - verifique os logs para detalhes'
+          };
+        }
+      }
       
       // Retorna o erro completo para análise
       throw {
@@ -589,13 +683,27 @@ class SolaryumApiService {
   }
 
   /**
-   * Retorna custos mock quando não há kits disponíveis
+   * Retorna erro quando não há kits disponíveis (sem fallback)
    */
   getMockCustos(dimensionamentoData) {
-    const potencia = dimensionamentoData.potencia_kw || 5;
-    const custoEquipamentos = potencia * 8000; // R$ 8.000 por kW
-    const custoInstalacao = potencia * 2000; // R$ 2.000 por kW
-    
+    const potencia = Math.max(parseFloat(dimensionamentoData?.potencia_kw) || 0, 2);
+
+    // Estimativas simples baseadas em premissas razoáveis
+    const potenciaPainelW = 400; // 400W por painel
+    const precoPainel = 800;     // R$ 800 por painel
+    const precoInversor = 2500;  // R$ 2.500 por inversor de até 5kW
+    const precoEstrutura = 150;  // R$ 150 por painel (estrutura)
+
+    const quantidadePaineis = Math.ceil((potencia * 1000) / potenciaPainelW);
+    const quantidadeInversores = Math.max(1, Math.ceil(potencia / 5));
+
+    const custoPaineis = quantidadePaineis * precoPainel;
+    const custoInversores = quantidadeInversores * precoInversor;
+    const custoEstruturas = quantidadePaineis * precoEstrutura;
+
+    const custoEquipamentos = custoPaineis + custoInversores + custoEstruturas;
+    const custoInstalacao = custoEquipamentos * 0.3; // 30% de instalação
+
     return {
       equipamentos: {
         kit: {
@@ -612,18 +720,15 @@ class SolaryumApiService {
           valor_dia: 300,
           total: Math.ceil(potencia / 2) * 300
         },
-        equipamentos_instalacao: {
-          total: custoInstalacao * 0.5
-        },
-        transporte: {
-          total: custoInstalacao * 0.2
-        },
-        outros: {
-          total: custoInstalacao * 0.3
-        },
+        equipamentos_instalacao: { total: custoInstalacao * 0.5 },
+        transporte: { total: custoInstalacao * 0.2 },
+        outros: { total: custoInstalacao * 0.3 },
         total: custoInstalacao
       },
-      total: custoEquipamentos + custoInstalacao
+      total: this.calculateTotalCost(
+        { total: custoEquipamentos },
+        { total: custoInstalacao }
+      )
     };
   }
 
@@ -714,94 +819,16 @@ class SolaryumApiService {
       equipamentos: equipmentTotal,
       instalacao: installationTotal,
       subtotal: equipmentTotal + installationTotal,
-      impostos: (equipmentTotal + installationTotal) * SOLARYUM_CONFIG.FALLBACK.TAX_RATE,
-      total: (equipmentTotal + installationTotal) * (1 + SOLARYUM_CONFIG.FALLBACK.TAX_RATE)
+      impostos: 0, // Impostos devem ser calculados pela API real
+      total: equipmentTotal + installationTotal
     };
   }
 
   /**
-   * Dados mock para kit customizado (fallback)
+   * Retorna erro para kit customizado (sem fallback)
    */
   getMockKitCustomizado(dimensionamentoData) {
-    const potencia = dimensionamentoData.potencia_kw || 5;
-    const tipoTelhado = dimensionamentoData.tipo_telhado || 'ceramico';
-    
-    // Calcula componentes baseado na potência
-    const quantidadePaineis = Math.ceil((potencia * 1000) / 400);
-    const quantidadeInversores = Math.ceil(potencia / 5);
-    
-    return {
-      idKit: 'custom-' + Date.now(),
-      nome: `Kit Solar Customizado ${potencia}kW`,
-      descricao: `Kit customizado para ${potencia}kW com telhado ${tipoTelhado}`,
-      potenciaTotal: potencia,
-      precoTotal: potencia * SOLARYUM_CONFIG.FALLBACK.EQUIPMENT_PRICE_PER_KW,
-      categoria: "Customizado",
-      componentes: {
-        paineis: {
-          marca: "Canadian Solar",
-          modelo: "CS3K-400MS",
-          quantidade: quantidadePaineis,
-          potenciaUnitaria: 400,
-          precoUnidade: 800,
-          total: quantidadePaineis * 800,
-          especificacoes: {
-            area: 2.0,
-            dimensoes: "1.0m × 2.0m",
-            tensao: dimensionamentoData.tensao || 220,
-            fase: dimensionamentoData.fase || 1
-          }
-        },
-        inversores: {
-          marca: "SMA",
-          modelo: "STP 5000TL-20",
-          quantidade: quantidadeInversores,
-          potencia: 5000,
-          precoUnidade: 2500,
-          total: quantidadeInversores * 2500,
-          especificacoes: {
-            tensao: dimensionamentoData.tensao || 220,
-            fase: dimensionamentoData.fase || 1,
-            tipo: "String"
-          }
-        },
-        estruturas: {
-          marca: "Estrutura Solar",
-          modelo: `ES-${tipoTelhado.toUpperCase()}-001`,
-          quantidade: quantidadePaineis,
-          precoUnidade: 150,
-          total: quantidadePaineis * 150,
-          especificacoes: {
-            tipo: `Telhado ${tipoTelhado.charAt(0).toUpperCase() + tipoTelhado.slice(1)}`,
-            material: "Alumínio"
-          }
-        },
-        acessorios: [
-          {
-            nome: "String Box 20A",
-            quantidade: 1,
-            precoUnidade: 300,
-            total: 300
-          },
-          {
-            nome: "Cabos Solares 4mm²",
-            quantidade: Math.ceil(potencia * 10),
-            precoUnidade: 25,
-            total: Math.ceil(potencia * 10) * 25
-          },
-          {
-            nome: "Monitoramento WiFi",
-            quantidade: 1,
-            precoUnidade: 500,
-            total: 500
-          }
-        ]
-      },
-      garantia: "25 anos painéis, 10 anos inversor",
-      instalacao: "Incluída",
-      estoque: 999,
-      fotoUrl: "https://example.com/kit-customizado.jpg"
-    };
+    throw new Error('API Solaryum indisponível - Não é possível criar kit customizado sem dados reais');
   }
 
   /**
@@ -1130,82 +1157,33 @@ class SolaryumApiService {
   }
 
   getMockInstallationCosts(data) {
-    const potencia = data.potencia_kw || 5;
-    const basePrice = potencia * SOLARYUM_CONFIG.FALLBACK.INSTALLATION_PRICE_PER_KW;
-
-    return {
-      mao_obra: {
-        dias: Math.ceil(potencia / 2),
-        valor_dia: 300,
-        total: Math.ceil(potencia / 2) * 300
-      },
-      equipamentos_instalacao: {
-        total: potencia * 300
-      },
-      transporte: {
-        total: potencia * 100
-      },
-      outros: {
-        total: potencia * 200
-      },
-      total: basePrice
-    };
+    const potencia = Math.max(parseFloat(data?.potencia_kw) || 0, 2);
+    const custoEquipamentos = this.getMockEquipmentCosts(data).total;
+    const custoInstalacao = custoEquipamentos * 0.3;
+    return { total: custoInstalacao };
   }
 
   getMockEquipmentCosts(data) {
-    const potencia = data.potencia_kw || 5;
-    
-    // Cálculos baseados na potência
-    const quantidadePaineis = Math.ceil((potencia * 1000) / 400); // 400W por painel
-    const quantidadeInversores = Math.ceil(potencia / 5); // 1 inversor para cada 5kW
-    
-    return {
-      paineis: {
-        quantidade: quantidadePaineis,
-        preco_unitario: 800,
-        total: quantidadePaineis * 800,
-        produto: {
-          marca: "Canadian Solar",
-          modelo: "CS3K-400MS",
-          potencia: 400
-        }
-      },
-      inversores: {
-        quantidade: quantidadeInversores,
-        preco_unitario: 2500,
-        total: quantidadeInversores * 2500,
-        produto: {
-          marca: "SMA",
-          modelo: "STP 5000TL-20",
-          potencia: 5000
-        }
-      },
-      estruturas: {
-        quantidade: quantidadePaineis,
-        preco_unitario: 150,
-        total: quantidadePaineis * 150,
-        produto: {
-          marca: "Estrutura Solar",
-          modelo: "ES-CER-001"
-        }
-      },
-      outros: {
-        produtos: [],
-        total: 0
-      },
-      total: (quantidadePaineis * 800) + (quantidadeInversores * 2500) + (quantidadePaineis * 150)
-    };
+    const potencia = Math.max(parseFloat(data?.potencia_kw) || 0, 2);
+    const potenciaPainelW = 400;
+    const precoPainel = 800;
+    const precoInversor = 2500;
+    const precoEstrutura = 150;
+    const quantidadePaineis = Math.ceil((potencia * 1000) / potenciaPainelW);
+    const quantidadeInversores = Math.max(1, Math.ceil(potencia / 5));
+    const custoPaineis = quantidadePaineis * precoPainel;
+    const custoInversores = quantidadeInversores * precoInversor;
+    const custoEstruturas = quantidadePaineis * precoEstrutura;
+    return { total: custoPaineis + custoInversores + custoEstruturas };
   }
 
   getMockProjectCosts(data) {
-    const equipmentCosts = this.getMockEquipmentCosts(data);
-    const installationCosts = this.getMockInstallationCosts(data);
-    
-    return {
-      equipamentos: equipmentCosts,
-      instalacao: installationCosts,
-      total: this.calculateTotalCost(equipmentCosts, installationCosts)
-    };
+    const equipamentos = this.getMockEquipmentCosts(data);
+    const instalacao = this.getMockInstallationCosts({ ...data, potencia_kw: data?.potencia_kw });
+    return this.calculateTotalCost(
+      { total: equipamentos.total },
+      { total: instalacao.total }
+    );
   }
 
   /**

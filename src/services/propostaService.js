@@ -2,11 +2,17 @@
  * Serviço para comunicação com o servidor de propostas
  */
 
-// Detectar automaticamente a URL do servidor baseada no host atual
+import { systemConfig } from '../config/firebase.js';
+
+// Detectar automaticamente a URL do servidor baseada no host atual, priorizando config
 const getServerUrl = () => {
   // Verificar se há uma variável de ambiente configurada
   if (import.meta.env.VITE_PROPOSAL_SERVER_URL) {
     return import.meta.env.VITE_PROPOSAL_SERVER_URL;
+  }
+  // Priorizar configuração do sistema
+  if (typeof systemConfig?.apiUrl === 'string' && systemConfig.apiUrl.trim() !== '') {
+    return systemConfig.apiUrl.trim();
   }
   
   const hostname = window.location.hostname;
@@ -97,19 +103,27 @@ export const propostaService = {
       
       const response = await fetch(`${SERVER_URL}/gerar-proposta-html/${propostaId}`, {
         method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
+        headers: {
+          'Content-Type': 'text/html',
         }
-    });
+      });
 
-    if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-    }
+      if (!response.ok) {
+        // Ajuda a diagnosticar 404 por ID incorreto
+        const errText = await response.text().catch(() => '');
+        const msg = `Erro ao gerar HTML (status ${response.status}). ${errText || ''}`;
+        throw new Error(msg);
+      }
 
-    const result = await response.json();
-      console.log('✅ HTML da proposta gerado:', result);
+      const htmlContent = await response.text();
+      console.log('✅ HTML da proposta gerado:', htmlContent.substring(0, 100) + '...');
       
-      return result;
+      return {
+        success: true,
+        proposta_id: propostaId,
+        html_content: htmlContent,
+        message: 'HTML gerado com sucesso'
+      };
     } catch (error) {
       console.error('❌ Erro ao gerar HTML da proposta:', error);
       
@@ -189,12 +203,70 @@ export const propostaService = {
   },
 
   /**
+   * Atalho: salva a proposta e, com o ID retornado, já gera o HTML
+   * Garante que o mesmo ID é utilizado, evitando 404 por ID incorreto
+   */
+  async salvarEGerarHTML(propostaData) {
+    const salvar = await this.salvarProposta(propostaData);
+    const propostaId = salvar?.proposta_id;
+    if (!propostaId) {
+      throw new Error('Não foi possível obter o proposta_id do servidor.');
+    }
+    return await this.gerarPropostaHTML(propostaId);
+  },
+
+  /**
    * Obtém URL para visualizar a proposta
    * @param {string} propostaId - ID da proposta
    * @returns {string} URL da proposta
    */
   getPropostaURL(propostaId) {
     return `${SERVER_URL}/proposta/${propostaId}`;
+  },
+
+  /**
+   * Gera PDF da proposta usando o backend (WeasyPrint)
+   * @param {string} propostaId - ID da proposta
+   * @param {boolean} force - Forçar regeneração do PDF (ignorar cache)
+   * @returns {Promise<Object>} Blob do PDF e URL para visualização
+   */
+  async gerarPDF(propostaId, force = false) {
+    try {
+      console.log('🔄 Gerando PDF da proposta:', propostaId);
+      
+      const url = force 
+        ? `${SERVER_URL}/gerar-pdf/${propostaId}?force=true`
+        : `${SERVER_URL}/gerar-pdf/${propostaId}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao gerar PDF: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const pdfUrl = URL.createObjectURL(blob);
+      
+      console.log('✅ PDF gerado com sucesso');
+      
+      return {
+        success: true,
+        blob: blob,
+        url: pdfUrl,
+        message: 'PDF gerado com sucesso'
+      };
+    } catch (error) {
+      console.error('❌ Erro ao gerar PDF:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
   },
 
   /**

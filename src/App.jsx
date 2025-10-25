@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Layout from './Layout.jsx';
+import { useAuth } from './services/authService.jsx';
+import Login from './components/auth/Login';
+import Layout from './components/layout/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clientes from './pages/Clientes.jsx';
 import Projetos from './pages/Projetos.jsx';
@@ -9,9 +11,30 @@ import Configuracoes from './pages/Configuracoes.jsx';
 import PropostaView from './pages/PropostaView.jsx';
 import './index.css';
 
-function App() {
+// Componente principal com autenticação
+function AppWithAuth() {
+  const { user, loading } = useAuth();
+
+  // Se ainda está carregando a autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não está logado, mostrar tela de login
+  if (!user) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
+  // Se está logado, mostrar aplicação normal
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Rotas com Layout do CRM */}
         <Route path="/" element={<Layout><Dashboard /></Layout>} />
@@ -25,6 +48,10 @@ function App() {
       </Routes>
     </Router>
   );
+}
+
+function App() {
+  return <AppWithAuth />;
 }
 
 export default App;

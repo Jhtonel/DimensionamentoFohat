@@ -1,0 +1,10 @@
+flask
+flask-cors
+matplotlib
+numpy
+pandas
+weasyprint
+SQLAlchemy
+psycopg2-binary
+python-dotenv
+

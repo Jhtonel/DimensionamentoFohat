@@ -27,32 +27,36 @@ export const useProjectCosts = () => {
       // Verifica se a API está disponível
       const isApiAvailable = await solaryumApi.checkApiHealth();
       setApiAvailable(isApiAvailable);
-      
       console.log('🔍 API disponível:', isApiAvailable);
 
       if (!isApiAvailable) {
-        console.log('⚠️ API não disponível, usando dados mock');
-        const mockCosts = solaryumApi.getMockCustos(dimensionamentoData);
-        setCosts(mockCosts);
-        return mockCosts;
+        // Fallback local quando a API não está disponível
+        console.warn('⚠️ API indisponível. Usando estimativas locais.');
+        const fallbackCosts = solaryumApi.getMockProjectCosts(dimensionamentoData);
+        setCosts(fallbackCosts);
+        setError(null);
+        return fallbackCosts;
       }
 
       // Busca os custos usando o novo método
       const projectCosts = await solaryumApi.calcularCustosProjeto(dimensionamentoData);
       setCosts(projectCosts);
-      
       return projectCosts;
     } catch (err) {
       console.error('❌ Erro ao buscar custos:', err);
-      console.log('📋 Response completa do erro:', err);
-      
-      // Em caso de erro, usa dados mock
-      console.log('⚠️ Erro na API, usando dados mock como fallback');
-      const mockCosts = solaryumApi.getMockCustos(dimensionamentoData);
-      setCosts(mockCosts);
-      setApiAvailable(false);
-      
-      return mockCosts;
+      try {
+        // Último recurso: tenta estimar localmente
+        const fallbackCosts = solaryumApi.getMockProjectCosts(dimensionamentoData);
+        setCosts(fallbackCosts);
+        setApiAvailable(false);
+        setError(null);
+        return fallbackCosts;
+      } catch (_) {
+        setError(err.message);
+        setApiAvailable(false);
+        setCosts(null);
+        throw err;
+      }
     } finally {
       setLoading(false);
     }
@@ -102,6 +106,23 @@ export const useProjectCosts = () => {
       tipoInv: formData.tipoInv || null
     };
 
+    // Se consumo mês a mês foi informado e potencia não veio preenchida, calcular a potência automaticamente
+    try {
+      const temMesAMes = Array.isArray(formData.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0;
+      if ((!dimensionamentoData.potencia_kw || dimensionamentoData.potencia_kw <= 0) && temMesAMes) {
+        const totalAnualKwh = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+        const consumoMedioMensal = totalAnualKwh / 12;
+        const irradianciaMedia = parseFloat(formData.irradiacao_media) || 5.15; // kWh/m²/dia
+        const eficienciaSistema = 0.80;
+        const fatorCorrecao = 1.066;
+        const potenciaCalculada = (consumoMedioMensal / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
+        dimensionamentoData.potencia_kw = Math.max(parseFloat(potenciaCalculada.toFixed(2)), 0);
+        console.log('⚙️ Potência calculada a partir do consumo mês a mês:', dimensionamentoData.potencia_kw, 'kW');
+      }
+    } catch (e) {
+      console.warn('Não foi possível calcular potência a partir do consumo mês a mês:', e);
+    }
+
     console.log('dimensionamentoData preparado:', dimensionamentoData);
     console.log('potencia_kw:', dimensionamentoData.potencia_kw);
 
@@ -139,17 +160,11 @@ export const useProjectCosts = () => {
    * Calcula economia mensal estimada
    */
   const calculateMonthlySavings = useCallback((totalCost, consumoMensal) => {
-    if (!totalCost || !consumoMensal) return 0;
+    if (!totalCost || !consumoMensal) {
+      throw new Error('Dados insuficientes para calcular economia - Custo total e consumo mensal são obrigatórios');
+    }
     
-    const tarifaMedia = SOLARYUM_CONFIG.FALLBACK.AVERAGE_TARIFF;
-    const economiaMensal = consumoMensal * tarifaMedia;
-    const paybackAnos = totalCost / (economiaMensal * 12);
-    
-    return {
-      economiaMensal,
-      paybackAnos,
-      economiaAnual: economiaMensal * 12
-    };
+    throw new Error('Cálculo de economia requer tarifa real da concessionária');
   }, []);
 
   return {

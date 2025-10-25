@@ -18,6 +18,7 @@ import cepService from "../services/cepService";
 import solaryumApi from "../services/solaryumApi";
 import { getIrradianciaByCity } from "../utils/irradianciaUtils";
 import { useProjectCosts } from "../hooks/useProjectCosts";
+import { buscarConcessionaria, calcularTarifaTotal } from "../data/concessionariasSP";
 
 import DimensionamentoResults from "../components/projetos/DimensionamentoResults.jsx";
 import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes.jsx";
@@ -389,6 +390,19 @@ export default function NovoProjeto() {
       return;
     }
 
+    // Validação específica para consumo mês a mês: nenhum mês pode ficar em branco
+    if (tipoConsumo === 'mes_a_mes') {
+      const consumos = formData.consumo_mes_a_mes || [];
+      const mesesEmBranco = consumos
+        .map((c, i) => ({ i, vazio: c == null || c.kwh === '' || c.kwh == null }))
+        .filter(x => x.vazio)
+        .map(x => x.i + 1);
+      if (mesesEmBranco.length > 0) {
+        alert('Preencha todos os meses do consumo (kWh). Existem meses em branco.');
+        return;
+      }
+    }
+
     // Valida se o CEP foi preenchido (necessário para obter o código IBGE)
     if (!formData.cep || !formData.ibge) {
       alert('Por favor, preencha o CEP e clique em "Buscar CEP" para obter o código IBGE necessário para a consulta de equipamentos.');
@@ -411,7 +425,17 @@ export default function NovoProjeto() {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
         kwh: parseFloat(formData.margem_adicional_kwh) || 0
       };
-      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade, margemAdicional);
+      // Se consumo mês a mês foi informado, calcula a média com margem
+      let consumoParaCalculo = parseFloat(formData.consumo_mensal_kwh) || 0;
+      if ((tipoConsumo === 'mes_a_mes') && Array.isArray(formData.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+        const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+        const mediaMensal = totalAnual / 12;
+        consumoParaCalculo = margemAdicional.percentual > 0
+          ? mediaMensal * (1 + margemAdicional.percentual / 100)
+          : (margemAdicional.kwh > 0 ? mediaMensal + margemAdicional.kwh : mediaMensal);
+      }
+
+      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
       
       console.log('🔍 Debug da potência:');
       console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
@@ -448,17 +472,30 @@ export default function NovoProjeto() {
 
       console.log('🔍 Dados base para busca:', dadosBase);
 
+      // Dispara uma chamada inicial ao MontarKits para garantir requisição visível
+      const todosOsKits = [];
+      try {
+        console.log('🚀 Disparando chamada inicial MontarKits (tipoInv=0)...');
+        const kitInicial = await solaryumApi.montarKitCustomizado({ ...dadosBase, tipoInv: '0' });
+        if (Array.isArray(kitInicial) && kitInicial.length > 0) {
+          todosOsKits.push(...kitInicial);
+          console.log(`✅ Chamada inicial retornou ${kitInicial.length} kits`);
+        } else {
+          console.log('⚠️ Chamada inicial retornou vazia');
+        }
+      } catch (e) {
+        console.warn('⚠️ Falha na chamada inicial MontarKits:', e);
+      }
+
       // Busca kits para cada potência de painel E cada tipo de inversor
-      const todasPotencias = filtros.potenciasPaineis || [];
+      const todasPotencias = Array.isArray(filtros.potenciasPaineis) ? filtros.potenciasPaineis : [];
       const tiposInversor = [0, 1, 2]; // Tipos de inversor: 0, 1, 2
       
       console.log('⚡ Potências de painéis encontradas:', todasPotencias);
       console.log('🔌 Tipos de inversor a buscar:', tiposInversor);
-
-      const todosOsKits = [];
       
       // Se não há potências específicas, faz uma busca geral para cada tipo de inversor
-      if (todasPotencias.length === 0) {
+      if (!Array.isArray(todasPotencias) || todasPotencias.length === 0) {
         console.log('⚠️ Nenhuma potência específica encontrada, fazendo busca geral para cada tipo de inversor...');
         
         // Cria todas as requisições em paralelo
@@ -497,7 +534,7 @@ export default function NovoProjeto() {
         // Cria todas as requisições em paralelo
         const requisicoes = [];
         
-        for (const potenciaInfo of todasPotencias) {
+        for (const potenciaInfo of (Array.isArray(todasPotencias) ? todasPotencias : [])) {
           const potenciaPainel = potenciaInfo.potencia;
           
           for (const tipoInv of tiposInversor) {
@@ -900,7 +937,7 @@ export default function NovoProjeto() {
     const consumoMensalKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
     const consumoMensalReais = parseFloat(formData.consumo_mensal_reais) || 0;
     const consumosMesAMes = formData.consumo_mes_a_mes || [];
-    const temConsumoMesAMes = consumosMesAMes.some(consumo => parseFloat(consumo.valor) > 0);
+    const temConsumoMesAMes = consumosMesAMes.some(consumo => parseFloat(consumo?.kwh) > 0);
     
     return consumoMensalKwh > 0 || consumoMensalReais > 0 || temConsumoMesAMes;
   };
@@ -924,12 +961,10 @@ export default function NovoProjeto() {
       consumoReais
     });
     
-    // Se não tem consumo em kWh mas tem em reais, estima baseado no custo médio
+    // Se não tem consumo em kWh mas tem em reais, não é possível estimar sem tarifa específica
     let consumoParaCalculo = consumoKwh;
     if (consumoParaCalculo <= 0 && consumoReais > 0) {
-      // Estimativa: R$ 0,80 por kWh (tarifa média)
-      consumoParaCalculo = consumoReais / 0.80;
-      console.log('Consumo estimado a partir do valor em reais:', consumoParaCalculo, 'kWh');
+      throw new Error('Consumo em kWh não informado - Não é possível estimar sem tarifa específica');
     }
     
     // Usa a potência já calculada ou calcula uma nova se necessário
@@ -1192,7 +1227,17 @@ export default function NovoProjeto() {
     
     if (tipoConsumo === "mes_a_mes" && formData.consumo_mes_a_mes && formData.consumo_mes_a_mes.length > 0) {
       const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
-      consumoKwh = totalAnual / 12;
+      const mediaMensal = totalAnual / 12;
+      // Aplicar margem adicional também para mês a mês
+      const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
+      const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+      if (margemPercentual > 0) {
+        consumoKwh = mediaMensal * (1 + margemPercentual / 100);
+      } else if (margemKwh > 0) {
+        consumoKwh = mediaMensal + margemKwh;
+      } else {
+        consumoKwh = mediaMensal;
+      }
     } else if (formData.consumo_mensal_kwh) {
       consumoKwh = parseFloat(formData.consumo_mensal_kwh);
     } else if (formData.consumo_mensal_reais && formData.concessionaria) {
@@ -1437,16 +1482,47 @@ export default function NovoProjeto() {
       console.log('📊 Consumo kWh calculado a partir do valor em reais:', consumoMensalKwh);
     }
     
-    // Calcular tarifa automaticamente se não estiver definida
-    let tarifaAtual = formData.tarifa_energia;
+    // Obter tarifa da concessionária selecionada
+    let tarifaAtual = null;
+    
+    console.log('🔍 DEBUG tarifa - formData.concessionaria:', formData.concessionaria);
+    console.log('🔍 DEBUG tarifa - concessionarias disponíveis:', concessionarias);
+    
+    if (formData.concessionaria) {
+      try {
+        const concessionariaData = buscarConcessionaria(formData.concessionaria);
+        console.log('🔍 DEBUG tarifa - concessionariaData encontrada:', concessionariaData);
+        if (concessionariaData) {
+          tarifaAtual = calcularTarifaTotal(concessionariaData, 'residencial', 'verde');
+          console.log('📊 Tarifa obtida da concessionária:', formData.concessionaria, '=', tarifaAtual);
+        } else {
+          console.log('❌ Concessionária não encontrada nos dados:', formData.concessionaria);
+        }
+      } catch (error) {
+        console.warn('⚠️ Erro ao buscar tarifa da concessionária:', error);
+      }
+    } else {
+      console.log('❌ Nenhuma concessionária selecionada no formData');
+    }
+    
+    // Se não conseguiu obter da concessionária, calcular automaticamente
     if (!tarifaAtual && temConsumoReais && consumoMensalKwh > 0) {
       const consumoReais = parseFloat(formData.consumo_mensal_reais);
       tarifaAtual = consumoReais / consumoMensalKwh;
       console.log('📊 Tarifa calculada automaticamente:', tarifaAtual);
-    } else if (!tarifaAtual) {
-      // Usar tarifa padrão se não houver dados
-      tarifaAtual = 0.75; // R$ 0,75 por kWh
-      console.log('📊 Usando tarifa padrão:', tarifaAtual);
+    }
+    
+    // Se ainda não tem tarifa, usar fallback das configurações
+    if (!tarifaAtual) {
+      const tarifaConfig = Object.values(configs).find(
+        c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
+      );
+      tarifaAtual = tarifaConfig?.tarifa_kwh || 0.75;
+      console.log('📊 Tarifa obtida das configurações:', tarifaAtual);
+    }
+    
+    if (!tarifaAtual || tarifaAtual <= 0) {
+      throw new Error('Tarifa de energia não informada - Não é possível calcular projeções financeiras');
     }
     
     // Buscar dados de irradiância se não estiverem disponíveis
@@ -1460,18 +1536,7 @@ export default function NovoProjeto() {
     }
     
     if (!irradianciaDataLocal) {
-      console.log('⚠️ Não foi possível obter dados de irradiância, usando dados padrão');
-      // Dados padrão para São José dos Campos (5152 Wh/m²/dia)
-      irradianciaDataLocal = {
-        name: 'São José dos Campos (Padrão)',
-        annual: 5152,
-        monthly: {
-          jan: 4500, feb: 4200, mar: 4000, apr: 3800,
-          may: 3500, jun: 3200, jul: 3400, aug: 3800,
-          sep: 4200, oct: 4500, nov: 4600, dec: 4700
-        }
-      };
-      console.log('📊 Usando dados padrão de irradiância:', irradianciaDataLocal.annual);
+      throw new Error(`Dados de irradiação solar não encontrados para a cidade "${formData.cidade || 'não informada'}"`);
     }
     
     const irradianciaMensal = irradianciaDataLocal.annual / 12; // Irradiação média mensal
@@ -1485,12 +1550,12 @@ export default function NovoProjeto() {
     
     const projecoes = calcularProjecoesFinanceiras(consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal);
     
-    // Adicionar dados do kit às projeções
+    // Adicionar dados do kit às projeções (sem valores estimados)
     projecoes.custo_total_projeto = kitSelecionado?.precoTotal || 0;
-    projecoes.custo_equipamentos = kitSelecionado?.precoTotal * 0.7 || 0; // 70% do custo total
-    projecoes.custo_instalacao = kitSelecionado?.precoTotal * 0.2 || 0; // 20% do custo total
-    projecoes.custo_homologacao = kitSelecionado?.precoTotal * 0.05 || 0; // 5% do custo total
-    projecoes.custo_outros = kitSelecionado?.precoTotal * 0.05 || 0; // 5% do custo total
+    projecoes.custo_equipamentos = 0; // Deve ser calculado pela API real
+    projecoes.custo_instalacao = 0; // Deve ser calculado pela API real
+    projecoes.custo_homologacao = 0; // Deve ser calculado pela API real
+    projecoes.custo_outros = 0; // Deve ser calculado pela API real
     projecoes.margem_lucro = kitSelecionado?.precoTotal * 0.3 || 0; // 30% de margem
     
     setProjecoesFinanceiras(projecoes);
@@ -1830,9 +1895,14 @@ export default function NovoProjeto() {
                               </div>
                             </div>
 
-                            {/* Resumo da Margem */}
+                            {/* Resumo da Margem (funciona para consumo unitário e mês a mês) */}
                             {(() => {
-                              const consumoAtual = parseFloat(formData.consumo_mensal_kwh) || 0;
+                              let consumoAtual = parseFloat(formData.consumo_mensal_kwh) || 0;
+                              // Se houver série mês a mês e nenhum consumo unitário, usar média mensal
+                              if ((!consumoAtual || consumoAtual <= 0) && Array.isArray(formData.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+                                const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+                                consumoAtual = totalAnual / 12;
+                              }
                               const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
                               const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
                               

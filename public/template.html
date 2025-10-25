@@ -53,6 +53,30 @@
     --radius-lg:24px; --radius-md:16px; --radius-sm:10px;
   }
 
+  /* ====== Configurações para WeasyPrint (PDF Generation) ====== */
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  /* Garantir que backgrounds sejam impressos */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Forçar quebra de página entre slides */
+  .page {
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+  /* ====== Fim Configurações WeasyPrint ====== */
+
   /* Reset mínimo */
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;font-family:Poppins;color:var(--n-800);background:#fff}
@@ -392,24 +416,23 @@
     display:flex;
     flex-direction:column;
     height:100%;
-    padding:4px 0;
+    padding:0px;
     max-width:100%;
     overflow:hidden;
   }
 
   .cenario-atual-grafico .grafico-container{
     flex:1;
-    display:grid;
-    grid-template-columns:40px 1fr;
-    grid-template-rows:1fr 30px;
-    gap:8px;
-    padding:20px;
-    background:var(--n-50);
-    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+    gap:0px;
+    padding:0px;
+    background:transparent;
+    border-radius:0px;
     height:100%;
-    margin:0 4px;
+    margin:0px;
     max-width:100%;
-    overflow:hidden;
+    overflow:visible;
   }
 
   .cenario-atual-grafico .eixo-y{
@@ -428,15 +451,66 @@
   }
 
   .cenario-atual-grafico .grafico-barras{
-    grid-row:1;
-    display:flex;
-    align-items:end;
-    justify-content:space-between;
-    background:var(--n-100);
+    display:block;
+    background:transparent;
     border-radius:8px;
-    padding:8px;
-    gap:4px;
+    padding:0px;
+    position: relative;
+    flex: 1;
+    height: 100%;
   }
+
+/* CSS específico para cada gráfico */
+#grafico-slide-03 {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  background: transparent;
+}
+
+#grafico-slide-04 {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  min-height: 300px;
+}
+
+#grafico-slide-05 {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  min-height: 300px;
+}
+
+#grafico-slide-09 {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  min-height: 300px;
+  max-height: 400px;
+}
+
+#grafico-slide-06 {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  min-height: 300px;
+}
 
   .barra-ano{
     display:flex;
@@ -477,6 +551,9 @@
     align-items:stretch;
     align-self:stretch;
     height:100%;
+    padding:0 8px;
+    max-width:100%;
+    overflow:hidden;
   }
 
   .aumento-conta-texto{
@@ -538,19 +615,21 @@
     display:flex;
     flex-direction:column;
     height:100%;
+    overflow:hidden;
+    min-height:0;
   }
 
   .grafico-linha-container .grafico-linha{
     flex:1;
-    display:grid;
-    grid-template-columns:40px 1fr;
-    grid-template-rows:1fr 30px;
-    gap:8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
     margin-top:16px;
     padding:20px;
-    background:var(--n-50);
+    background:transparent;
     border-radius:12px;
     min-height:250px;
+    overflow:hidden;
   }
 
   .grafico-linha-container .eixo-y{
@@ -634,6 +713,9 @@
     align-items:stretch;
     align-self:stretch;
     height:100%;
+    padding:0 8px;
+    max-width:100%;
+    overflow:hidden;
   }
 
   .energia-solar-texto{
@@ -645,7 +727,7 @@
   }
 
   .paragrafo{
-    padding:16px;
+    padding:10px;
     background:var(--n-50);
     border-radius:12px;
     border-left:4px solid var(--brand-primary);
@@ -667,6 +749,8 @@
     display:flex;
     flex-direction:column;
     height:100%;
+    overflow:hidden;
+    min-height:0;
   }
 
   .grafico-header{
@@ -724,10 +808,9 @@
   /* Slide 05 - Gráfico de Barras Duplas Consumo x Geração */
   .grafico-consumo-geracao .grafico-barras-duplas{
     flex:1;
-    display:grid;
-    grid-template-columns:40px 1fr;
-    grid-template-rows:1fr 30px;
-    gap:8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
     padding:20px;
     background:var(--n-50);
     border-radius:12px;
@@ -808,6 +891,9 @@
     align-items:stretch;
     align-self:stretch;
     height:100%;
+    padding:0 8px;
+    max-width:100%;
+    overflow:hidden;
   }
 
   .payback-info{
@@ -884,6 +970,7 @@
     display:flex;
     flex-direction:column;
     height:100%;
+    gap:12px;
   }
 
   .payback-beneficios-content .grafico-linha-payback{
@@ -1379,12 +1466,15 @@
   /* Slide 09 - Comparativo Financeiro */
   .comparativo-content{
     grid-column:1 / -1;
-    display:flex;
-    flex-direction:column;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr;
     height:100%;
-    padding:4px 0;
+    padding:0 8px;
+    max-width:100%;
+    overflow:hidden;
     align-self:stretch;
-    gap:8px;
+    gap:24px;
   }
 
   .projeto-resumo{
@@ -1424,17 +1514,24 @@
   }
 
   .comparativo-custos{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
+    grid-column:1;
+    grid-row:1;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    height:100%;
   }
 
   .custo-sem-solar,
   .custo-com-solar{
-    padding:12px;
+    padding:16px;
     border-radius:10px;
     text-align:center;
     border:2px solid;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
   }
 
   .custo-sem-solar{
@@ -1498,12 +1595,19 @@
   }
 
   .grafico-comparativo{
-    flex:1;
+    grid-column:2;
+    grid-row:1;
     background:white;
-    padding:12px;
+    padding:20px;
     border-radius:12px;
     border:1px solid var(--n-200);
     box-shadow:0 2px 8px rgba(0,0,0,0.1);
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    height:100%;
+    overflow:hidden;
+    min-height:0;
   }
 
   .grafico-titulo{
@@ -1516,15 +1620,16 @@
 
   .grafico-comparativo .grafico-container{
     position:relative;
-    height:240px;
-    margin-bottom:8px;
-    display:grid;
-    grid-template-columns:40px 1fr;
-    grid-template-rows:1fr 30px;
-    gap:8px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
     padding:20px;
     background:var(--n-50);
     border-radius:12px;
+    overflow:hidden;
+    min-height:0;
+    height:100%;
   }
 
   /* Slide 09 - Eixo Y do Gráfico Comparativo */
@@ -1747,7 +1852,7 @@
   /* Slide 01 - Capa da Proposta com Fundo Fohat */
   .slide-01-cover{
     background: var(--brand-primary);
-    background-image: url('/img/fohat.svg');
+    background-image: url('img/fohat.svg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -1899,7 +2004,7 @@
         <p>{{data_proposta}}</p>
       </div>
       
-      <img src="/img/logo.svg" alt="Logo" class="slide-01-logo">
+      <img src="img/logo.svg" alt="Logo" class="slide-01-logo">
     </div>
   </section>
 
@@ -1924,7 +2029,7 @@
         </ul>
       </div>
 
-       <img src="/img/como-funciona.png" alt="Como Funciona" class="como-funciona">
+       <img src="img/como-funciona.png" alt="Como Funciona" class="como-funciona">
     </div>
   </section>
 
@@ -1966,38 +2071,8 @@
         
         <div class="cenario-atual-grafico">
           <div class="grafico-container">
-            <h4 class="title-sm">Evolução da conta de luz</h4>
             <div class="grafico-barras">
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_1}}%;"></div>
-                <span class="ano">Ano 1</span>
-                <span class="valor">{{conta_ano_1}}</span>
-              </div>
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_5}}%;"></div>
-                <span class="ano">Ano 5</span>
-                <span class="valor">{{conta_ano_5}}</span>
-              </div>
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_10}}%;"></div>
-                <span class="ano">Ano 10</span>
-                <span class="valor">{{conta_ano_10}}</span>
-              </div>
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_15}}%;"></div>
-                <span class="ano">Ano 15</span>
-                <span class="valor">{{conta_ano_15}}</span>
-              </div>
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_20}}%;"></div>
-                <span class="ano">Ano 20</span>
-                <span class="valor">{{conta_ano_20}}</span>
-              </div>
-              <div class="barra-ano">
-                <div class="barra" style="--barra-height: {{altura_barra_ano_25}}%;"></div>
-                <span class="ano">Ano 25</span>
-                <span class="valor">{{conta_ano_25}}</span>
-              </div>
+              <img id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Evolução da Conta de Luz" style="display: block; width: 100%; height: 100%; object-fit: contain;">
             </div>
           </div>
         </div>
@@ -2048,30 +2123,7 @@
         <div class="grafico-linha-container">
           <h4 class="title-sm">Evolução da conta de luz (25 anos)</h4>
           <div class="grafico-linha">
-            <div class="eixo-y">
-              <div class="valor-eixo">{{valor_maximo}}</div>
-              <div class="valor-eixo">{{valor_medio}}</div>
-              <div class="valor-eixo">{{valor_minimo}}</div>
-            </div>
-            <div class="area-grafico">
-              <div class="linha-evolucao"></div>
-              <div class="pontos-grafico">
-                <div class="ponto" style="left: 0%; bottom: 0%;" data-ano="Ano 1" data-valor="{{conta_ano_1}}"></div>
-                <div class="ponto" style="left: 20%; bottom: 15%;" data-ano="Ano 5" data-valor="{{conta_ano_5}}"></div>
-                <div class="ponto" style="left: 40%; bottom: 30%;" data-ano="Ano 10" data-valor="{{conta_ano_10}}"></div>
-                <div class="ponto" style="left: 60%; bottom: 50%;" data-ano="Ano 15" data-valor="{{conta_ano_15}}"></div>
-                <div class="ponto" style="left: 80%; bottom: 75%;" data-ano="Ano 20" data-valor="{{conta_ano_20}}"></div>
-                <div class="ponto" style="left: 100%; bottom: 100%;" data-ano="Ano 25" data-valor="{{conta_ano_25}}"></div>
-              </div>
-            </div>
-            <div class="eixo-x">
-              <div class="ano">Ano 1</div>
-              <div class="ano">Ano 5</div>
-              <div class="ano">Ano 10</div>
-              <div class="ano">Ano 15</div>
-              <div class="ano">Ano 20</div>
-              <div class="ano">Ano 25</div>
-            </div>
+            <img id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Linha - Evolução da Conta de Luz" style="display: block;">
           </div>
         </div>
       </div>
@@ -2108,99 +2160,10 @@
         <div class="grafico-consumo-geracao">
           <div class="grafico-header">
             <h4 class="grafico-titulo">Consumo x Geração (kWh/mês)</h4>
-            <p class="grafico-subtitulo">Produção Mensal x Consumo Médio</p>
           </div>
-          
-          <div class="legenda">
-            <div class="legenda-item">
-              <div class="legenda-cor producao"></div>
-              <span>Produção</span>
-            </div>
-            <div class="legenda-item">
-              <div class="legenda-cor consumo"></div>
-              <span>Consumo</span>
-            </div>
-          </div>
-          
           <div class="grafico-barras-duplas">
-            <div class="eixo-y">
-              <div class="valor-eixo">4000</div>
-              <div class="valor-eixo">3500</div>
-              <div class="valor-eixo">3000</div>
-              <div class="valor-eixo">2500</div>
-              <div class="valor-eixo">2000</div>
-              <div class="valor-eixo">1500</div>
-              <div class="valor-eixo">1000</div>
-              <div class="valor-eixo">500</div>
-              <div class="valor-eixo">0</div>
-            </div>
-            
-            <div class="area-grafico-barras">
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_jan}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_jan}}%; height: var(--altura);"></div>
-                <span class="mes">Jan</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_fev}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_fev}}%; height: var(--altura);"></div>
-                <span class="mes">Fev</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_mar}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_mar}}%; height: var(--altura);"></div>
-                <span class="mes">Mar</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_abr}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_abr}}%; height: var(--altura);"></div>
-                <span class="mes">Abr</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_mai}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_mai}}%; height: var(--altura);"></div>
-                <span class="mes">Mai</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_jun}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_jun}}%; height: var(--altura);"></div>
-                <span class="mes">Jun</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_jul}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_jul}}%; height: var(--altura);"></div>
-                <span class="mes">Jul</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_ago}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_ago}}%; height: var(--altura);"></div>
-                <span class="mes">Ago</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_set}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_set}}%; height: var(--altura);"></div>
-                <span class="mes">Set</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_out}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_out}}%; height: var(--altura);"></div>
-                <span class="mes">Out</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_nov}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_nov}}%; height: var(--altura);"></div>
-                <span class="mes">Nov</span>
-              </div>
-              <div class="barras-mes">
-                <div class="barra producao" style="--altura: {{altura_producao_dez}}%; height: var(--altura);"></div>
-                <div class="barra consumo" style="--altura: {{altura_consumo_dez}}%; height: var(--altura);"></div>
-                <span class="mes">Dez</span>
-              </div>
-            </div>
+            <img id="grafico-slide-05" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA1PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Barras Duplas - Consumo x Geração" style="display: block;">
           </div>
-          
-          <div class="eixo-x-label">Meses</div>
-        </div>
       </div>
     </div>
   </section>
@@ -2243,61 +2206,7 @@
             <p class="grafico-subtitulo">Comparação ao longo dos anos</p>
           </div>
           
-          <div class="grafico-linha-payback">
-            <div class="eixo-y">
-              <div class="valor-eixo">{{valor_maximo_economia}}</div>
-              <div class="valor-eixo">{{valor_medio_economia}}</div>
-              <div class="valor-eixo">{{valor_minimo_economia}}</div>
-              <div class="valor-eixo">R$ 0</div>
-            </div>
-            
-            <div class="area-grafico-payback">
-              <!-- Linha de investimento (fixa) -->
-              <div class="linha-investimento"></div>
-              
-              <!-- Linha de economia acumulada -->
-              <div class="linha-economia"></div>
-              
-              <!-- Ponto de payback -->
-              <div class="ponto-payback" style="--posicao: {{posicao_payback}}%; --altura: {{altura_payback}}%; left: var(--posicao); bottom: var(--altura);">
-                <div class="ponto-marker"></div>
-                <div class="ponto-label">
-                  <span class="label-texto">Payback</span>
-                  <span class="label-valor">{{anos_payback}} anos</span>
-                </div>
-              </div>
-              
-              <!-- Pontos da linha de economia -->
-              <div class="pontos-economia">
-                <div class="ponto-economia" style="left: 0%; bottom: 0%;" data-ano="Ano 1" data-valor="{{economia_ano_1}}"></div>
-                <div class="ponto-economia" style="--altura: {{altura_economia_ano_5}}%; left: 20%; bottom: var(--altura);" data-ano="Ano 5" data-valor="{{economia_ano_5}}"></div>
-                <div class="ponto-economia" style="--altura: {{altura_economia_ano_10}}%; left: 40%; bottom: var(--altura);" data-ano="Ano 10" data-valor="{{economia_ano_10}}"></div>
-                <div class="ponto-economia" style="--altura: {{altura_economia_ano_15}}%; left: 60%; bottom: var(--altura);" data-ano="Ano 15" data-valor="{{economia_ano_15}}"></div>
-                <div class="ponto-economia" style="--altura: {{altura_economia_ano_20}}%; left: 80%; bottom: var(--altura);" data-ano="Ano 20" data-valor="{{economia_ano_20}}"></div>
-                <div class="ponto-economia" style="--altura: {{altura_economia_ano_25}}%; left: 100%; bottom: var(--altura);" data-ano="Ano 25" data-valor="{{economia_ano_25}}"></div>
-              </div>
-            </div>
-            
-            <div class="eixo-x">
-              <div class="ano">Ano 1</div>
-              <div class="ano">Ano 5</div>
-              <div class="ano">Ano 10</div>
-              <div class="ano">Ano 15</div>
-              <div class="ano">Ano 20</div>
-              <div class="ano">Ano 25</div>
-            </div>
-          </div>
-          
-          <div class="legenda-payback">
-            <div class="legenda-item">
-              <div class="legenda-cor investimento"></div>
-              <span>Investimento Inicial</span>
-            </div>
-            <div class="legenda-item">
-              <div class="legenda-cor economia"></div>
-              <span>Economia Acumulada</span>
-            </div>
-          </div>
+            <img id="grafico-slide-06" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA2PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Economia Acumulada vs Investimento" style="display: block;">
         </div>
       </div>
     </div>
@@ -2501,70 +2410,9 @@
         <div class="grafico-comparativo">
           <h4 class="grafico-titulo">Evolução dos Gastos - Próximos 25 Anos</h4>
           <div class="grafico-container">
-            <div class="eixo-y">
-              <div class="valor-eixo">{{valor_maximo_grafico}}</div>
-              <div class="valor-eixo">{{valor_medio_grafico}}</div>
-              <div class="valor-eixo">{{valor_minimo_grafico}}</div>
-              <div class="valor-eixo">R$ 0</div>
-            </div>
-            
-            <div class="area-grafico">
-              <!-- Linha de gastos sem energia solar -->
-              <div class="linha-sem-solar"></div>
-              
-              <!-- Linha de economia com energia solar -->
-              <div class="linha-com-solar"></div>
-              
-              <!-- Ponto de payback -->
-              <div class="ponto-payback" style="--posicao: {{posicao_payback}}%; --altura: {{altura_payback}}%; left: var(--posicao); bottom: var(--altura);">
-                <div class="ponto-marker"></div>
-                <div class="ponto-label">
-                  <span class="label-texto">Payback</span>
-                  <span class="label-valor">{{payback_anos}} anos</span>
-                </div>
-              </div>
-              
-              <!-- Pontos da linha sem energia solar -->
-              <div class="pontos-sem-solar">
-                <div class="ponto-sem-solar" style="left: 0%; bottom: 0%;" data-ano="Ano 1" data-valor="{{gasto_ano_1_sem_solar}}"></div>
-                <div class="ponto-sem-solar" style="left: 20%; bottom: 15%;" data-ano="Ano 5" data-valor="{{gasto_ano_5_sem_solar}}"></div>
-                <div class="ponto-sem-solar" style="left: 40%; bottom: 30%;" data-ano="Ano 10" data-valor="{{gasto_ano_10_sem_solar}}"></div>
-                <div class="ponto-sem-solar" style="left: 60%; bottom: 50%;" data-ano="Ano 15" data-valor="{{gasto_ano_15_sem_solar}}"></div>
-                <div class="ponto-sem-solar" style="left: 80%; bottom: 75%;" data-ano="Ano 20" data-valor="{{gasto_ano_20_sem_solar}}"></div>
-                <div class="ponto-sem-solar" style="left: 100%; bottom: 100%;" data-ano="Ano 25" data-valor="{{gasto_ano_25_sem_solar}}"></div>
-              </div>
-              
-              <!-- Pontos da linha com energia solar -->
-              <div class="pontos-com-solar">
-                <div class="ponto-com-solar" style="left: 0%; bottom: 57%;" data-ano="Ano 1" data-valor="{{gasto_ano_1_com_solar}}"></div>
-                <div class="ponto-com-solar" style="left: 20%; bottom: 67%;" data-ano="Ano 5" data-valor="{{gasto_ano_5_com_solar}}"></div>
-                <div class="ponto-com-solar" style="left: 40%; bottom: 77%;" data-ano="Ano 10" data-valor="{{gasto_ano_10_com_solar}}"></div>
-                <div class="ponto-com-solar" style="left: 60%; bottom: 88%;" data-ano="Ano 15" data-valor="{{gasto_ano_15_com_solar}}"></div>
-                <div class="ponto-com-solar" style="left: 80%; bottom: 98%;" data-ano="Ano 20" data-valor="{{gasto_ano_20_com_solar}}"></div>
-                <div class="ponto-com-solar" style="left: 100%; bottom: 108%;" data-ano="Ano 25" data-valor="{{gasto_ano_25_com_solar}}"></div>
-              </div>
-            </div>
-            
-            <div class="eixo-x">
-              <div class="ano">Ano 1</div>
-              <div class="ano">Ano 5</div>
-              <div class="ano">Ano 10</div>
-              <div class="ano">Ano 15</div>
-              <div class="ano">Ano 20</div>
-              <div class="ano">Ano 25</div>
-            </div>
+            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Evolução dos Gastos" style="display: block;">
           </div>
-          
-          <div class="legenda-grafico">
-            <div class="legenda-item">
-              <div class="legenda-cor sem-solar"></div>
-              <span>Gastos sem Energia Solar</span>
-            </div>
-            <div class="legenda-item">
-              <div class="legenda-cor com-solar"></div>
-              <span>Economia com Energia Solar</span>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>
