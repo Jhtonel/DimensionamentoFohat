@@ -13,6 +13,9 @@ import AdminUsuarios from './pages/admin/Usuarios.jsx';
 import AdminTaxas from './pages/admin/Taxas.jsx';
 import AdminComissoes from './pages/admin/Comissoes.jsx';
 import './index.css';
+import ForgotPassword from './pages/auth/ForgotPassword.jsx';
+import ResetPassword from './pages/auth/ResetPassword.jsx';
+import ChangePassword from './pages/auth/ChangePassword.jsx';
 
 function RequireRole({ roles, children }) {
   const { user, loading } = useAuth();
@@ -67,6 +70,10 @@ function AppWithAuth() {
         <Route path="/projetos" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><Projetos /></RequireRole></Layout>} />
         <Route path="/projetos/novo" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><NovoProjeto /></RequireRole></Layout>} />
         <Route path="/configuracoes" element={<Layout><RequireRole roles={['admin']}><Configuracoes /></RequireRole></Layout>} />
+        {/* Senhas */}
+        <Route path="/recuperar-senha" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/alterar-senha" element={<Layout><ChangePassword /></Layout>} />
         {/* Rotas admin */}
         <Route path="/admin/usuarios" element={<Layout><RequireRole roles={['admin']}><AdminUsuarios /></RequireRole></Layout>} />
         <Route path="/admin/taxas" element={<Layout><RequireRole roles={['admin']}><AdminTaxas /></RequireRole></Layout>} />

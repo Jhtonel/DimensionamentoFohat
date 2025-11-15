@@ -1696,7 +1696,7 @@ export default function NovoProjeto() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="h-full overflow-y-auto p-4 md:p-8">
       {progressOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-md border border-sky-100">

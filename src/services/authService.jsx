@@ -11,7 +11,12 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   updateProfile,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 
 import { firebaseConfig } from '../config/firebase.js';
@@ -113,7 +118,12 @@ class AuthService {
       }
       // Dispara e-mail de redefinição de senha para que o usuário defina uma senha própria
       try {
-        await sendPasswordResetEmail(secondaryAuth, email);
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const actionCodeSettings = {
+          url: `${origin}/reset-password`,
+          handleCodeInApp: false
+        };
+        await sendPasswordResetEmail(secondaryAuth, email, actionCodeSettings);
       } catch (e) {
         console.warn('Falha ao enviar e-mail de redefinição de senha (o usuário ainda foi criado):', e);
       }
@@ -125,6 +135,62 @@ class AuthService {
     } catch (error) {
       console.error('❌ Erro ao criar usuário no Firebase:', error);
       throw new Error(this.getErrorMessage(error.code) || error.message);
+    }
+  }
+
+  /**
+   * Envia e-mail de recuperação/definição de senha
+   */
+  async sendResetEmail(email) {
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const actionCodeSettings = {
+        url: `${origin}/reset-password`,
+        handleCodeInApp: false
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      return true;
+    } catch (e) {
+      console.error('Erro ao enviar e-mail de redefinição:', e);
+      throw new Error(this.getErrorMessage(e.code) || e.message);
+    }
+  }
+
+  async verifyResetCode(code) {
+    try {
+      const email = await verifyPasswordResetCode(auth, code);
+      return email;
+    } catch (e) {
+      throw new Error(this.getErrorMessage(e.code) || e.message);
+    }
+  }
+
+  async confirmReset(code, newPassword) {
+    try {
+      await confirmPasswordReset(auth, code, newPassword);
+      return true;
+    } catch (e) {
+      throw new Error(this.getErrorMessage(e.code) || e.message);
+    }
+  }
+
+  /**
+   * Troca de senha para usuário logado
+   */
+  async changePassword(currentPassword, newPassword) {
+    try {
+      const user = auth.currentUser;
+      if (!user?.email) throw new Error('Usuário não autenticado');
+      // Reautenticar (necessário em muitos casos)
+      if (currentPassword) {
+        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        await reauthenticateWithCredential(user, credential);
+      }
+      await updatePassword(user, newPassword);
+      return true;
+    } catch (e) {
+      console.error('Erro ao alterar senha:', e);
+      throw new Error(this.getErrorMessage(e.code) || e.message);
     }
   }
 

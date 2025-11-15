@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Usuario } from "@/entities";
 import { systemConfig } from "@/config/firebase.js";
-import { authService } from "@/services/authService.jsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 const ROLE_LABEL = {
   admin: "Admin",
@@ -19,7 +18,6 @@ const ROLE_LABEL = {
 export default function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [novo, setNovo] = useState({ nome: "", email: "", telefone: "", role: "vendedor" });
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -40,50 +38,34 @@ export default function AdminUsuarios() {
           fbUsers = json.users;
         }
       }
-      // 2) Buscar mapeamentos de role do banco/local
-      const rolesList = await Usuario.list("-created_date");
-      const roleByEmail = {};
-      rolesList.forEach(r => {
-        if (r?.email) roleByEmail[r.email.toLowerCase()] = { id: r.id, role: r.role, telefone: r.telefone, nome: r.nome };
-      });
+      // 2) Buscar mapeamentos de role do backend
+      let roleByEmail = {};
+      try {
+        const rolesResp = await fetch(`${serverUrl}/auth/roles?t=${Date.now()}`);
+        if (rolesResp.ok) {
+          const rolesJson = await rolesResp.json();
+          const items = Array.isArray(rolesJson?.items) ? rolesJson.items : [];
+          items.forEach((it) => {
+            if (it?.email && it?.role) roleByEmail[it.email.toLowerCase()] = { role: it.role };
+          });
+        }
+      } catch (_) {}
       // 3) Mesclar: Firebase + role
       const merged = fbUsers.map(u => {
         const info = roleByEmail[(u.email || '').toLowerCase()] || {};
         return {
-          id: u.uid, // usar uid do firebase para chave
+          id: u.uid,
           uid: u.uid,
           nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário'),
           email: u.email || '',
-          telefone: info.telefone || u.phone_number || '',
-          role: info.role || 'vendedor',
-          _mapId: info.id || null // id do registro de role (se existir)
+          telefone: u.phone_number || '',
+          role: info.role || 'vendedor'
         };
       });
       setUsuarios(merged);
     } catch (e) {
       console.error('Falha ao listar usuários do Firebase:', e);
-      // fallback: lista local
-      const list = await Usuario.list("-created_date");
-      setUsuarios(list);
-    }
-  };
-
-  const salvarNovo = async () => {
-    // Somente cria/atualiza o mapeamento de role no backend (não cria usuário no Firebase)
-    if (!novo?.email) return;
-    setLoading(true);
-    try {
-      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-      const serverUrl = `http://${hostname}:8000`;
-      await fetch(`${serverUrl}/auth/roles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: novo.email, role: novo.role || 'vendedor' })
-      });
-      setNovo({ nome: "", email: "", telefone: "", role: "vendedor" });
-      await load();
-    } finally {
-      setLoading(false);
+      setUsuarios([]);
     }
   };
 
@@ -107,8 +89,6 @@ export default function AdminUsuarios() {
   };
 
   const removerUsuario = async (id) => {
-    // Nesta versão não removemos do Firebase.
-    // Removemos apenas o mapeamento de role (se houver) e resetamos para 'vendedor'.
     const target = usuarios.find(u => u.id === id);
     if (!target) return;
     if (!confirm("Remover as permissões deste usuário?")) return;
@@ -116,6 +96,15 @@ export default function AdminUsuarios() {
     try {
       const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
       const serverUrl = `http://${hostname}:8000`;
+      // 1) Remover usuário no Firebase (se backend estiver com Admin habilitado)
+      try {
+        await fetch(`${serverUrl}/admin/firebase/delete-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: target.uid || id })
+        });
+      } catch (_) {}
+      // 2) Remover papel no backend
       await fetch(`${serverUrl}/auth/roles`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -155,15 +144,17 @@ export default function AdminUsuarios() {
             <CardContent className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="font-semibold text-gray-900 truncate">{u.nome}</div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removerUsuario(u.id)}
-                  className="text-red-600 hover:bg-red-50"
-                  title="Excluir"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removerUsuario(u.id)}
+                    className="text-red-600 hover:bg-red-50"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
               <div className="text-xs text-gray-600 truncate">{u.email}</div>
               <div className="text-xs text-gray-600">{u.telefone}</div>
@@ -211,45 +202,6 @@ export default function AdminUsuarios() {
           </div>
         </div>
       </div>
-
-      {/* Novo usuário */}
-      <Card className="border-gray-200">
-        <CardContent className="p-3 md:p-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div className="space-y-1">
-              <Label>Nome</Label>
-              <Input value={novo.nome} onChange={(e) => setNovo(prev => ({ ...prev, nome: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>E-mail</Label>
-              <Input type="email" value={novo.email} onChange={(e) => setNovo(prev => ({ ...prev, email: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Telefone</Label>
-              <Input value={novo.telefone} onChange={(e) => setNovo(prev => ({ ...prev, telefone: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Papel</Label>
-              <Select value={novo.role} onValueChange={(v) => setNovo(prev => ({ ...prev, role: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Usuario.roles.map(r => (
-                    <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button onClick={salvarNovo} disabled={loading} className="w-full">
-                <Plus className="w-4 h-4 mr-2" />
-                Salvar Papel
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Colunas por papel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">

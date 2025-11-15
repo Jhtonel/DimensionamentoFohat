@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import re
 import time
+#
 from calculadora_solar import CalculadoraSolar, DadosProjeto
 from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB
 # WeasyPrint comentado - requer: brew install cairo pango gdk-pixbuf libffi
@@ -49,6 +50,35 @@ try:
                 cred = fb_credentials.Certificate(sa_path)
         except Exception:
             cred = None
+        # Fallback: procurar arquivo de service account no diretório do projeto
+        if cred is None:
+            try:
+                base_dir = Path(__file__).parent
+                # Candidatos comuns de nome de arquivo
+                candidates = [
+                    base_dir / "service-account.json",
+                    base_dir / "firebase-admin.json",
+                    base_dir / "fohat-energia-3c422e081e0e.json",
+                ]
+                for c in candidates:
+                    if c.exists():
+                        cred = fb_credentials.Certificate(str(c))
+                        print(f"🔑 Firebase Admin: carregando credenciais de {c}")
+                        break
+                # Se ainda não encontrou, varrer *.json à procura de 'type: service_account'
+                if cred is None:
+                    for f in base_dir.glob("*.json"):
+                        try:
+                            with open(f, "r", encoding="utf-8") as fh:
+                                text = fh.read(2048)  # leitura parcial é suficiente
+                                if '"type": "service_account"' in text or "'type': 'service_account'" in text:
+                                    cred = fb_credentials.Certificate(str(f))
+                                    print(f"🔑 Firebase Admin: detectado arquivo de service account: {f}")
+                                    break
+                        except Exception:
+                            continue
+            except Exception as e:
+                print(f"⚠️ Falha ao procurar credenciais do Firebase Admin: {e}")
         try:
             firebase_admin.initialize_app(cred)
             FIREBASE_ADMIN_AVAILABLE = True
@@ -1686,10 +1716,6 @@ def cleanup_old_charts():
 
 @app.route('/admin/firebase/delete-user', methods=['POST'])
 def admin_firebase_delete_user():
-    """
-    Remove um usuário do Firebase Auth pelo UID.
-    Requer Firebase Admin configurado (service account via GOOGLE_APPLICATION_CREDENTIALS ou ADC).
-    """
     if not FIREBASE_ADMIN_AVAILABLE:
         return jsonify({'success': False, 'message': 'Firebase Admin não configurado no servidor'}), 500
     try:
@@ -1732,6 +1758,31 @@ def admin_firebase_list_users():
         return jsonify({'success': True, 'users': users})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/firebase/generate-reset-link', methods=['POST'])
+def admin_firebase_generate_reset_link():
+    # Desativado: criação/gestão de usuários deve ser feita manualmente no Firebase
+    return jsonify({'success': False, 'message': 'Desativado'}), 404
+
+def _get_app_base_url() -> str:
+    # Base pública usada nos links dos e-mails
+    env_url = os.environ.get("APP_PUBLIC_URL")
+    if env_url:
+        return env_url.rstrip("/")
+    return "http://localhost:3003"
+
+def _send_smtp_email(to_email: str, subject: str, html_body: str, text_body: str | None = None) -> tuple[bool, str]:
+    # Desativado: envio de e-mails não é realizado pelo servidor
+    return False, "desativado"
+
+def _send_sendgrid_email(to_email: str, subject: str, html_body: str, text_body: str | None = None) -> tuple[bool, str]:
+    # Desativado: envio de e-mails não é realizado pelo servidor
+    return False, "desativado"
+
+@app.route('/admin/firebase/send-invite', methods=['POST'])
+def admin_firebase_send_invite():
+    # Desativado: envio de convites/e-mails não é mais responsabilidade do app
+    return jsonify({'success': False, 'message': 'Desativado'}), 404
 
 # ===== Roles (controle de acesso pelo backend) =====
 @app.route('/auth/role', methods=['GET'])
