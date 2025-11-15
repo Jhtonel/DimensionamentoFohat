@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { propostaService } from '../services/propostaService';
 
@@ -10,11 +10,14 @@ export default function PropostaView() {
   const [pdfUrl, setPdfUrl] = useState('');
   const [isLoadingPdf, setIsLoadingPdf] = useState(true);
   const [error, setError] = useState(null);
+  const hasLoadedRef = useRef(false);
+  const [backendDirectUrl, setBackendDirectUrl] = useState('');
 
   useEffect(() => {
-    if (propostaId) {
-      loadPdfFromBackend();
-    }
+    if (!propostaId) return;
+    if (hasLoadedRef.current) return; // evita dupla execução em StrictMode
+    hasLoadedRef.current = true;
+    loadPdfFromBackend();
   }, [propostaId]);
 
   const loadPdfFromBackend = async () => {
@@ -22,30 +25,20 @@ export default function PropostaView() {
     setError(null);
     
     try {
-      console.log('🔄 Carregando HTML do backend para proposta:', propostaId);
-      
-      // Buscar HTML diretamente do backend
-      const response = await fetch(`http://localhost:8000/gerar-pdf/${propostaId}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Proposta não encontrada. O ID "${propostaId}" pode ter sido gerado quando o servidor estava indisponível. Tente gerar uma nova proposta.`);
-        }
-        throw new Error(`Erro ao carregar proposta: ${response.status}`);
+      // Checagem rápida de disponibilidade do backend
+      const serverUp = await propostaService.verificarServidor();
+      if (!serverUp) {
+        throw new Error('Servidor de propostas (porta 8000) indisponível. Inicie o backend e tente novamente.');
       }
-      
-      const htmlContent = await response.text();
-      console.log('✅ HTML carregado com sucesso');
-      
-      // Criar um blob URL para o HTML
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      
-      setPdfUrl(url);
+      // Carregar diretamente do backend no iframe (evita CORS/timeouts)
+      const backendUrl = `${propostaService.getPropostaURL(propostaId)}?t=${Date.now()}`;
+      console.log('🔁 Carregando direto do backend no iframe:', backendUrl);
+      setBackendDirectUrl(backendUrl);
+      setPdfUrl(backendUrl);
       
     } catch (error) {
       console.error('❌ Erro ao carregar proposta:', error);
-      setError(error.message);
+      setError(error.message || 'Falha ao carregar proposta');
     } finally {
       setIsLoadingPdf(false);
     }
@@ -55,16 +48,12 @@ export default function PropostaView() {
     if (!propostaId) return;
     
     try {
-      console.log('📥 Baixando HTML da proposta...');
-      
-      // Buscar HTML diretamente do backend
-      const response = await fetch(`http://localhost:8000/gerar-pdf/${propostaId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao baixar: ${response.status}`);
+      console.log('📥 Baixando HTML da proposta via serviço...');
+      const result = await propostaService.gerarPropostaHTML(propostaId);
+      if (!result?.success) {
+        throw new Error(result?.message || 'Falha ao gerar HTML');
       }
-      
-      const htmlContent = await response.text();
+      const htmlContent = result.html_content || '';
       
       // Criar blob e fazer download
       const blob = new Blob([htmlContent], { type: 'text/html' });
@@ -162,6 +151,16 @@ export default function PropostaView() {
             style={{ height: 'calc(100vh - 150px)' }}
             title="Preview da Proposta"
           />
+        </div>
+        <div className="mt-3 text-right">
+          <a
+            href={backendDirectUrl || '#'}
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            Abrir diretamente no servidor (nova aba)
+          </a>
         </div>
       </div>
     </div>

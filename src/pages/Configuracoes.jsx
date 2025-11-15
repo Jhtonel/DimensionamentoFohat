@@ -61,11 +61,17 @@ export default function Configuracoes() {
         custo_instalacao_por_placa: 200,
         custo_ca_aterramento_por_placa: 100,
         custo_placas_sinalizacao: 60,
+        percentual_obra_instalacao: 10,
         percentual_despesas_gerais: 10,
         percentual_despesas_diretoria: 1,
         percentual_impostos: 3.3,
         percentual_divisao_lucro: 40,
         percentual_fundo_caixa: 20,
+        homologacao_ate_5_kwp: 465,
+        homologacao_ate_10_kwp: 565,
+        homologacao_ate_20_kwp: 765,
+        homologacao_ate_50_kwp: 865,
+        homologacao_ate_75_kwp: 1065,
         vendedor_nome: "Representante Comercial",
         vendedor_cargo: "Especialista em Energia Solar",
         vendedor_telefone: "(11) 99999-9999",
@@ -94,14 +100,22 @@ export default function Configuracoes() {
 
   const handleSaveEquipamentos = async () => {
     setLoading(true);
-    
-    if (equipamentos.id) {
-      await Configuracao.update(equipamentos.id, equipamentos);
-    } else {
-      await Configuracao.create(equipamentos);
+    try {
+      // Salvar configuração de equipamentos (ex.: potência padrão)
+      if (equipamentos.id) {
+        await Configuracao.update(equipamentos.id, equipamentos);
+      } else {
+        await Configuracao.create(equipamentos);
+      }
+      // Salvar custos e percentuais editáveis ligados à proposta
+      if (propostaConfigs.id) {
+        await Configuracao.update(propostaConfigs.id, propostaConfigs);
+      } else {
+        await Configuracao.create(propostaConfigs);
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleAddTarifa = async () => {
@@ -134,7 +148,7 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="h-full overflow-y-auto p-4 md:p-8">
       <div className="w-full space-y-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -255,72 +269,103 @@ export default function Configuracoes() {
               <CardTitle className="text-2xl font-bold text-sky-700">Equipamentos</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="p-4">
-                  <h4 className="font-semibold text-blue-900 mb-3">Custos Fixos por Projeto</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Instalação:</span>
-                      <span className="font-semibold">R$ 200,00 por placa</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4 space-y-3">
+                    <h4 className="font-semibold text-blue-900">Custos do Projeto</h4>
+                    <div>
+                      <Label>Custo Instalação por Placa (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_instalacao_por_placa ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_instalacao_por_placa: parseFloat(e.target.value) }))}
+                      />
                     </div>
-                    <div className="flex justify-between">
-                      <span>CA:</span>
-                      <span className="font-semibold">R$ 100,00 por placa</span>
+                    <div>
+                      <Label>Custo CA/Aterramento por Placa (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_ca_aterramento_por_placa ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_ca_aterramento_por_placa: parseFloat(e.target.value) }))}
+                      />
                     </div>
-                    <div className="flex justify-between">
-                      <span>Plaquinhas:</span>
-                      <span className="font-semibold">R$ 60,00</span>
+                    <div>
+                      <Label>Custo Placas Sinalização (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.custo_placas_sinalizacao ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_placas_sinalizacao: parseFloat(e.target.value) }))}
+                      />
                     </div>
-                    <div className="flex justify-between">
-                      <span>Obra:</span>
-                      <span className="font-semibold">10% do custo de instalação</span>
+                    <div>
+                      <Label>Obra (% sobre instalação)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={propostaConfigs.percentual_obra_instalacao ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_obra_instalacao: parseFloat(e.target.value) }))}
+                      />
                     </div>
-                    <div className="border-t border-blue-300 pt-2 mt-2">
-                      <p className="font-semibold text-blue-900">Homologação (por faixa):</p>
-                      <div className="ml-4 mt-1 space-y-1">
-                        <div className="flex justify-between">
-                          <span>até 5 kWp:</span>
-                          <span className="font-semibold">R$ 465,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>até 10 kWp:</span>
-                          <span className="font-semibold">R$ 565,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>até 20 kWp:</span>
-                          <span className="font-semibold">R$ 765,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>até 50 kWp:</span>
-                          <span className="font-semibold">R$ 865,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>até 75 kWp:</span>
-                          <span className="font-semibold">R$ 1.065,00</span>
-                        </div>
-                      </div>
-                    </div>
+                  </CardContent>
+                </Card>
 
-                    <div className="border-t border-green-300 pt-2 mt-2">
-                      <p className="font-semibold text-green-900">Margem Desejada:</p>
-                      <div className="ml-4 mt-1 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Margem base:</span>
-                          <span className="font-semibold">25%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Comissão vendedor:</span>
-                          <span className="font-semibold">5% (padrão)</span>
-                        </div>
-                        <div className="flex justify-between text-green-700">
-                          <span className="font-semibold">Margem total:</span>
-                          <span className="font-semibold">30%</span>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-2">
-                          MargemDesejada = 25% + comissão do vendedor
-                        </p>
-                      </div>
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4 space-y-3">
+                    <h4 className="font-semibold text-blue-900">Homologação (por faixa)</h4>
+                    <div>
+                      <Label>até 5 kWp (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.homologacao_ate_5_kwp ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_5_kwp: parseFloat(e.target.value) }))}
+                      />
                     </div>
+                    <div>
+                      <Label>até 10 kWp (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.homologacao_ate_10_kwp ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_10_kwp: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>até 20 kWp (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.homologacao_ate_20_kwp ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_20_kwp: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>até 50 kWp (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.homologacao_ate_50_kwp ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_50_kwp: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>até 75 kWp (R$)</Label>
+                      <Input
+                        type="number"
+                        value={propostaConfigs.homologacao_ate_75_kwp ?? 0}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_75_kwp: parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="bg-gray-50 border-gray-200">
+                <CardContent className="p-4 space-y-3">
+                  <h4 className="font-semibold text-gray-900">Parâmetros de Equipamento</h4>
+                  <div>
+                    <Label>Potência Padrão da Placa (W)</Label>
+                    <Input
+                      type="number"
+                      value={equipamentos.potencia_placa_padrao_w || 600}
+                      onChange={(e) => setEquipamentos(prev => ({ ...prev, potencia_placa_padrao_w: parseFloat(e.target.value) }))}
+                    />
                   </div>
                 </CardContent>
               </Card>

@@ -8,10 +8,14 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 
 import { firebaseConfig } from '../config/firebase.js';
+import { supabase } from './supabaseClient.js';
 
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
@@ -21,11 +25,21 @@ class AuthService {
   constructor() {
     this.currentUser = null;
     this.listeners = [];
+    this.secondaryApp = null;
     
     // Escutar mudanças no estado de autenticação
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         this.currentUser = this.mapFirebaseUser(firebaseUser);
+        // Carregar role a partir do banco/localStorage e notificar novamente
+        try {
+          const role = await this.fetchUserRoleByEmail(this.currentUser.email);
+          if (role) {
+            this.currentUser = { ...this.currentUser, role };
+          }
+        } catch (e) {
+          console.warn('Falha ao obter role do usuário:', e?.message || e);
+        }
       } else {
         this.currentUser = null;
       }
@@ -46,7 +60,7 @@ class AuthService {
       uid: firebaseUser.uid,
       email,
       nome: firebaseUser.displayName || nomePadrao,
-      role: 'comum'
+      role: 'vendedor' // papel padrão até buscarmos no banco
     };
   }
 
@@ -75,6 +89,42 @@ class AuthService {
     } catch (error) {
       console.error('Erro no logout:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Cria um usuário no Firebase Auth sem derrubar a sessão atual
+   * Usa uma instância secundária do app para evitar trocar o auth ativo
+   */
+  async createFirebaseUser({ email, password, displayName }) {
+    try {
+      if (!this.secondaryApp) {
+        this.secondaryApp = initializeApp(firebaseConfig, 'secondary');
+      }
+      const secondaryAuth = getAuth(this.secondaryApp);
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const createdUser = userCredential.user;
+      if (displayName) {
+        try {
+          await updateProfile(createdUser, { displayName });
+        } catch (e) {
+          console.warn('Não foi possível atualizar displayName do usuário recém-criado:', e);
+        }
+      }
+      // Dispara e-mail de redefinição de senha para que o usuário defina uma senha própria
+      try {
+        await sendPasswordResetEmail(secondaryAuth, email);
+      } catch (e) {
+        console.warn('Falha ao enviar e-mail de redefinição de senha (o usuário ainda foi criado):', e);
+      }
+      // Mantém admin logado no app principal; encerra sessão secundária
+      try {
+        await signOut(secondaryAuth);
+      } catch {}
+      return { uid: createdUser.uid, email: createdUser.email };
+    } catch (error) {
+      console.error('❌ Erro ao criar usuário no Firebase:', error);
+      throw new Error(this.getErrorMessage(error.code) || error.message);
     }
   }
 
@@ -141,6 +191,44 @@ class AuthService {
     }
     return null;
   }
+
+  /**
+   * Busca a role do usuário por e-mail em ordem:
+   * 1) Supabase (tabela 'usuarios')
+   * 2) localStorage ('usuarios_local')
+   * 3) fallback 'vendedor'
+   */
+  async fetchUserRoleByEmail(email) {
+    if (!email) return 'vendedor';
+    // Consultar role no backend Python
+    try {
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      const serverUrl = `http://${hostname}:8000`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(`${serverUrl}/auth/role?email=${encodeURIComponent(email)}&t=${Date.now()}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json?.role) return json.role;
+      }
+    } catch (e) {
+      console.warn('Falha ao consultar role no backend, usando padrão vendedor:', e?.message || e);
+    }
+    return 'vendedor';
+  }
+
+  /**
+   * Verifica se o usuário possui alguma role exigida
+   */
+  hasRole(required) {
+    const r = this.currentUser?.role;
+    if (!required) return true;
+    if (Array.isArray(required)) return required.includes(r);
+    return r === required;
+  }
 }
 
 // Instância singleton
@@ -156,6 +244,13 @@ export const useAuth = () => {
       setUser(user);
       setLoading(false);
     });
+
+    // Inicializa imediatamente com o estado atual (evita ficar em "Verificando acesso...")
+    const current = authService.getCurrentUser();
+    if (current !== undefined) {
+      setUser(current);
+      setLoading(false);
+    }
 
     return unsubscribe;
   }, []);

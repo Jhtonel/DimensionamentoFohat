@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/button';
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { propostaService } from '../../services/propostaService';
+import { Projeto } from '../../entities';
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete }) {
   const [propostaSalva, setPropostaSalva] = useState(false);
@@ -15,6 +16,26 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
   // Função para obter dados seguros com fallbacks
   // Funções auxiliares para calcular valores financeiros
+  const formatEnderecoResumido = useCallback((enderecoRaw = '', cidade = '') => {
+    try {
+      if (!enderecoRaw && !cidade) return 'Endereço não informado';
+      const parts = enderecoRaw.split(',').map(p => (p || '').trim()).filter(Boolean);
+      const rua = parts[0] || '';
+      let numero = '';
+      if (parts.length > 1) {
+        for (const p of parts.slice(1, 3)) {
+          if (/\d/.test(p)) { numero = p.trim(); break; }
+        }
+        if (!numero) numero = parts[1].trim();
+      }
+      const city = cidade || parts.slice(-1)[0] || '';
+      if (rua && numero && city) return `${rua}, ${numero} - ${city}`;
+      if (rua && city) return `${rua} - ${city}`;
+      return enderecoRaw || city || 'Endereço não informado';
+    } catch {
+      return enderecoRaw || 'Endereço não informado';
+    }
+  }, []);
   const calcularContaAtualAnual = useCallback(() => {
     const consumoReais = Number(formData?.consumo_mensal_reais) || 0;
     console.log('💰 DEBUG calcularContaAtualAnual - consumoReais:', consumoReais);
@@ -228,7 +249,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         // Substituir variáveis básicas (apenas as que não foram processadas pelo servidor)
         const clienteSelecionado = clientes.find(c => c.id === formData?.cliente_id);
         templateHtml = templateHtml.replace(/{{cliente_nome}}/g, clienteSelecionado?.nome || 'Cliente');
-        templateHtml = templateHtml.replace(/{{cliente_endereco}}/g, clienteSelecionado?.endereco_completo || 'Endereço não informado');
+        // Preferir endereço informado na aba Dados Básicos e usar formato resumido
+        const enderecoResumido = formatEnderecoResumido(formData?.endereco_completo || clienteSelecionado?.endereco_completo || '', formData?.cidade || '');
+        templateHtml = templateHtml.replace(/{{cliente_endereco}}/g, enderecoResumido);
         templateHtml = templateHtml.replace(/{{cliente_telefone}}/g, clienteSelecionado?.telefone || 'Telefone não informado');
         templateHtml = templateHtml.replace(/{{potencia_sistema_kwp}}/g, dadosSeguros.potencia_sistema_kwp?.toFixed(2) || '0.00');
         templateHtml = templateHtml.replace(/{{preco_final}}/g, dadosSeguros.preco_final?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00');
@@ -257,7 +280,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       // Preparar dados da proposta para o servidor
       const propostaData = {
         cliente_nome: clientes.find(c => c.id === formData?.cliente_id)?.nome || 'Cliente',
-        cliente_endereco: clientes.find(c => c.id === formData?.cliente_id)?.endereco_completo || 'Endereço não informado',
+        // Endereço deve vir da aba Dados Básicos (formData.endereco_completo)
+        cliente_endereco: formData?.endereco_completo || clientes.find(c => c.id === formData?.cliente_id)?.endereco_completo || 'Endereço não informado',
         cliente_telefone: clientes.find(c => c.id === formData?.cliente_id)?.telefone || 'Telefone não informado',
         potencia_sistema: dadosSeguros.potencia_sistema_kwp,
         preco_final: dadosSeguros.preco_final,
@@ -312,6 +336,28 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       const propostaId = htmlResult.proposta_id;
       console.log('✅ Proposta salva e HTML gerado com ID:', propostaId);
 
+      // Atualizar projeto: status e vínculo ao cliente
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projetoId = urlParams.get('projeto_id');
+        if (projetoId) {
+          const clienteNome = (clientes.find(c => c.id === formData?.cliente_id)?.nome) || formData?.cliente_nome || null;
+          await Projeto.update(projetoId, {
+            ...formData,
+            // Requisito: recém gerados devem aparecer em "Dimensionamento"
+            status: 'dimensionamento',
+            cliente_id: formData?.cliente_id || null,
+            cliente_nome: clienteNome || undefined,
+            preco_final: dadosSeguros?.preco_final ?? undefined,
+            proposta_id: propostaId,
+            url_proposta: propostaService.getPropostaURL(propostaId)
+          });
+          console.log('🔗 Projeto atualizado e vinculado ao cliente/proposta:', projetoId);
+        }
+      } catch (e) {
+        console.warn('⚠️ Falha ao atualizar projeto após geração da proposta:', e);
+      }
+
       // Salvar dados para preview
       setPropostaData(propostaData);
       setPropostaId(propostaId);
@@ -319,9 +365,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       
       // Abrir proposta em nova aba (mostrará o PDF do backend)
       window.open(`/proposta/${propostaId}`, '_blank');
-      
-      // Notificar sucesso
-      alert('Proposta gerada com sucesso! Abrindo em nova aba...');
+      // Evitar alert bloqueante (navegadores pausam a guia nova com alert aberto)
+      console.log('✅ Proposta gerada com sucesso! Abrindo em nova aba...');
       
     } catch (error) {
       console.error('❌ Erro ao salvar proposta:', error);

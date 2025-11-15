@@ -37,6 +37,7 @@ export default function Dashboard() {
     setProjetos(projetosData);
     setLoading(false);
   };
+  
 
   const calcularStats = () => {
     const totalClientes = clientes.length;
@@ -58,7 +59,7 @@ export default function Dashboard() {
   const stats = calcularStats();
 
   return (
-    <div className="h-full max-h-full p-2 sm:p-4 md:p-6 lg:p-8 overflow-auto min-w-0">
+    <div className="h-[100vh] p-2 sm:p-4 md:p-6 lg:p-8 overflow-hidden min-w-0">
       <div className="w-full space-y-4 sm:space-y-6 min-w-0">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -88,33 +89,29 @@ export default function Dashboard() {
             value={stats.totalClientes}
             icon={Users}
             gradient="from-sky-500 to-blue-600"
-            trend="+12% este mês"
           />
           <StatsCard
             title="Projetos Ativos"
             value={stats.totalProjetos}
             icon={FolderKanban}
             gradient="from-orange-500 to-red-600"
-            trend="+8 novos"
           />
           <StatsCard
             title="Valor Total Fechado"
             value={`R$ ${stats.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             icon={DollarSign}
             gradient="from-green-500 to-emerald-600"
-            trend="+18% este mês"
           />
           <StatsCard
             title="Taxa de Conversão"
             value={`${stats.taxaConversao}%`}
             icon={TrendingUp}
             gradient="from-purple-500 to-pink-600"
-            trend="Acima da média"
           />
         </div>
 
-        <div className="glass-card border-0 shadow-2xl rounded-xl p-2 sm:p-4 lg:p-6 max-h-[calc(100vh-300px)] sm:max-h-[calc(100vh-350px)] lg:max-h-[calc(100vh-400px)] overflow-hidden min-w-0">
-          <KanbanBoard projetos={projetos} onUpdate={loadData} />
+        <div className="pt-2 sm:pt-4 lg:pt-6 min-w-0 max-w-[90vw] w-full mx-auto">
+          <KanbanBoard clientes={clientes} projetos={projetos} onUpdate={loadData} />
         </div>
       </div>
     </div>

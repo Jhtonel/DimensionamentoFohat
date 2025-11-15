@@ -82,11 +82,11 @@ const statusConfig = {
 };
 
 const statusOrder = [
-  'lead', 'dimensionamento', 'orcamento_enviado', 'negociacao', 
+  'dimensionamento', 'orcamento_enviado', 'negociacao', 
   'fechado', 'instalacao', 'concluido', 'perdido'
 ];
 
-export default function KanbanBoard({ projetos, onUpdate }) {
+export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) {
   const [draggedProject, setDraggedProject] = useState(null);
 
   const groupByStatus = () => {
@@ -127,13 +127,28 @@ export default function KanbanBoard({ projetos, onUpdate }) {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  const normalizeNumber = (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const n = Number(v.replace?.(/\./g, '')?.replace?.(',', '.') ?? v);
+      return Number.isNaN(n) ? null : n;
+    }
+    return null;
+  };
   const formatCurrency = (value) => {
-    if (!value) return 'N/A';
-    return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    const n = normalizeNumber(value);
+    if (n === null) return 'N/A';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  const getClienteNome = (p) => (p?.cliente?.nome || p?.cliente_nome || p?.payload?.cliente_nome || 'Cliente não definido');
+  const getValorProjeto = (p) => {
+    const v = p?.preco_final ?? p?.preco_venda ?? p?.custo_total_projeto ?? p?.payload?.preco_final ?? p?.payload?.preco_venda ?? p?.payload?.custo_total_projeto ?? null;
+    return normalizeNumber(v);
   };
 
   return (
-    <div className="space-y-6 max-h-full">
+    <div className="space-y-4 h-full w-full">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Pipeline de Vendas</h2>
@@ -149,10 +164,7 @@ export default function KanbanBoard({ projetos, onUpdate }) {
       </div>
 
       <div 
-        className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-4 max-h-[calc(100vh-250px)] sm:max-h-[calc(100vh-300px)] lg:max-h-[calc(100vh-350px)]" 
-        style={{
-          width: '100%'
-        }}
+        className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto" 
       >
         {statusOrder.map((status) => {
           const config = statusConfig[status];
@@ -201,26 +213,26 @@ export default function KanbanBoard({ projetos, onUpdate }) {
                           <div className="space-y-2 sm:space-y-3">
                             <div className="flex items-start justify-between gap-2">
                               <h4 className="font-semibold text-gray-900 text-xs sm:text-sm line-clamp-2 flex-1 min-w-0">
-                                {projeto.nome_projeto || 'Projeto sem nome'}
+                                {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
                               </h4>
-                              <Badge variant="outline" className="text-xs flex-shrink-0">
-                                {projeto.prioridade || 'Normal'}
-                              </Badge>
+                              {(projeto.prioridade && projeto.prioridade !== 'Normal') && (
+                                <Badge variant="outline" className="text-xs flex-shrink-0">
+                                  {projeto.prioridade}
+                                </Badge>
+                              )}
                             </div>
                             
                             <div className="space-y-1.5 sm:space-y-2 text-xs text-gray-600">
                               <div className="flex items-center gap-1.5 sm:gap-2">
                                 <User className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">
-                                  {projeto.cliente?.nome || 'Cliente não definido'}
+                                  {getClienteNome(projeto)}
                                 </span>
                               </div>
-                              
                               <div className="flex items-center gap-1.5 sm:gap-2">
                                 <DollarSign className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{formatCurrency(projeto.preco_final)}</span>
+                                <span className="truncate">{formatCurrency(getValorProjeto(projeto))}</span>
                               </div>
-                              
                               <div className="flex items-center gap-1.5 sm:gap-2">
                                 <Calendar className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{formatDate(projeto.created_date)}</span>

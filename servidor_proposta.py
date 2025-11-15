@@ -16,9 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
+matplotlib.use('Agg')  # Use non-interactive backend (deve ser antes do pyplot)
+import matplotlib.pyplot as plt
 import io
 import numpy as np
 import pandas as pd
@@ -29,9 +29,49 @@ from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB
 # WeasyPrint comentado - requer: brew install cairo pango gdk-pixbuf libffi
 # from weasyprint import HTML, CSS
 # from weasyprint.text.fonts import FontConfiguration
+from analise_financeira import calcular_tabelas as af_calcular_tabelas
+from analise_financeira import gerar_graficos_base64 as af_gerar_graficos_base64
+from analise_financeira import irradiancia_mensal_kwh_m2_dia_ex as af_irr_mensal_ex
+#
+# Firebase Admin (opcional, para gerenciar usuários do Auth)
+FIREBASE_ADMIN_AVAILABLE = False
+try:
+    import firebase_admin
+    from firebase_admin import auth as fb_auth
+    from firebase_admin import credentials as fb_credentials
+    if not firebase_admin._apps:
+        cred = None
+        # Usa credenciais do ambiente (GOOGLE_APPLICATION_CREDENTIALS) se existir,
+        # senão tenta inicializar sem parâmetros (ADC)
+        try:
+            sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if sa_path and os.path.exists(sa_path):
+                cred = fb_credentials.Certificate(sa_path)
+        except Exception:
+            cred = None
+        try:
+            firebase_admin.initialize_app(cred)
+            FIREBASE_ADMIN_AVAILABLE = True
+            print("✅ Firebase Admin inicializado")
+        except Exception as e:
+            print(f"⚠️ Não foi possível inicializar Firebase Admin: {e}")
+            FIREBASE_ADMIN_AVAILABLE = False
+    else:
+        FIREBASE_ADMIN_AVAILABLE = True
+except Exception as e:
+    print(f"ℹ️ Firebase Admin indisponível (instale firebase-admin se precisar): {e}")
+    FIREBASE_ADMIN_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)
+
+@app.after_request
+def add_security_headers(response):
+    # Permitir embed em iframe a partir de origens diferentes (frontend porta 3003)
+    response.headers['X-Frame-Options'] = 'ALLOWALL'
+    # Flexível para testes locais; ajuste conforme necessidade de segurança
+    response.headers['Content-Security-Policy'] = "frame-ancestors *"
+    return response
 
 # Servidor para propostas HTML (sem dependência do proposta_solar)
 
@@ -42,6 +82,29 @@ PROPOSTAS_DIR.mkdir(exist_ok=True)
 # Diretório para salvar PDFs
 PDFS_DIR = Path(__file__).parent / "propostas" / "pdfs"
 PDFS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Diretório/arquivo para papéis (roles) de usuários
+DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR.mkdir(exist_ok=True)
+ROLES_FILE = DATA_DIR / "users_roles.json"
+
+def _load_roles() -> dict:
+    try:
+        if ROLES_FILE.exists():
+            with open(ROLES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+    except Exception as e:
+        print(f"⚠️ Falha ao carregar roles: {e}")
+    return {}
+
+def _save_roles(mapping: dict) -> None:
+    try:
+        with open(ROLES_FILE, "w", encoding="utf-8") as f:
+            json.dump(mapping, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Falha ao salvar roles: {e}")
 
 def convert_image_to_base64(image_path):
     """Converte uma imagem para base64"""
@@ -69,6 +132,41 @@ def convert_image_to_base64(image_path):
     except Exception as e:
         print(f"❌ Erro ao converter imagem {image_path}: {e}")
         return None
+
+def format_endereco_resumido(endereco_raw: str, cidade: str | None = None) -> str:
+    """
+    Formata endereço no padrão: 'rua, numero - cidade'
+    A função é tolerante a endereços longos separados por vírgulas.
+    """
+    try:
+        if not endereco_raw and not cidade:
+            return 'Endereço não informado'
+        endereco = endereco_raw or ''
+        parts = [p.strip() for p in endereco.split(',') if p.strip()]
+        rua = parts[0] if parts else ''
+        numero = ''
+        if len(parts) > 1:
+            # escolher o primeiro trecho que contenha dígitos como número
+            for p in parts[1:3]:
+                if any(ch.isdigit() for ch in p):
+                    numero = p.strip()
+                    break
+            if not numero:
+                numero = parts[1].strip()
+        cidade_final = (cidade or '')
+        if not cidade_final:
+            # tentar inferir cidade a partir das partes (geralmente penúltima)
+            if len(parts) >= 2:
+                possiveis = [p for p in parts if (len(p) > 2 and not p.isupper() and not any(ch.isdigit() for ch in p))]
+                cidade_final = possiveis[-1] if possiveis else parts[-1]
+        # montar
+        if rua and numero and cidade_final:
+            return f"{rua}, {numero} - {cidade_final}"
+        if rua and cidade_final:
+            return f"{rua} - {cidade_final}"
+        return endereco or cidade_final or 'Endereço não informado'
+    except Exception:
+        return endereco_raw or 'Endereço não informado'
 
 def generate_bar_chart_base64(values, labels, title="Gráfico de Barras", colors=None):
     """Gera um gráfico de barras profissional e retorna como base64"""
@@ -494,6 +592,68 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         print(f"❌ Erro ao gerar gráfico {chart_type}: {e}")
         return None
 
+def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> str:
+    """
+    Substitui as imagens dos 5 gráficos no template usando as tabelas e gráficos
+    calculados por analise_financeira.py, garantindo consistência com a planilha.
+    """
+    try:
+        # Extrair parâmetros da proposta
+        def to_float(value, default=0.0):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        consumo_medio_kwh_mes = to_float(proposta_data.get('consumo_mensal_kwh', 0), 0.0)
+        tarifa_atual_r_kwh = to_float(proposta_data.get('tarifa_energia', 0.75), 0.75)
+        potencia_kwp = to_float(proposta_data.get('potencia_sistema', 0), 0.0)
+        valor_usina = to_float(
+            proposta_data.get('preco_venda',
+                              proposta_data.get('preco_final',
+                                                proposta_data.get('custo_total_projeto', 0))),
+            0.0
+        )
+
+        irr_custom = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
+        if isinstance(irr_custom, list) and len(irr_custom) == 12:
+            irr_vec = [to_float(v, 0.0) for v in irr_custom]
+        else:
+            # fallback: usar exemplo do módulo; se não houver, usar média replicada
+            media = to_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
+            irr_vec = af_irr_mensal_ex if isinstance(af_irr_mensal_ex, list) and len(af_irr_mensal_ex) == 12 else [media] * 12
+
+        # Montar tabelas (25 anos)
+        tabelas = af_calcular_tabelas(
+            consumo_medio_kwh_mes=consumo_medio_kwh_mes,
+            tarifa_atual_r_kwh=tarifa_atual_r_kwh,
+            potencia_kwp=potencia_kwp,
+            irradiancia_mensal_kwh_m2_dia=irr_vec,
+            valor_usina=valor_usina
+        )
+
+        # Gerar gráficos base64
+        graficos = af_gerar_graficos_base64(tabelas)
+
+        # Substituir nos slides correspondentes
+        substitutions = [
+            ("grafico-slide-03", graficos.get("grafico1")),  # Custo acumulado sem solar
+            ("grafico-slide-04", graficos.get("grafico2")),  # Conta média mensal
+            ("grafico-slide-05", graficos.get("grafico3")),  # Produção mensal x Consumo médio mensal (R$)
+            ("grafico-slide-06", graficos.get("grafico4")),  # Fluxo de caixa acumulado
+            ("grafico-slide-09", graficos.get("grafico5")),  # Economia x Custos
+        ]
+        for img_id, data_uri in substitutions:
+            if data_uri:
+                pattern = rf'id="{img_id}" src="[^"]*"'
+                replacement = f'id="{img_id}" src="{data_uri}"'
+                template_html = re.sub(pattern, replacement, template_html)
+
+        return template_html
+    except Exception as e:
+        print(f"⚠️ Erro ao aplicar gráficos analise_financeira: {e}")
+        return template_html
+
 def process_template_html(proposta_data):
     """
     Processa template HTML com todas as substituições de variáveis e gráficos.
@@ -533,7 +693,8 @@ def process_template_html(proposta_data):
         
         # Substituir todas as variáveis {{}} no template
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
-        template_html = template_html.replace('{{cliente_endereco}}', proposta_data.get('cliente_endereco', 'Endereço não informado'))
+        endereco_resumido = format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade'))
+        template_html = template_html.replace('{{cliente_endereco}}', endereco_resumido)
         template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
         template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))
         template_html = template_html.replace('{{potencia_sistema_kwp}}', f"{proposta_data.get('potencia_sistema', 0):.2f}")
@@ -596,18 +757,18 @@ def process_template_html(proposta_data):
             # Gráfico Slide-03
             chart_base64 = generate_chart_base64('bar', valores, labels, "Seu Gasto Atual", cores, figsize=(20, 14))
             if chart_base64:
-                template_html = template_html.replace(
-                    'id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K"',
-                    f'id="grafico-slide-03" src="{chart_base64}"'
-                )
+                import re
+                pattern = r'id="grafico-slide-03" src="[^"]*"'
+                replacement = f'id="grafico-slide-03" src="{chart_base64}"'
+                template_html = re.sub(pattern, replacement, template_html)
             
             # Gráfico Slide-04
             chart_base64_linha = generate_chart_base64('line', valores, labels, "Evolução da Conta de Luz (25 anos)", ['#3b82f6'])
             if chart_base64_linha:
-                template_html = template_html.replace(
-                    'id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K"',
-                    f'id="grafico-slide-04" src="{chart_base64_linha}"'
-                )
+                import re
+                pattern = r'id="grafico-slide-04" src="[^"]*"'
+                replacement = f'id="grafico-slide-04" src="{chart_base64_linha}"'
+                template_html = re.sub(pattern, replacement, template_html)
             
             # Gráfico Slide-05
             meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -615,10 +776,10 @@ def process_template_html(proposta_data):
             consumo_mensal = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
             chart_base64_slide05 = generate_chart_base64('dual_bar', [producao_mensal, consumo_mensal], meses, "Consumo x Geração (kWh/mês)", ['#2ca02c', '#d62728'])
             if chart_base64_slide05:
-                template_html = template_html.replace(
-                    'id="grafico-slide-05" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA1PC90ZXh0Pgo8L3N2Zz4K"',
-                    f'id="grafico-slide-05" src="{chart_base64_slide05}"'
-                )
+                import re
+                pattern = r'id="grafico-slide-05" src="[^"]*"'
+                replacement = f'id="grafico-slide-05" src="{chart_base64_slide05}"'
+                template_html = re.sub(pattern, replacement, template_html)
             
             # Gráfico Slide-06
             economia_mensal = proposta_data.get('economia_mensal_estimada', 75)
@@ -766,6 +927,8 @@ def process_template_html(proposta_data):
         template_html = template_html.replace('{{valor_medio_grafico}}', f"R$ {proposta_data.get('valor_medio_grafico', conta_anual * 2.7):,.2f}")
         template_html = template_html.replace('{{valor_minimo_grafico}}', f"R$ {proposta_data.get('valor_minimo_grafico', conta_anual):,.2f}")
         
+        # Aplicar gráficos oficiais (5 gráficos) usando analise_financeira
+        template_html = apply_analise_financeira_graphs(template_html, proposta_data)
         return template_html
         
     except Exception as e:
@@ -979,6 +1142,8 @@ def gerar_proposta_html(proposta_id):
     Agora usa a função centralizada process_template_html().
     """
     try:
+        start_ts = time.time()
+        print(f"🔄 [gerar_proposta_html] Início - proposta_id={proposta_id}")
         # Limpar gráficos antigos
         cleanup_old_charts()
         
@@ -992,6 +1157,8 @@ def gerar_proposta_html(proposta_id):
         
         # Processar template usando função centralizada
         template_html = process_template_html(proposta_data)
+        dur_ms = int((time.time() - start_ts) * 1000)
+        print(f"✅ [gerar_proposta_html] Concluído em {dur_ms} ms - proposta_id={proposta_id}")
         
         # Verificar variáveis restantes
         variaveis_restantes = re.findall(r'\{\{[^}]+\}\}', template_html)
@@ -1001,6 +1168,7 @@ def gerar_proposta_html(proposta_id):
         return template_html, 200, {'Content-Type': 'text/html; charset=utf-8'}
     
     except Exception as e:
+        print(f"❌ [gerar_proposta_html] Erro: {e}")
         return f"<html><body><h1>Erro ao gerar proposta HTML: {str(e)}</h1></body></html>", 500
 
 @app.route('/gerar-pdf/<proposta_id>', methods=['GET'])
@@ -1038,6 +1206,7 @@ def gerar_pdf(proposta_id):
 @app.route('/proposta/<proposta_id>', methods=['GET'])
 def visualizar_proposta(proposta_id):
     try:
+        print(f"🔎 [visualizar_proposta] GET /proposta/{proposta_id}")
         # Carregar dados da proposta
         proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
         if not proposta_file.exists():
@@ -1048,6 +1217,14 @@ def visualizar_proposta(proposta_id):
         
         with open(proposta_file, 'r', encoding='utf-8') as f:
             proposta_data = json.load(f)
+        
+        # Usar o processador central para garantir substituição total de variáveis
+        # e injeção dos gráficos/imagens em base64.
+        try:
+            processed = process_template_html(proposta_data)
+            return processed, 200, {'Content-Type': 'text/html; charset=utf-8'}
+        except Exception as e:
+            print(f"⚠️ Falha no process_template_html em visualizar_proposta: {e} - seguindo com processamento local")
         
         # Carregar template HTML
         template_path = Path(__file__).parent / "public" / "template.html"
@@ -1075,7 +1252,7 @@ def visualizar_proposta(proposta_id):
         
         # Substituir todas as variáveis {{}} no template (mesmo código acima)
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
-        template_html = template_html.replace('{{cliente_endereco}}', proposta_data.get('cliente_endereco', 'Endereço não informado'))
+        template_html = template_html.replace('{{cliente_endereco}}', format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade')))
         template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
         template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))
         template_html = template_html.replace('{{potencia_sistema_kwp}}', f"{proposta_data.get('potencia_sistema', 0):.2f}")
@@ -1367,7 +1544,11 @@ def visualizar_proposta(proposta_id):
             print("❌ Condição conta_atual_anual > 0 NÃO satisfeita para slide-09")
         
         print("📊 === FIM DEBUG GRÁFICO SLIDE-09 (visualizar) ===")
-        
+        # Garantir gráficos oficiais também aqui (fallback robusto)
+        try:
+            template_html = apply_analise_financeira_graphs(template_html, proposta_data)
+        except Exception as e:
+            print(f"⚠️ Falha ao aplicar gráficos via analise_financeira no visualizar_proposta: {e}")
         
         return template_html
         
@@ -1502,6 +1683,205 @@ def cleanup_old_charts():
                 print(f"🗑️ Gráfico antigo removido: {chart_file.name}")
     except Exception as e:
         print(f"❌ Erro ao limpar gráficos antigos: {e}")
+
+@app.route('/admin/firebase/delete-user', methods=['POST'])
+def admin_firebase_delete_user():
+    """
+    Remove um usuário do Firebase Auth pelo UID.
+    Requer Firebase Admin configurado (service account via GOOGLE_APPLICATION_CREDENTIALS ou ADC).
+    """
+    if not FIREBASE_ADMIN_AVAILABLE:
+        return jsonify({'success': False, 'message': 'Firebase Admin não configurado no servidor'}), 500
+    try:
+        data = request.get_json() or {}
+        uid = data.get('uid')
+        if not uid:
+            return jsonify({'success': False, 'message': 'UID obrigatório'}), 400
+        fb_auth.delete_user(uid)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/firebase/list-users', methods=['GET'])
+def admin_firebase_list_users():
+    """
+    Lista usuários do Firebase Auth (UID, email, display_name, phone, metadata).
+    Requer Firebase Admin configurado.
+    """
+    if not FIREBASE_ADMIN_AVAILABLE:
+        return jsonify({'success': False, 'message': 'Firebase Admin não configurado no servidor'}), 500
+    try:
+        users = []
+        page = fb_auth.list_users()
+        while page:
+            for u in page.users:
+                users.append({
+                    'uid': u.uid,
+                    'email': u.email,
+                    'display_name': u.display_name,
+                    'phone_number': u.phone_number,
+                    'disabled': u.disabled,
+                    'email_verified': u.email_verified,
+                    'provider_ids': [p.provider_id for p in (u.provider_data or [])],
+                    'metadata': {
+                        'creation_time': getattr(u.user_metadata, 'creation_timestamp', None),
+                        'last_sign_in_time': getattr(u.user_metadata, 'last_sign_in_timestamp', None),
+                    }
+                })
+            page = page.get_next_page()
+        return jsonify({'success': True, 'users': users})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ===== Roles (controle de acesso pelo backend) =====
+@app.route('/auth/role', methods=['GET'])
+def get_user_role():
+    """
+    Retorna a role do usuário a partir do e-mail.
+    Ex.: /auth/role?email=john@doe.com -> { role: "admin" | "gestor" | "vendedor" | "instalador" }
+    Padrão: "vendedor" quando não configurado.
+    """
+    try:
+        email = (request.args.get('email') or '').strip().lower()
+        mapping = _load_roles()
+        # Bootstrap: se ainda não há nenhum mapeamento, o primeiro e-mail consultado vira admin
+        if email and len(mapping.keys()) == 0:
+            mapping[email] = 'admin'
+            _save_roles(mapping)
+            print(f"🔐 Bootstrap de roles: '{email}' definido como admin.")
+        role = mapping.get(email, 'vendedor')
+        return jsonify({'role': role})
+    except Exception as e:
+        return jsonify({'role': 'vendedor', 'message': str(e)}), 200
+
+@app.route('/auth/roles', methods=['GET'])
+def list_roles():
+    """
+    Retorna o mapeamento completo de roles (apenas e-mail -> role).
+    """
+    try:
+        mapping = _load_roles()
+        items = [{'email': k, 'role': v} for k, v in mapping.items()]
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/auth/roles', methods=['POST'])
+def upsert_role():
+    """
+    Define/atualiza a role de um e-mail.
+    Body: { email: string, role: string }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        role = (data.get('role') or '').strip().lower()
+        if not email or role not in ('admin', 'gestor', 'vendedor', 'instalador'):
+            return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
+        mapping = _load_roles()
+        mapping[email] = role
+        _save_roles(mapping)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/auth/roles', methods=['DELETE'])
+def delete_role():
+    """
+    Remove o mapeamento de role (o acesso continua existindo no Firebase; aqui só tiramos a permissão customizada).
+    Body: { email: string }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return jsonify({'success': False, 'message': 'Email obrigatório'}), 400
+        mapping = _load_roles()
+        if email in mapping:
+            del mapping[email]
+            _save_roles(mapping)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/projetos/delete/<projeto_id>', methods=['DELETE'])
+def deletar_projeto(projeto_id):
+    """
+    Remove um projeto/proposta do backend:
+    - Apaga arquivo propostas/<id>.json
+    - Apaga PDF relacionado (se existir)
+    - Remove registro do banco (best-effort)
+    """
+    try:
+        # Remover JSON
+        json_path = PROPOSTAS_DIR / f"{projeto_id}.json"
+        if json_path.exists():
+            json_path.unlink()
+            print(f"🗑️ Removido arquivo de proposta: {json_path.name}")
+        # Remover PDF (se existir)
+        pdf_path = PDFS_DIR / f"{projeto_id}.pdf"
+        if pdf_path.exists():
+            pdf_path.unlink()
+            print(f"🗑️ Removido PDF da proposta: {pdf_path.name}")
+        # Remover do banco (best-effort)
+        try:
+            db = SessionLocal()
+            row = db.get(PropostaDB, projeto_id)
+            if row:
+                db.delete(row)
+                db.commit()
+            db.close()
+        except Exception as e:
+            print(f"⚠️ Falha ao remover do banco: {e}")
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# alias compatível
+@app.route('/projeto/delete/<projeto_id>', methods=['DELETE'])
+def deletar_projeto_alias(projeto_id):
+    return deletar_projeto(projeto_id)
+
+@app.route('/projetos/list', methods=['GET'])
+def listar_projetos():
+    """
+    Lista projetos a partir dos arquivos JSON gerados em 'propostas/' para alimentar o dashboard.
+    Retorna uma coleção normalizada de projetos (não depende do Supabase).
+    """
+    try:
+        projetos = []
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                projeto = {
+                    "id": file.stem,
+                    "nome_projeto": data.get("nome_projeto") or f"Projeto - {data.get('cliente_nome','Cliente')}",
+                    "cliente_id": data.get("cliente_id"),
+                    "cliente": {
+                        "nome": data.get("cliente_nome"),
+                        "telefone": data.get("cliente_telefone"),
+                        "email": data.get("vendedor_email"),
+                    },
+                    "cliente_nome": data.get("cliente_nome"),
+                    "preco_final": data.get("preco_final") or data.get("custo_total_projeto") or 0,
+                    "cidade": data.get("cidade"),
+                    "estado": data.get("estado"),
+                    # Requisito: recem gerados devem cair em "dimensionamento"
+                    "status": data.get("status") or "dimensionamento",
+                    "prioridade": data.get("prioridade") or "Normal",
+                    "created_date": data.get("data_criacao") or datetime.now().isoformat(),
+                    "url_proposta": f"/proposta/{file.stem}"
+                }
+                projetos.append(projeto)
+            except Exception as e:
+                print(f"⚠️ Falha ao ler proposta {file.name}: {e}")
+                continue
+        # ordenar por data (desc)
+        projetos.sort(key=lambda p: p.get("created_date") or "", reverse=True)
+        return jsonify(projetos)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 if __name__ == '__main__':
     # Inicializa o banco (SQLite por padrão; PostgreSQL via DATABASE_URL)
