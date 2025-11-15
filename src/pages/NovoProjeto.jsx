@@ -66,6 +66,51 @@ export default function NovoProjeto() {
     status: "dimensionamento"
   });
 
+  // Cria um rascunho de projeto ao entrar na tela (se não existir)
+  useEffect(() => {
+    const ensureDraft = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const projetoId = urlParams.get('projeto_id');
+      if (!projetoId) {
+        try {
+          const clienteNomeDraft = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
+          const draft = await Projeto.create({
+            ...formData,
+            status: 'rascunho',
+            nome_projeto: formData?.nome_projeto || 'Novo Projeto',
+            cliente_id: formData?.cliente_id || null,
+            cliente_nome: clienteNomeDraft || undefined,
+            descricao: 'Rascunho automático'
+          });
+          const search = new URLSearchParams(window.location.search);
+          search.set('projeto_id', draft.id);
+          navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
+        } catch (e) {
+          console.warn('⚠️ Falha ao criar rascunho automático:', e);
+        }
+      }
+    };
+    ensureDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save do rascunho a cada alteração do formulário (debounced)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projetoId = urlParams.get('projeto_id');
+        if (projetoId) {
+          const clienteNome = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
+          await Projeto.update(projetoId, { ...formData, cliente_nome: clienteNome || undefined, status: 'rascunho' });
+        }
+      } catch (e) {
+        console.warn('⚠️ Auto-save falhou:', e);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [formData]);
+
   const [resultados, setResultados] = useState(null);
   const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
   const [todosOsKits, setTodosOsKits] = useState([]); // Todos os kits recebidos da API
@@ -97,6 +142,10 @@ export default function NovoProjeto() {
   const [loadingProdutos, setLoadingProdutos] = useState(false);
   const [loadingFiltros, setLoadingFiltros] = useState(false);
   const [quantidadesCalculadas, setQuantidadesCalculadas] = useState({ paineis: 0, inversores: 0, estruturas: 0, acessorios: 0 });
+  // Popup de progresso (Dados Básicos)
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressValue, setProgressValue] = useState(0);
+  const [progressLabel, setProgressLabel] = useState('Preparando...');
 
   useEffect(() => {
     loadData();
@@ -410,10 +459,16 @@ export default function NovoProjeto() {
     }
 
     setLoadingProdutos(true);
+    // Mostrar popup de progresso na aba Dados Básicos
+    setProgressOpen(true);
+    setProgressValue(5);
+    setProgressLabel('Validando informações...');
     
     try {
       // Primeiro busca os filtros disponíveis
       console.log('🔍 Buscando filtros disponíveis...');
+      setProgressValue(15);
+      setProgressLabel('Carregando filtros de equipamentos...');
       const filtros = await solaryumApi.buscarFiltros();
       setFiltrosDisponiveis(filtros);
       
@@ -435,6 +490,8 @@ export default function NovoProjeto() {
           : (margemAdicional.kwh > 0 ? mediaMensal + margemAdicional.kwh : mediaMensal);
       }
 
+      setProgressValue(35);
+      setProgressLabel('Calculando potência do sistema...');
       let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
       
       console.log('🔍 Debug da potência:');
@@ -475,6 +532,8 @@ export default function NovoProjeto() {
       // Dispara uma chamada inicial ao MontarKits para garantir requisição visível
       const todosOsKits = [];
       try {
+        setProgressValue(45);
+        setProgressLabel('Buscando kits iniciais...');
         console.log('🚀 Disparando chamada inicial MontarKits (tipoInv=0)...');
         const kitInicial = await solaryumApi.montarKitCustomizado({ ...dadosBase, tipoInv: '0' });
         if (Array.isArray(kitInicial) && kitInicial.length > 0) {
@@ -498,7 +557,17 @@ export default function NovoProjeto() {
       if (!Array.isArray(todasPotencias) || todasPotencias.length === 0) {
         console.log('⚠️ Nenhuma potência específica encontrada, fazendo busca geral para cada tipo de inversor...');
         
-        // Cria todas as requisições em paralelo
+        // Cria todas as requisições em paralelo com progresso granular (60% → 85%)
+        const startPct = 60;
+        const endPct = 85;
+        const totalReq = tiposInversor.length;
+        let doneReq = 0;
+        const updateBatchProgress = () => {
+          const pct = startPct + (doneReq / Math.max(1, totalReq)) * (endPct - startPct);
+          setProgressValue(pct);
+          setProgressLabel(`Buscando kits (combinações de inversores) ${doneReq}/${totalReq}...`);
+        };
+        updateBatchProgress();
         const requisicoes = tiposInversor.map(async (tipoInv) => {
           console.log(`🔍 Preparando requisição para tipo de inversor ${tipoInv}...`);
           
@@ -510,14 +579,20 @@ export default function NovoProjeto() {
           try {
             const kitCustomizado = await solaryumApi.montarKitCustomizado(dadosComTipoInv);
             console.log(`✅ Encontrados ${Array.isArray(kitCustomizado) ? kitCustomizado.length : 0} kits para tipo de inversor ${tipoInv}`);
+            doneReq += 1;
+            updateBatchProgress();
             return Array.isArray(kitCustomizado) ? kitCustomizado : [];
           } catch (error) {
             console.error(`❌ Erro ao buscar kits para tipo de inversor ${tipoInv}:`, error);
+            doneReq += 1;
+            updateBatchProgress();
             return [];
           }
         });
         
         // Executa todas as requisições em paralelo
+        setProgressValue(60);
+        setProgressLabel('Buscando kits (combinações de inversores)...');
         console.log('🚀 Executando todas as requisições em paralelo...');
         const resultados = await Promise.all(requisicoes);
         
@@ -530,8 +605,20 @@ export default function NovoProjeto() {
       } else {
         // Faz uma requisição para cada combinação de potência de painel E tipo de inversor
         console.log('🔍 Preparando requisições para todas as combinações...');
+        setProgressValue(60);
+        setProgressLabel('Buscando kits (todas as combinações)...');
         
-        // Cria todas as requisições em paralelo
+        // Cria todas as requisições em paralelo com progresso granular (60% → 85%)
+        const startPct = 60;
+        const endPct = 85;
+        const totalReq = (Array.isArray(todasPotencias) ? todasPotencias.length : 0) * tiposInversor.length;
+        let doneReq = 0;
+        const updateBatchProgress = () => {
+          const pct = startPct + (doneReq / Math.max(1, totalReq)) * (endPct - startPct);
+          setProgressValue(pct);
+          setProgressLabel(`Buscando kits (todas as combinações) ${doneReq}/${totalReq}...`);
+        };
+        updateBatchProgress();
         const requisicoes = [];
         
         for (const potenciaInfo of (Array.isArray(todasPotencias) ? todasPotencias : [])) {
@@ -554,10 +641,14 @@ export default function NovoProjeto() {
                 .then(kitCustomizado => {
                   const kits = Array.isArray(kitCustomizado) ? kitCustomizado : [];
                   console.log(`✅ Encontrados ${kits.length} kits para ${potenciaPainel}W + tipo ${tipoInv}`);
+                  doneReq += 1;
+                  updateBatchProgress();
                   return { potenciaPainel, tipoInv, kits };
                 })
                 .catch(error => {
                   console.error(`❌ Erro ao buscar kits para ${potenciaPainel}W + tipo ${tipoInv}:`, error);
+                  doneReq += 1;
+                  updateBatchProgress();
                   return { potenciaPainel, tipoInv, kits: [] };
                 })
             );
@@ -566,6 +657,7 @@ export default function NovoProjeto() {
         
         // Executa todas as requisições em paralelo
         console.log(`🚀 Executando ${requisicoes.length} requisições em paralelo...`);
+        setProgressValue(70);
         const resultados = await Promise.all(requisicoes);
         
         // Combina todos os resultados
@@ -582,6 +674,8 @@ export default function NovoProjeto() {
       
       if (todosOsKits.length > 0) {
         console.log('🔧 Processando todos os kits encontrados...');
+        setProgressValue(85);
+        setProgressLabel('Processando kits encontrados...');
         
         // Processa cada kit como uma opção completa
         todosOsKits.forEach((kit, index) => {
@@ -700,6 +794,9 @@ export default function NovoProjeto() {
       });
 
       // Ativa a aba de equipamentos
+      setProgressValue(100);
+      setProgressLabel('Concluído!');
+      setTimeout(() => setProgressOpen(false), 500);
       setActiveTab('equipamentos');
       
     } catch (error) {
@@ -741,6 +838,8 @@ export default function NovoProjeto() {
       alert(`❌ Erro ao buscar equipamentos:\n\n${errorMessage}\n\n${errorDetails}\n\n${errorBody}\n\n${diagnosticTip}`);
     } finally {
       setLoadingProdutos(false);
+      // Se ocorrer erro, garantir fechar popup
+      setTimeout(() => setProgressOpen(false), 300);
     }
   };
 
@@ -1598,6 +1697,21 @@ export default function NovoProjeto() {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
+      {progressOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-md border border-sky-100">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Processando...</h3>
+            <p className="text-sm text-gray-600 mb-4">{progressLabel}</p>
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-sky-600 h-3 rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, progressValue))}%` }}
+              />
+            </div>
+            <div className="text-right text-sm mt-2 text-gray-700">{Math.round(progressValue)}%</div>
+          </div>
+        </div>
+      )}
       <div className="w-full space-y-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
