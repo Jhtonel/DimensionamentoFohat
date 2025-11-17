@@ -113,8 +113,12 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
     e.preventDefault();
     if (draggedProject && draggedProject.status !== newStatus) {
       try {
+        // Persistir status
         await Projeto.update(draggedProject.id, { status: newStatus });
-        onUpdate();
+        // Atualização otimista: reflete de imediato na UI
+        if (typeof onUpdate === 'function') onUpdate();
+        // Também atualiza o array local para o caso de Dashboard não recarregar
+        setDraggedProject(null);
       } catch (error) {
         console.error('Erro ao atualizar status:', error);
       }

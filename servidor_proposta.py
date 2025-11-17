@@ -1893,6 +1893,30 @@ def deletar_projeto(projeto_id):
 def deletar_projeto_alias(projeto_id):
     return deletar_projeto(projeto_id)
 
+@app.route('/projetos/status', methods=['POST'])
+def atualizar_status_projeto():
+    """
+    Atualiza o status de um projeto listado a partir dos arquivos em 'propostas/'.
+    Body: { id: string, status: 'dimensionamento'|'orcamento_enviado'|'negociacao'|'fechado'|'instalacao' }
+    """
+    try:
+        data = request.get_json() or {}
+        prop_id = (data.get('id') or '').strip()
+        new_status = (data.get('status') or '').strip()
+        if not prop_id or new_status not in ('dimensionamento', 'orcamento_enviado', 'negociacao', 'fechado', 'instalacao'):
+            return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
+        prop_file = PROPOSTAS_DIR / f"{prop_id}.json"
+        if not prop_file.exists():
+            return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
+        with open(prop_file, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        content['status'] = new_status
+        with open(prop_file, 'w', encoding='utf-8') as f:
+            json.dump(content, f, ensure_ascii=False, indent=2)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/projetos/list', methods=['GET'])
 def listar_projetos():
     """
