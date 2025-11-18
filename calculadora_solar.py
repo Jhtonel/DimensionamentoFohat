@@ -98,13 +98,14 @@ class CalculadoraSolar:
         """
         Calcula a geração mensal do sistema
         
-        Fórmula: Geração = Potência × Irradiação Mensal × Eficiência × Fator Correção
+        Fórmula: Geração = Potência (kWp) × Irradiação diária (kWh/m²/dia) × 30,4 dias × PR × Fator Correção
         """
-        irradiacao_mensal = dados.irradiacao_media / 12
-        eficiencia = self.configuracoes['eficiencia_inicial']
+        irradiacao_diaria = dados.irradiacao_media
+        dias_mes_medio = 30.4
+        pr = self.configuracoes['eficiencia_inicial']
         fator_correcao = self.configuracoes['fator_correcao']
         
-        geracao = dados.potencia_sistema * irradiacao_mensal * eficiencia * fator_correcao
+        geracao = dados.potencia_sistema * irradiacao_diaria * dias_mes_medio * pr * fator_correcao
         return round(geracao, 2)
     
     # ===== CÁLCULOS DE CUSTOS =====
@@ -334,6 +335,10 @@ class CalculadoraSolar:
         print(f"   - Custo equipamentos: R$ {dados.custo_equipamentos:,.2f}")
         
         # 1. Dimensionamento
+        # Derivar consumo em kWh quando usuário informou apenas média em R$
+        if (dados.consumo_mensal_kwh <= 0) and (dados.consumo_mensal_reais > 0) and (dados.tarifa_energia > 0):
+            dados.consumo_mensal_kwh = dados.consumo_mensal_reais / dados.tarifa_energia
+            print(f"   - Consumo derivado de R$: {dados.consumo_mensal_kwh:.2f} kWh/mês")
         if dados.potencia_sistema <= 0:
             dados.potencia_sistema = self.calcular_potencia_sistema(dados)
         

@@ -32,10 +32,14 @@ performance_ratio: float = 0.82                    # PR típico de usinas FV
 demanda_minima_kwh_mes: float = 50.0               # kWh/mês (taxa de disponibilidade)
 HORIZONTE_ANOS: int = 25                           # horizonte fixo: 25 anos
 
-# Paleta de cores usada nos gráficos
-COR_VERMELHO: str = "#CC0000"
-COR_VERDE: str = "#00B398"
-COR_LARANJA: str = "#F58634"
+# Paleta de cores (branding do app/proposta)
+BRAND_PRIMARY: str = "#2563eb"   # azul
+BRAND_GREEN: str   = "#059669"   # verde
+BRAND_RED: str     = "#dc2626"   # vermelho
+BRAND_ORANGE: str  = "#d97706"   # laranja
+BRAND_DARK: str    = "#1e293b"   # texto
+BRAND_TICK: str    = "#374151"
+BRAND_GRID: str    = "#e2e8f0"
 
 # Meses (para Tabela 2.3 / Gráfico 3)
 MESES_PT: List[str] = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -60,14 +64,14 @@ valor_usina_ex: float = 27000.0
 # UTILITÁRIOS
 # =========================
 def formatar_moeda_brl(valor: float) -> str:
-    """Formata número em estilo brasileiro: R$ 1.234,56."""
+    """Formata número em estilo brasileiro sem centavos: R$ 1.234."""
     if valor is None or (isinstance(valor, float) and (math.isnan(valor) or math.isinf(valor))):
-        return "R$ 0,00"
+        return "R$ 0"
     try:
-        # Usa locale-like com troca de separadores para BR
-        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        # Usa locale-like com troca de separadores para BR, sem casas decimais
+        return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except Exception:
-        return f"R$ {valor:.2f}".replace(".", ",")
+        return f"R$ {valor:.0f}".replace(".", ",")
 
 
 def brl_formatter() -> FuncFormatter:
@@ -75,6 +79,29 @@ def brl_formatter() -> FuncFormatter:
     def _fmt(x, pos):
         return formatar_moeda_brl(x)
     return FuncFormatter(_fmt)
+
+
+def formatar_compacto(valor: float) -> str:
+    """
+    Formata número em escala curta: 2k, 1.5M, 3B.
+    Sem prefixo de moeda para rótulos compactos.
+    """
+    try:
+        sgn = "-" if valor < 0 else ""
+        v = abs(float(valor))
+        def _num(n: float) -> str:
+            s = f"{n:.1f}"
+            s = s.rstrip("0").rstrip(".")
+            return s
+        if v >= 1_000_000_000:
+            return f"{sgn}{_num(v/1_000_000_000)}B"
+        if v >= 1_000_000:
+            return f"{sgn}{_num(v/1_000_000)}M"
+        if v >= 1_000:
+            return f"{sgn}{_num(v/1_000)}k"
+        return f"{sgn}{_num(v)}"
+    except Exception:
+        return str(valor)
 
 
 # =========================
@@ -146,12 +173,14 @@ def calcular_tabelas(
     ]
     producao_mensal_r: List[float] = [k * tarifa_atual_r_kwh for k in producao_mensal_kwh]
     consumo_medio_mensal_r: List[float] = [consumo_medio_kwh_mes * tarifa_atual_r_kwh for _ in range(12)]
+    consumo_medio_mensal_kwh: List[float] = [consumo_medio_kwh_mes for _ in range(12)]
 
     df_producao_mensal = pd.DataFrame({
         "mes": MESES_PT,
         "producao_mensal_kwh": producao_mensal_kwh,
         "producao_mensal_r": producao_mensal_r,
-        "consumo_medio_mensal_r": consumo_medio_mensal_r
+        "consumo_medio_mensal_r": consumo_medio_mensal_r,
+        "consumo_medio_mensal_kwh": consumo_medio_mensal_kwh
     })
 
     # 2.4. Tabela “Produção anual”
@@ -242,15 +271,20 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
     # Gráfico 1 – Custo acumulado sem solar (barras vermelhas)
     df_custo = tabelas["custo_sem_solar"]
     fig1, ax1 = plt.subplots(figsize=(12, 6))
-    ax1.bar(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"], color=COR_VERMELHO)
+    _apply_brand_style(ax1)
+    ax1.bar(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"], color=BRAND_RED)
     ax1.set_title("Custo acumulado de energia sem energia solar")
     ax1.set_xlabel("Ano")
     ax1.set_ylabel("R$")
     ax1.yaxis.set_major_formatter(yfmt)
-    # Rótulos de dados
+    # Rótulos de dados (compactos) apenas em anos destaque e com deslocamento
+    anos_destaque_plot = {1, 5, 10, 15, 20, 25}
+    max_val_plot = float(max(df_custo["custo_acumulado_sem_solar_r"])) if len(df_custo) else 0.0
+    y_offset_plot = max_val_plot * 0.035
     for x, y in zip(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"]):
-        ax1.text(x, y * 1.01 if y >= 0 else y * 0.99, formatar_moeda_brl(y),
-                 ha="center", va="bottom" if y >= 0 else "top", fontsize=9, rotation=0)
+        if int(x) in anos_destaque_plot:
+            ax1.text(x, (y + y_offset_plot) if y >= 0 else (y - y_offset_plot), formatar_compacto(y),
+                     ha="center", va="bottom" if y >= 0 else "top", fontsize=11, fontweight='700', rotation=0, color=BRAND_DARK)
     fig1.tight_layout()
     _salvar_fig(fig1, os.path.join(pasta_saida, "grafico1.png"))
     if mostrar:
@@ -259,7 +293,8 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
     # Gráfico 2 – Conta média mensal (linha laranja)
     df_sem = tabelas["sem_solar"]
     fig2, ax2 = plt.subplots(figsize=(12, 6))
-    ax2.plot(df_sem["ano"], df_sem["conta_media_mensal_r"], color=COR_LARANJA, marker="o")
+    _apply_brand_style(ax2)
+    ax2.plot(df_sem["ano"], df_sem["conta_media_mensal_r"], color=BRAND_ORANGE, marker="o")
     ax2.set_title("Evolução da conta média mensal de energia")
     ax2.set_xlabel("Ano")
     ax2.set_ylabel("R$")
@@ -277,8 +312,9 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
     x = range(len(df_pm))
     width = 0.40
     fig3, ax3 = plt.subplots(figsize=(12, 6))
-    ax3.bar([i - width / 2 for i in x], df_pm["producao_mensal_r"], width=width, color=COR_VERDE, label="Produção Mensal R$")
-    ax3.bar([i + width / 2 for i in x], df_pm["consumo_medio_mensal_r"], width=width, color=COR_VERMELHO, label="Consumo Médio Mensal R$")
+    _apply_brand_style(ax3)
+    ax3.bar([i - width / 2 for i in x], df_pm["producao_mensal_r"], width=width, color=BRAND_GREEN, label="Produção Mensal R$")
+    ax3.bar([i + width / 2 for i in x], df_pm["consumo_medio_mensal_r"], width=width, color=BRAND_RED, label="Consumo Médio Mensal R$")
     ax3.set_title("Produção mensal estimada x Consumo médio mensal")
     ax3.set_xlabel("Mês")
     ax3.set_ylabel("R$")
@@ -294,13 +330,29 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
     # Gráfico 4 – Fluxo de caixa acumulado (barras pos/neg)
     df_fx = tabelas["fluxo_caixa"]
     fig4, ax4 = plt.subplots(figsize=(12, 6))
-    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], color=COR_VERDE, label="Positivo")
-    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_neg_r"], color=COR_VERMELHO, label="Negativo")
-    ax4.axhline(0, color="black", linewidth=1)
+    _apply_brand_style(ax4)
+    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], color=BRAND_GREEN, label="Positivo")
+    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_neg_r"], color=BRAND_RED, label="Negativo")
+    ax4.axhline(0, color=BRAND_GRID, linewidth=1)
     ax4.set_title("Fluxo de caixa acumulado do projeto")
     ax4.set_xlabel("Ano")
     ax4.set_ylabel("R$")
     ax4.yaxis.set_major_formatter(yfmt)
+    # Marcação do payback (primeiro ano em que o acumulado fica >= 0)
+    try:
+        acumulado = list(df_fx["fluxo_caixa_acumulado_r"])
+        anos = list(df_fx["ano"])
+        ano_payback = None
+        for a, y in zip(acumulado, anos):
+            if a >= 0:
+                ano_payback = y
+                break
+        if ano_payback is not None:
+            ax4.axvline(ano_payback, color=BRAND_ORANGE, linestyle="--", linewidth=2)
+            ax4.text(ano_payback, max(acumulado) * 0.05, f"Payback {ano_payback} anos",
+                     ha="center", va="bottom", color=BRAND_ORANGE, fontweight="700")
+    except Exception:
+        pass
     # Rótulos nos topos (ou bases)
     for x, pos, neg in zip(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], df_fx["fluxo_caixa_neg_r"]):
         if pos > 0:
@@ -315,9 +367,10 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
 
     # Gráfico 5 – Economia (linha verde) x Custos sem solar (linha vermelha negativa)
     fig5, ax5 = plt.subplots(figsize=(12, 6))
-    ax5.plot(df_fx["ano"], df_fx["economia_acumulada_r"], color=COR_VERDE, marker="o", label="Economia com Energia Solar")
-    ax5.plot(df_fx["ano"], df_fx["custos_sem_solar_neg_r"], color=COR_VERMELHO, marker="o", label="Custos sem Energia Solar")
-    ax5.axhline(0, color="black", linewidth=1)
+    _apply_brand_style(ax5)
+    ax5.plot(df_fx["ano"], df_fx["economia_acumulada_r"], color=BRAND_GREEN, marker="o", label="Economia com Energia Solar")
+    ax5.plot(df_fx["ano"], df_fx["custos_sem_solar_neg_r"], color=BRAND_RED, marker="o", label="Custos sem Energia Solar")
+    ax5.axhline(0, color=BRAND_GRID, linewidth=1)
     ax5.set_title("Economia com energia solar x custos sem energia solar")
     ax5.set_xlabel("Ano")
     ax5.set_ylabel("R$")
@@ -338,10 +391,46 @@ def plotar_graficos(tabelas: Dict[str, pd.DataFrame], pasta_saida: Optional[str]
 # =========================
 # EXECUÇÃO EXEMPLO (CLI)
 # =========================
+def _apply_brand_style(ax: plt.Axes) -> None:
+    """Aplica estilo consistente (sem fundo, grades sutis, tipografia)."""
+    # Fundo transparente
+    fig = ax.figure
+    fig.patch.set_alpha(0.0)
+    ax.set_facecolor('none')
+    # Eixos e grades
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    for side in ('left', 'bottom'):
+        ax.spines[side].set_color(BRAND_GRID)
+        ax.spines[side].set_linewidth(1.0)
+    ax.grid(True, alpha=0.12, color=BRAND_GRID, linestyle='-', linewidth=0.6)
+    ax.set_axisbelow(True)
+    # Tipografia
+    plt.rcParams.update({
+        # Evita warnings de fonte inexistente no ambiente (usar DejaVu Sans padrão do Matplotlib)
+        'font.family': 'DejaVu Sans, Arial, sans-serif',
+        'font.size': 14,
+        'axes.titlesize': 20,
+        'axes.titleweight': '800',
+        'axes.labelsize': 16,
+        'axes.labelweight': '700',
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
+        'legend.fontsize': 14,
+    })
+    ax.tick_params(axis='x', colors=BRAND_DARK)
+    ax.tick_params(axis='y', colors=BRAND_DARK)
+    ax.title.set_color(BRAND_DARK)
+    ax.xaxis.label.set_color(BRAND_DARK)
+    ax.yaxis.label.set_color(BRAND_DARK)
+
+
 def _fig_to_data_uri(fig: plt.Figure) -> str:
     import io, base64
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    # Aumenta o padding para garantir que rótulos/títulos não sejam cortados
+    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
+                facecolor='none', edgecolor='none', transparent=True, pad_inches=0.45)
     buf.seek(0)
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     plt.close(fig)
@@ -362,28 +451,47 @@ def gerar_graficos_base64(tabelas: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     # Gráfico 1
     df_custo = tabelas["custo_sem_solar"]
     fig1, ax1 = plt.subplots(figsize=(12, 6))
-    ax1.bar(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"], color=COR_VERMELHO)
-    ax1.set_title("Custo acumulado de energia sem energia solar")
-    ax1.set_xlabel("Ano")
-    ax1.set_ylabel("R$")
+    _apply_brand_style(ax1)
+    # Barras com cor da marca
+    ax1.bar(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"], color=BRAND_RED, alpha=0.9, edgecolor="white", linewidth=0.6)
+    # Tipografia e cores mais fortes (para harmonizar com a página 3)
+    ax1.set_title("Custo acumulado de energia sem energia solar", fontsize=22, color=BRAND_DARK, fontweight='800', pad=16)
+    ax1.set_xlabel("Ano", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax1.set_ylabel("R$", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax1.tick_params(axis='x', labelsize=16, colors=BRAND_DARK)
+    ax1.tick_params(axis='y', labelsize=16, colors=BRAND_DARK)
     ax1.yaxis.set_major_formatter(yfmt)
+    # Mostrar valores apenas nos anos 1, 5, 10, 15, 20 e 25
+    anos_destaque = {1, 5, 10, 15, 20, 25}
+    max_val_fig1 = float(max(df_custo["custo_acumulado_sem_solar_r"])) if len(df_custo) else 0.0
+    y_offset = max_val_fig1 * 0.035  # desloca mais para cima para não sobrepor outras colunas
     for x, y in zip(df_custo["ano"], df_custo["custo_acumulado_sem_solar_r"]):
-        ax1.text(x, y * 1.01 if y >= 0 else y * 0.99, formatar_moeda_brl(y),
-                 ha="center", va="bottom" if y >= 0 else "top", fontsize=9)
+        if int(x) in anos_destaque:
+            ax1.text(x, (y + y_offset) if y >= 0 else (y - y_offset), formatar_compacto(y),
+                     ha="center", va="bottom" if y >= 0 else "top",
+                     fontsize=14, fontweight='700', color=BRAND_DARK)
     fig1.tight_layout()
     g1 = _fig_to_data_uri(fig1)
 
     # Gráfico 2
     df_sem = tabelas["sem_solar"]
     fig2, ax2 = plt.subplots(figsize=(12, 6))
-    ax2.plot(df_sem["ano"], df_sem["conta_media_mensal_r"], color=COR_LARANJA, marker="o")
-    ax2.set_title("Evolução da conta média mensal de energia")
-    ax2.set_xlabel("Ano")
-    ax2.set_ylabel("R$")
+    _apply_brand_style(ax2)
+    ax2.plot(df_sem["ano"], df_sem["conta_media_mensal_r"], color=BRAND_ORANGE, marker="o", markerfacecolor="white", markeredgewidth=1.5)
+    ax2.set_title("Evolução da conta média mensal de energia", fontsize=22, color=BRAND_DARK, fontweight='800', pad=16)
+    ax2.set_xlabel("Ano", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax2.set_ylabel("R$", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax2.tick_params(axis='x', labelsize=16, colors=BRAND_DARK)
+    ax2.tick_params(axis='y', labelsize=16, colors=BRAND_DARK)
     ax2.yaxis.set_major_formatter(yfmt)
+    # Ticks e rótulos apenas a cada 5 anos (1, 5, 10, 15, 20, 25)
+    anos_destaque = [1, 5, 10, 15, 20, 25]
+    ax2.set_xticks(anos_destaque)
+    # Rótulos apenas nos anos destaque
     for x, y in zip(df_sem["ano"], df_sem["conta_media_mensal_r"]):
-        ax2.annotate(formatar_moeda_brl(y), (x, y), textcoords="offset points", xytext=(0, 8),
-                     ha="center", fontsize=9)
+        if int(x) in anos_destaque:
+            ax2.annotate(formatar_moeda_brl(y), (x, y), textcoords="offset points", xytext=(0, 10),
+                         ha="center", fontsize=14, fontweight='700', color=BRAND_DARK)
     fig2.tight_layout()
     g2 = _fig_to_data_uri(fig2)
 
@@ -392,52 +500,61 @@ def gerar_graficos_base64(tabelas: Dict[str, pd.DataFrame]) -> Dict[str, str]:
     x = range(len(df_pm))
     width = 0.40
     fig3, ax3 = plt.subplots(figsize=(12, 6))
-    ax3.bar([i - width / 2 for i in x], df_pm["producao_mensal_r"], width=width, color=COR_VERDE, label="Produção Mensal R$")
-    ax3.bar([i + width / 2 for i in x], df_pm["consumo_medio_mensal_r"], width=width, color=COR_VERMELHO, label="Consumo Médio Mensal R$")
-    ax3.set_title("Produção mensal estimada x Consumo médio mensal")
-    ax3.set_xlabel("Mês")
-    ax3.set_ylabel("R$")
+    _apply_brand_style(ax3)
+    ax3.bar([i - width / 2 for i in x], df_pm["producao_mensal_kwh"], width=width, color=BRAND_GREEN, alpha=0.9, edgecolor="white", linewidth=0.6, label="Produção Mensal (kWh)")
+    ax3.bar([i + width / 2 for i in x], df_pm["consumo_medio_mensal_kwh"], width=width, color=BRAND_RED, alpha=0.9, edgecolor="white", linewidth=0.6, label="Consumo Médio Mensal (kWh)")
+    ax3.set_title("Produção mensal estimada x Consumo médio mensal", fontsize=22, color=BRAND_DARK, fontweight='800', pad=16)
+    ax3.set_xlabel("Mês", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax3.set_ylabel("kWh", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax3.tick_params(axis='x', labelsize=16, colors=BRAND_DARK)
+    ax3.tick_params(axis='y', labelsize=16, colors=BRAND_DARK)
     ax3.set_xticks(list(x))
     ax3.set_xticklabels(df_pm["mes"])
-    ax3.yaxis.set_major_formatter(yfmt)
-    ax3.legend()
+    # não formatar em BRL, pois é kWh
+    ax3.legend(frameon=False)
     fig3.tight_layout()
     g3 = _fig_to_data_uri(fig3)
 
     # Gráfico 4
     df_fx = tabelas["fluxo_caixa"]
     fig4, ax4 = plt.subplots(figsize=(12, 6))
-    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], color=COR_VERDE, label="Positivo")
-    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_neg_r"], color=COR_VERMELHO, label="Negativo")
-    ax4.axhline(0, color="black", linewidth=1)
-    ax4.set_title("Fluxo de caixa acumulado do projeto")
-    ax4.set_xlabel("Ano")
-    ax4.set_ylabel("R$")
+    _apply_brand_style(ax4)
+    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], color=BRAND_GREEN, alpha=0.9, edgecolor="white", linewidth=0.6, label="Positivo")
+    ax4.bar(df_fx["ano"], df_fx["fluxo_caixa_neg_r"], color=BRAND_RED, alpha=0.9, edgecolor="white", linewidth=0.6, label="Negativo")
+    ax4.axhline(0, color=BRAND_GRID, linewidth=1)
+    ax4.set_title("Fluxo de caixa acumulado do projeto", fontsize=22, color=BRAND_DARK, fontweight='800', pad=16)
+    ax4.set_xlabel("Ano", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax4.set_ylabel("R$", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax4.tick_params(axis='x', labelsize=16, colors=BRAND_DARK)
+    ax4.tick_params(axis='y', labelsize=16, colors=BRAND_DARK)
     ax4.yaxis.set_major_formatter(yfmt)
     for x, pos, neg in zip(df_fx["ano"], df_fx["fluxo_caixa_pos_r"], df_fx["fluxo_caixa_neg_r"]):
         if pos > 0:
-            ax4.text(x, pos * 1.01, formatar_moeda_brl(pos), ha="center", va="bottom", fontsize=9)
+            ax4.text(x, pos * 1.01, formatar_moeda_brl(pos), ha="center", va="bottom", fontsize=14, fontweight='700', color=BRAND_DARK)
         if neg < 0:
-            ax4.text(x, neg * 1.01, formatar_moeda_brl(neg), ha="center", va="top", fontsize=9)
-    ax4.legend()
+            ax4.text(x, neg * 1.01, formatar_moeda_brl(neg), ha="center", va="top", fontsize=14, fontweight='700', color=BRAND_DARK)
+    ax4.legend(frameon=False)
     fig4.tight_layout()
     g4 = _fig_to_data_uri(fig4)
 
     # Gráfico 5
     fig5, ax5 = plt.subplots(figsize=(12, 6))
-    ax5.plot(df_fx["ano"], df_fx["economia_acumulada_r"], color=COR_VERDE, marker="o", label="Economia com Energia Solar")
-    ax5.plot(df_fx["ano"], df_fx["custos_sem_solar_neg_r"], color=COR_VERMELHO, marker="o", label="Custos sem Energia Solar")
-    ax5.axhline(0, color="black", linewidth=1)
-    ax5.set_title("Economia com energia solar x custos sem energia solar")
-    ax5.set_xlabel("Ano")
-    ax5.set_ylabel("R$")
+    _apply_brand_style(ax5)
+    ax5.plot(df_fx["ano"], df_fx["economia_acumulada_r"], color=BRAND_GREEN, marker="o", markerfacecolor="white", label="Economia com Energia Solar")
+    ax5.plot(df_fx["ano"], df_fx["custos_sem_solar_neg_r"], color=BRAND_RED, marker="o", markerfacecolor="white", label="Custos sem Energia Solar")
+    ax5.axhline(0, color=BRAND_GRID, linewidth=1)
+    ax5.set_title("Economia com energia solar x custos sem energia solar", fontsize=22, color=BRAND_DARK, fontweight='800', pad=16)
+    ax5.set_xlabel("Ano", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax5.set_ylabel("R$", fontsize=16, color=BRAND_DARK, fontweight='700')
+    ax5.tick_params(axis='x', labelsize=16, colors=BRAND_DARK)
+    ax5.tick_params(axis='y', labelsize=16, colors=BRAND_DARK)
     ax5.yaxis.set_major_formatter(yfmt)
-    ax5.legend()
-    anos_chave = {1, 10, 20, 25}
+    ax5.legend(frameon=False)
+    anos_chave = {1, 5, 10, 15, 20, 25}
     for x, y in zip(df_fx["ano"], df_fx["economia_acumulada_r"]):
         if x in anos_chave:
-            ax5.annotate(formatar_moeda_brl(y), (x, y), textcoords="offset points", xytext=(0, 8),
-                         ha="center", fontsize=9)
+            ax5.annotate(formatar_moeda_brl(y), (x, y), textcoords="offset points", xytext=(0, 10),
+                         ha="center", fontsize=14, fontweight='700', color=BRAND_DARK)
     fig5.tight_layout()
     g5 = _fig_to_data_uri(fig5)
 

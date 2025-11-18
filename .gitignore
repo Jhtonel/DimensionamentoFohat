@@ -97,3 +97,6 @@ jspm_packages/
 
 # TernJS port file
 .tern-port
+
+# Firebase credentials
+.fohat-energia-3c422e081e0e.json

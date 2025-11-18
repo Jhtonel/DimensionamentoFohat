@@ -20,6 +20,9 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
+import { useAuth } from "@/services/authService.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { systemConfig } from "@/config/firebase.js";
 
 const statusColors = {
   lead: "bg-gray-100 text-gray-700",
@@ -38,30 +41,49 @@ export default function Projetos() {
   const [filteredProjetos, setFilteredProjetos] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [usuarios, setUsuarios] = useState([]);
+  const { user } = useAuth();
+  const [selectedUserEmail, setSelectedUserEmail] = useState(
+    () => localStorage.getItem('admin_filter_user_email') || 'todos'
+  );
 
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const clienteId = urlParams.get('cliente_id');
     
-    if (!searchTerm) {
+    const base = (() => {
+      let arr = projetos;
       if (clienteId) {
-        setFilteredProjetos(projetos.filter(p => p.cliente_id === clienteId));
-      } else {
-        setFilteredProjetos(projetos);
+        arr = arr.filter(p => p.cliente_id === clienteId);
       }
+      if (user?.role === 'admin' && selectedUserEmail && selectedUserEmail !== 'todos') {
+        const email = selectedUserEmail.toLowerCase();
+        arr = arr.filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
+          .map(v => (v || '').toLowerCase())
+          .includes(email));
+      }
+      return arr;
+    })();
+    
+    if (!searchTerm) {
+      setFilteredProjetos(base);
       return;
     }
     
-    const filtered = projetos.filter(p => 
+    const filtered = base.filter(p => 
       p.nome_projeto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.cidade?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredProjetos(filtered);
-  }, [searchTerm, projetos]);
+  }, [searchTerm, projetos, user, selectedUserEmail]);
 
   const loadData = async () => {
     setLoading(true);
@@ -76,13 +98,46 @@ export default function Projetos() {
     setProjetos(projetosData);
     setClientes(clientesData);
     
-    if (clienteId) {
-      setFilteredProjetos(projetosData.filter(p => p.cliente_id === clienteId));
-    } else {
-      setFilteredProjetos(projetosData);
+    // Filtro inicial também respeita usuário selecionado
+    let initial = projetosData;
+    if (clienteId) initial = initial.filter(p => p.cliente_id === clienteId);
+    if (user?.role === 'admin' && selectedUserEmail && selectedUserEmail !== 'todos') {
+      const email = selectedUserEmail.toLowerCase();
+      initial = initial.filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
+        .map(v => (v || '').toLowerCase())
+        .includes(email));
     }
+    setFilteredProjetos(initial);
     
     setLoading(false);
+  };
+
+  const loadUsers = async () => {
+    try {
+      const serverUrl = (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
+        ? systemConfig.apiUrl
+        : (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      let items = [];
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json?.success && Array.isArray(json.users)) {
+          items = json.users.map(u => ({
+            uid: u.uid,
+            email: u.email || '',
+            nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário')
+          }));
+        }
+      }
+      setUsuarios(items);
+    } catch (_) {
+      setUsuarios([]);
+    }
+  };
+
+  const setUserFilter = (v) => {
+    setSelectedUserEmail(v);
+    localStorage.setItem('admin_filter_user_email', v);
   };
 
   const handleDelete = async (id) => {
@@ -111,12 +166,32 @@ export default function Projetos() {
             </h1>
             <p className="text-gray-600 mt-2">Gerencie seus projetos fotovoltaicos</p>
           </div>
-          <Link to={createPageUrl("NovoProjeto")}>
-            <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Projeto
-            </Button>
-          </Link>
+          <div className="flex items-end gap-3">
+            {user?.role === 'admin' && (
+              <div className="hidden sm:block">
+                <label className="text-xs text-gray-500 block mb-1">Usuário</label>
+                <Select value={selectedUserEmail} onValueChange={setUserFilter}>
+                  <SelectTrigger className="h-9 w-56">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {usuarios.map(u => (
+                      <SelectItem key={u.uid} value={u.email || ''}>
+                        {(u.nome || u.email || '').toString()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Link to={createPageUrl("NovoProjeto")}>
+              <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Projeto
+              </Button>
+            </Link>
+          </div>
         </motion.div>
 
         <Card className="glass-card border-0 shadow-xl">
@@ -141,7 +216,6 @@ export default function Projetos() {
               animate={{ opacity: 1, scale: 1 }}
             >
               <Card className="glass-card border-0 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-sky-400 to-orange-400 opacity-10 rounded-full transform translate-x-16 -translate-y-16 group-hover:scale-150 transition-transform duration-500" />
                 <CardContent className="p-6 relative">
                   <div className="flex justify-between items-start mb-4">
                     <div>

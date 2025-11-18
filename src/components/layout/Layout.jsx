@@ -41,8 +41,9 @@ const Layout = ({ children }) => {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'gestor', 'vendedor', 'instalador'] },
+    { to: '/pipeline', label: 'Pipeline', icon: FolderKanban, roles: ['admin', 'gestor', 'vendedor'] },
     { to: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'gestor', 'vendedor'] },
-    { to: '/projetos', label: 'Propostas', icon: FolderKanban, roles: ['admin', 'gestor', 'vendedor'] }
+    { to: '/projetos', label: 'Propostas', icon: FileText, roles: ['admin', 'gestor', 'vendedor'] }
   ];
   const [adminOpen, setAdminOpen] = useState(true);
 
@@ -209,14 +210,14 @@ const Layout = ({ children }) => {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+          </div>
+        </div>
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-hidden">
-            {children}
-          </main>
+          <main className="flex-1 overflow-x-hidden overflow-y-auto min-h-0">
+        {children}
+      </main>
         </div>
       </div>
     </div>

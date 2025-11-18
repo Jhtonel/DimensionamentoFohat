@@ -19,6 +19,9 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 import ClienteForm from "../components/clientes/ClienteForm.jsx";
+import { useAuth } from "@/services/authService.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { systemConfig } from "@/config/firebase.js";
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
@@ -28,25 +31,62 @@ export default function Clientes() {
   const [showForm, setShowForm] = useState(false);
   const [editingCliente, setEditingCliente] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [usuarios, setUsuarios] = useState([]);
+  const { user } = useAuth();
+  const [selectedUserEmail, setSelectedUserEmail] = useState(
+    () => localStorage.getItem('admin_filter_user_email') || 'todos'
+  );
 
   useEffect(() => {
     loadData();
   }, []); // Dependência vazia para carregar dados apenas uma vez
 
   useEffect(() => {
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
     // A lógica de filtragem agora está diretamente neste useEffect
     if (!searchTerm) {
-      setFilteredClientes(clientes);
+      // Filtro por usuário (admin)
+      if (user?.role === 'admin' && selectedUserEmail && selectedUserEmail !== 'todos') {
+        const email = selectedUserEmail.toLowerCase();
+        const projetosDoUsuario = new Set(
+          (projetos || [])
+            .filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
+              .map(v => (v || '').toLowerCase())
+              .includes(email))
+            .map(p => p.cliente_id)
+        );
+        setFilteredClientes(clientes.filter(c => projetosDoUsuario.has(c.id)));
+      } else {
+        setFilteredClientes(clientes);
+      }
       return;
     }
     
-    const filtered = clientes.filter(c => 
+    const base = (() => {
+      if (user?.role === 'admin' && selectedUserEmail && selectedUserEmail !== 'todos') {
+        const email = selectedUserEmail.toLowerCase();
+        const projetosDoUsuario = new Set(
+          (projetos || [])
+            .filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
+              .map(v => (v || '').toLowerCase())
+              .includes(email))
+            .map(p => p.cliente_id)
+        );
+        return clientes.filter(c => projetosDoUsuario.has(c.id));
+      }
+      return clientes;
+    })();
+
+    const filtered = base.filter(c => 
       c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.telefone?.includes(searchTerm) ||
       c.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredClientes(filtered);
-  }, [searchTerm, clientes]); // Depende de searchTerm e clientes
+  }, [searchTerm, clientes, projetos, selectedUserEmail, user]); // Depende de searchTerm e clientes
 
   const loadData = async () => {
     setLoading(true);
@@ -58,6 +98,34 @@ export default function Clientes() {
     setProjetos(projetosData);
     // setFilteredClientes(clientesData); // Esta linha será redundantemente atualizada pelo useEffect de filtragem
     setLoading(false);
+  };
+
+  const loadUsers = async () => {
+    try {
+      const serverUrl = (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
+        ? systemConfig.apiUrl
+        : (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      let items = [];
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json?.success && Array.isArray(json.users)) {
+          items = json.users.map(u => ({
+            uid: u.uid,
+            email: u.email || '',
+            nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário')
+          }));
+        }
+      }
+      setUsuarios(items);
+    } catch (_) {
+      setUsuarios([]);
+    }
+  };
+
+  const setUserFilter = (v) => {
+    setSelectedUserEmail(v);
+    localStorage.setItem('admin_filter_user_email', v);
   };
 
   const handleSave = async (data) => {
@@ -101,6 +169,25 @@ export default function Clientes() {
             </h1>
             <p className="text-gray-600 mt-2">Gerencie sua base de clientes</p>
           </div>
+          <div className="flex items-end gap-3">
+            {user?.role === 'admin' && (
+              <div className="hidden sm:block">
+                <label className="text-xs text-gray-500 block mb-1">Usuário</label>
+                <Select value={selectedUserEmail} onValueChange={setUserFilter}>
+                  <SelectTrigger className="h-9 w-56">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {usuarios.map(u => (
+                      <SelectItem key={u.uid} value={u.email || ''}>
+                        {(u.nome || u.email || '').toString()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           <Button
             onClick={() => {
               setEditingCliente(null);
@@ -111,6 +198,7 @@ export default function Clientes() {
             <Plus className="w-4 h-4 mr-2" />
             Novo Cliente
           </Button>
+          </div>
         </motion.div>
 
         <Card className="glass-card border-0 shadow-xl">
@@ -149,7 +237,6 @@ export default function Clientes() {
               exit={{ opacity: 0, scale: 0.9 }}
             >
               <Card className="glass-card border-0 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-sky-400 to-orange-400 opacity-10 rounded-full transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500" />
                 <CardContent className="p-6 relative">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">

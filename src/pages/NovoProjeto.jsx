@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Projeto, Cliente, Configuracao, IrradiacaoSolar } from "@/entities";
 import { InvokeLLM } from "@/integrations/Core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1319,6 +1319,209 @@ export default function NovoProjeto() {
     return custoOperacional / (1 - margemDesejada);
   };
 
+  // Resumo (memo) para evitar recalcular várias vezes
+  const resumoCalculos = useMemo(() => {
+    const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+    const potenciaKwp = formData.potencia_kw || 0;
+    const tarifaKwh = parseFloat(formData.tarifa_energia || 0.75) || 0.75;
+    const custoEquipamentos = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+    const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+    const comissaoVendedor = formData.comissao_vendedor || 5;
+    const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
+    // Consumo mensal em kWh (favor kWh; se não, converte de R$)
+    const consumoMensalKwhBase = (() => {
+      const kwh = parseFloat(formData.consumo_mensal_kwh || 0);
+      if (kwh > 0) return kwh;
+      const reais = parseFloat(formData.consumo_mensal_reais || 0);
+      return reais > 0 ? reais / tarifaKwh : 0;
+    })();
+    // Produção mensal estimada (fallback quando não temos projeções)
+    const prodMensalEst =
+      (projecoesFinanceiras?.geracao_media_mensal || resultados?.geracao_media_mensal) ??
+      (() => {
+        const pot = potenciaKwp || (kitSelecionado?.potencia || 0);
+        const irr = parseFloat(formData.irradiacao_media || 5.15) || 5.15;
+        const eficiencia = 0.85; // heurística próxima do backend
+        return pot > 0 ? pot * irr * 30.4 * eficiencia : 0;
+      })();
+    // Economia mensal / anual
+    const energiaAproveitada = Math.min(consumoMensalKwhBase, prodMensalEst);
+    const economiaMensalEst = energiaAproveitada * tarifaKwh;
+    const economiaAnualEst = economiaMensalEst * 12;
+    // Conta anual atual (estimada)
+    const contaAnualEst = consumoMensalKwhBase * tarifaKwh * 12;
+    // Payback e gasto acumulado até payback
+    const paybackAnos = economiaAnualEst > 0 ? (precoVenda / economiaAnualEst) : 0;
+    const gastoAcumPayback = contaAnualEst * paybackAnos;
+    // R$/kWp e R$/Placa
+    const rPorKwp = potenciaKwp > 0 ? (precoVenda / potenciaKwp) : 0;
+    const rPorPlaca = quantidadePlacas > 0 ? (precoVenda / quantidadePlacas) : 0;
+    return {
+      quantidadePlacas,
+      potenciaKwp,
+      tarifaKwh,
+      custoEquipamentos,
+      custoOp,
+      comissaoVendedor,
+      precoVenda,
+      consumoMensalKwhBase,
+      prodMensalEst,
+      economiaMensalEst,
+      economiaAnualEst,
+      contaAnualEst,
+      paybackAnos,
+      gastoAcumPayback,
+      rPorKwp,
+      rPorPlaca
+    };
+  }, [quantidadesCalculadas.paineis, formData.potencia_kw, formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.tarifa_energia, formData.irradiacao_media, formData.comissao_vendedor, kitSelecionado, costs, projecoesFinanceiras, resultados]);
+
+  // ============================
+  // Projeções de 25 anos (gráficos e proposta)
+  // ============================
+  const acumularArray = (arr) => {
+    const out = [];
+    arr.reduce((acc, v) => {
+      const nv = acc + v;
+      out.push(nv);
+      return nv;
+    }, 0);
+    return out;
+  };
+
+  const buildProjecoesEnergia = ({
+    consumoMensalKwhAtual = 0,
+    tarifaInicial = 0.75,
+    inflacaoAnual = 0.0484,
+    crescimentoConsumo = 0.035,
+    degradacaoAnual = 0.008,
+    producaoAnualKwhAno1 = 0,
+    taxaDistribuicaoMensalInicial = 0,
+    investimentoInicial = 0
+  }) => {
+    const ANOS = Array.from({ length: 25 }, (_, i) => i + 1);
+
+    // Consumo mensal e anual
+    const consumoMensalKwh = ANOS.map((_, i) => consumoMensalKwhAtual * Math.pow(1 + crescimentoConsumo, i));
+    const consumoAnualKwh = consumoMensalKwh.map(m => m * 12);
+
+    // Tarifa por kWh (corrigida pela inflação)
+    const tarifaR$kWh = ANOS.map((_, i) => tarifaInicial * Math.pow(1 + inflacaoAnual, i));
+
+    // Sem energia solar
+    const custoSemSolarAnual = ANOS.map((_, i) => consumoAnualKwh[i] * tarifaR$kWh[i]);
+    const custoSemSolarAcum = acumularArray(custoSemSolarAnual);
+
+    // Produção com degradação e receita
+    const producaoAnualKwh = ANOS.map((_, i) => producaoAnualKwhAno1 * Math.pow(1 - degradacaoAnual, i));
+    const producaoAnualR$ = ANOS.map((_, i) => producaoAnualKwh[i] * tarifaR$kWh[i]);
+
+    // Com energia solar: apenas taxa de distribuição corrigida pela inflação
+    // Se não houver taxa informada, usar fallback seguro: 50 kWh × tarifa do ano 1
+    const taxaBase = (typeof taxaDistribuicaoMensalInicial === 'number' && taxaDistribuicaoMensalInicial > 0)
+      ? taxaDistribuicaoMensalInicial
+      : (50 * tarifaInicial);
+    const taxaDistribuicaoMensal = ANOS.map((_, i) => taxaBase * Math.pow(1 + inflacaoAnual, i));
+    const custoComSolarAnual = taxaDistribuicaoMensal.map(v => v * 12);
+    const custoComSolarAcum = acumularArray(custoComSolarAnual);
+
+    // Economia
+    const economiaAnual = ANOS.map((_, i) => custoSemSolarAnual[i] - custoComSolarAnual[i]);
+    const economiaAcum = acumularArray(economiaAnual);
+
+    // Fluxo de caixa: investimento no ano 1
+    const fluxoCaixaAnual = ANOS.map((_, i) => {
+      const base = producaoAnualR$[i] - custoComSolarAnual[i];
+      return i === 0 ? base - investimentoInicial : base;
+    });
+    const fluxoCaixaAcum = acumularArray(fluxoCaixaAnual);
+
+    return {
+      anos: ANOS,
+      consumoMensalKwh,
+      consumoAnualKwh,
+      tarifaR$kWh,
+      custoSemSolarAnual,
+      custoSemSolarAcum,
+      producaoAnualKwh,
+      producaoAnualR$,
+      taxaDistribuicaoMensal,
+      custoComSolarAnual,
+      custoComSolarAcum,
+      economiaAnual,
+      economiaAcum,
+      fluxoCaixaAnual,
+      fluxoCaixaAcum
+    };
+  };
+
+  // Tenta obter taxa de distribuição mensal informada por concessionária/tipo ligação
+  const [taxasDistribuicao, setTaxasDistribuicao] = useState(null);
+  useEffect(() => {
+    // Carregar mapa de taxas do backend (se disponível)
+    const getServerUrl = () => {
+      if (import.meta?.env?.VITE_PROPOSAL_SERVER_URL) return import.meta.env.VITE_PROPOSAL_SERVER_URL;
+      try {
+        const { systemConfig } = require('../config/firebase.js');
+        if (systemConfig?.apiUrl) return systemConfig.apiUrl;
+      } catch (_) {}
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      const port = '8000';
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${port}`;
+      return `http://${hostname}:${port}`;
+    };
+    const url = `${getServerUrl()}/config/taxas-distribuicao`;
+    fetch(url)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(j => {
+        if (j?.success && j?.items) setTaxasDistribuicao(j.items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const obterTaxaDistribuicaoMensal = useCallback(() => {
+    // 1) valores explícitos no form
+    const explicita =
+      parseFloat(formData.taxa_distribuicao_mensal || formData.taxa_distribuicao) || 0;
+    if (explicita > 0) return explicita;
+    // 1.1) backend Admin > Taxas (quando disponível)
+    try {
+      if (taxasDistribuicao && formData.concessionaria) {
+        const slug = (formData.concessionaria || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        const tipo = (formData.tipo_ligacao || 'monofasica').toLowerCase();
+        const registro = taxasDistribuicao[slug];
+        const valor = registro ? Number(registro[tipo] || 0) : 0;
+        if (!isNaN(valor) && valor > 0) return valor;
+      }
+    } catch (_) {}
+    // 2) tentar buscar em configs por chave padronizada: taxa_{concessionaria}_{tipo}
+    try {
+      const conc = (formData.concessionaria || '').toLowerCase().replace(/\s+/g, '_');
+      const tipo = (formData.tipo_ligacao || 'monofasica').toLowerCase();
+      const chave1 = `taxa_${conc}_${tipo}`;
+      const cfg1 = configs[chave1];
+      if (cfg1 && (cfg1.valor || cfg1.data)) {
+        const v = parseFloat(cfg1.valor ?? cfg1.data ?? 0);
+        if (!isNaN(v) && v > 0) return v;
+      }
+      // 3) chave genérica taxa_distribuicao_mensal
+      const cfg2 = configs['taxa_distribuicao_mensal'];
+      if (cfg2 && (cfg2.valor || cfg2.data)) {
+        const v = parseFloat(cfg2.valor ?? cfg2.data ?? 0);
+        if (!isNaN(v) && v > 0) return v;
+      }
+    } catch (_) {}
+    // 4) fallback seguro: estimar taxa como demanda mínima (50 kWh) * tarifa atual
+    const tarifaBase = parseFloat(formData.tarifa_energia || 0);
+    if (tarifaBase > 0) {
+      return 50 * tarifaBase; // aproximação padrão
+    }
+    return 0;
+  }, [formData.taxa_distribuicao_mensal, formData.taxa_distribuicao, formData.concessionaria, formData.tipo_ligacao, configs, taxasDistribuicao]);
+
   const calcularDimensionamento = async () => {
     setCalculando(true);
     
@@ -1396,6 +1599,7 @@ export default function NovoProjeto() {
       custo_obra: custoObra,
       custo_total: custoTotal,
       preco_final: precoFinal,
+      preco_venda: precoFinal,
       economia_mensal_estimada: economiaMensal,
       payback_meses: paybackMeses,
       irradiacao_media: irradiacaoMedia,
@@ -1576,8 +1780,9 @@ export default function NovoProjeto() {
     if (consumoMensalKwh <= 0 && temConsumoReais) {
       // Se não tem kWh mas tem reais, calcular baseado na tarifa
       const consumoReais = parseFloat(formData.consumo_mensal_reais);
-      const tarifaEstimada = 0.75; // R$ 0,75 por kWh (padrão)
-      consumoMensalKwh = consumoReais / tarifaEstimada;
+      // Não chute tarifa aqui; será definida a partir da concessionária abaixo.
+      // Mantemos temporariamente 0 até obter a tarifa real.
+      consumoMensalKwh = 0;
       console.log('📊 Consumo kWh calculado a partir do valor em reais:', consumoMensalKwh);
     }
     
@@ -1594,6 +1799,8 @@ export default function NovoProjeto() {
         if (concessionariaData) {
           tarifaAtual = calcularTarifaTotal(concessionariaData, 'residencial', 'verde');
           console.log('📊 Tarifa obtida da concessionária:', formData.concessionaria, '=', tarifaAtual);
+          // Propagar para o formulário para uso posterior (salvar proposta)
+          handleChange('tarifa_energia', tarifaAtual);
         } else {
           console.log('❌ Concessionária não encontrada nos dados:', formData.concessionaria);
         }
@@ -1609,6 +1816,7 @@ export default function NovoProjeto() {
       const consumoReais = parseFloat(formData.consumo_mensal_reais);
       tarifaAtual = consumoReais / consumoMensalKwh;
       console.log('📊 Tarifa calculada automaticamente:', tarifaAtual);
+      handleChange('tarifa_energia', tarifaAtual);
     }
     
     // Se ainda não tem tarifa, usar fallback das configurações
@@ -1618,10 +1826,19 @@ export default function NovoProjeto() {
       );
       tarifaAtual = tarifaConfig?.tarifa_kwh || 0.75;
       console.log('📊 Tarifa obtida das configurações:', tarifaAtual);
+      handleChange('tarifa_energia', tarifaAtual);
     }
     
     if (!tarifaAtual || tarifaAtual <= 0) {
       throw new Error('Tarifa de energia não informada - Não é possível calcular projeções financeiras');
+    }
+
+    // Se consumo em kWh ainda não foi definido e temos valor em R$, derive agora usando a tarifa válida
+    if (consumoMensalKwh <= 0 && temConsumoReais) {
+      const consumoReais = parseFloat(formData.consumo_mensal_reais);
+      consumoMensalKwh = consumoReais / tarifaAtual;
+      handleChange('consumo_mensal_kwh', consumoMensalKwh);
+      console.log('📊 Consumo kWh derivado com tarifa válida:', consumoMensalKwh);
     }
     
     // Buscar dados de irradiância se não estiverem disponíveis
@@ -2787,9 +3004,37 @@ export default function NovoProjeto() {
                             const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
                             const comissaoVendedor = formData.comissao_vendedor || 5;
                             const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
-                            
-                            const rPorKwp = precoVenda / potenciaKwp;
-                            const rPorPlaca = precoVenda / quantidadePlacas;
+                            // Consumo mensal em kWh (usa kWh; se não houver, converte a partir de R$ e tarifa)
+                            const tarifaKwh = parseFloat(formData.tarifa_energia || 0.75) || 0.75;
+                            const consumoMensalKwhBase = (() => {
+                              const kwh = parseFloat(formData.consumo_mensal_kwh || 0);
+                              if (kwh > 0) return kwh;
+                              const reais = parseFloat(formData.consumo_mensal_reais || 0);
+                              return reais > 0 ? reais / tarifaKwh : 0;
+                            })();
+                            // Produção mensal disponível (com fallback do resumo)
+                            const prodMensal = (() => {
+                              const v = parseFloat(resumoCalculos?.prodMensalEst ?? 0) || 0;
+                              if (v > 0) return v;
+                              const a = parseFloat(projecoesFinanceiras?.geracao_media_mensal ?? 0) || 0;
+                              if (a > 0) return a;
+                              const b = parseFloat(resultados?.geracao_media_mensal ?? 0) || 0;
+                              return b;
+                            })();
+                            // Economia mensal = energia menor entre produção e consumo × tarifa
+                            const energiaAproveitada = Math.min(consumoMensalKwhBase, prodMensal);
+                            const economiaMensalEst = energiaAproveitada * tarifaKwh;
+                            const economiaAnualEst = economiaMensalEst * 12;
+                            // Conta anual atual estimada (para exibir e para gasto acumulado até payback)
+                            const contaAnualEst = consumoMensalKwhBase * tarifaKwh * 12;
+                            // Payback em anos
+                            const paybackAnos = economiaAnualEst > 0 ? (precoVenda / economiaAnualEst) : 0;
+                            // A proposta deve usar o preço de venda
+                            const precoBaseProposta = precoVenda;
+                            const paybackProposta = paybackAnos;
+                            const gastoAcumPayback = contaAnualEst * paybackAnos;
+                            const rPorKwp = potenciaKwp > 0 ? (precoVenda / potenciaKwp) : 0;
+                            const rPorPlaca = quantidadePlacas > 0 ? (precoVenda / quantidadePlacas) : 0;
                             
                             return (
                               <>
@@ -2801,10 +3046,291 @@ export default function NovoProjeto() {
                                   <div className="font-semibold">R$/Placa:</div>
                                   <div className="text-right font-semibold">{formatCurrency(rPorPlaca)}</div>
                                 </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Conta anual atual (estimada):</div>
+                                  <div className="text-right font-semibold">{formatCurrency(contaAnualEst)}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Economia mensal estimada:</div>
+                                  <div className="text-right font-semibold text-green-600">{formatCurrency(economiaMensalEst)}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Economia anual estimada:</div>
+                                  <div className="text-right font-semibold text-green-600">{formatCurrency(economiaAnualEst)}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Preço de venda:</div>
+                                  <div className="text-right font-semibold">{formatCurrency(precoVenda)}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Payback (custos):</div>
+                                  <div className="text-right font-semibold">{paybackAnos.toFixed(1)} anos</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Payback (proposta):</div>
+                                  <div className="text-right font-semibold">{paybackProposta.toFixed(1)} anos</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="font-semibold">Gasto acumulado até o payback:</div>
+                                  <div className="text-right font-semibold">{formatCurrency(gastoAcumPayback)}</div>
+                                </div>
                               </>
                             );
                           })()}
                         </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Resumo - Variáveis Calculadas */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-indigo-600">🧮</span>
+                          Resumo (variáveis calculadas)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {(() => {
+                            const {
+                              quantidadePlacas: qPlacas,
+                              potenciaKwp: kwp,
+                              custoEquipamentos: custoEquip,
+                              custoOp: op,
+                              comissaoVendedor: comissaoPct,
+                              precoVenda,
+                              contaAnualEst: contaAnual,
+                              economiaMensalEst: economiaMensal,
+                              economiaAnualEst: economiaAnual,
+                              paybackAnos,
+                              gastoAcumPayback: gastoAcumuladoPayback
+                            } = resumoCalculos;
+                            const margemDesejada = 25 + (comissaoPct || 0);
+                            const valorComissao = precoVenda * ((comissaoPct || 0) / 100);
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo equipamentos:</span>
+                                  <span className="font-semibold">{formatCurrency(op.equipamentos)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo instalação:</span>
+                                  <span className="font-semibold">{formatCurrency(op.instalacao)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo CA/aterramento:</span>
+                                  <span className="font-semibold">{formatCurrency(op.caAterramento)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo homologação:</span>
+                                  <span className="font-semibold">{formatCurrency(op.homologacao)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Placas de sinalização:</span>
+                                  <span className="font-semibold">{formatCurrency(op.placasSinalizacao)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Despesas de obra (10%):</span>
+                                  <span className="font-semibold">{formatCurrency(op.despesasGerais)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Custo total (operacional):</span>
+                                  <span className="font-bold">{formatCurrency(op.total)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Preço de venda:</span>
+                                  <span className="font-bold text-blue-700">{formatCurrency(precoVenda)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Comissão vendedor:</span>
+                                  <span className="font-semibold">{comissaoPct}% ({formatCurrency(valorComissao)})</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Margem desejada (total):</span>
+                                  <span className="font-semibold">{margemDesejada}%</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Conta anual atual (estimada):</span>
+                                  <span className="font-semibold">{formatCurrency(contaAnual)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Economia mensal estimada:</span>
+                                  <span className="font-semibold text-green-600">{formatCurrency(economiaMensal)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Economia anual estimada:</span>
+                                  <span className="font-semibold text-green-600">{formatCurrency(economiaAnual)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Payback:</span>
+                                  <span className="font-semibold">{paybackAnos.toFixed(1)} anos</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Gasto acumulado até o payback:</span>
+                                  <span className="font-semibold">{formatCurrency(gastoAcumuladoPayback)}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Cálculos para Gráficos e Proposta (mesma lógica do backend) */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-teal-600">📈</span>
+                          Cálculos para Gráficos/Proposta
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          // Conta anual atual (mesma heurística do backend)
+                          const tarifa = 0.75;
+                          const consumoKwh = parseFloat(formData.consumo_mensal_kwh || 0);
+                          const consumoReais = parseFloat(formData.consumo_mensal_reais || 0);
+                          const contaAnual = consumoKwh > 0
+                            ? consumoKwh * tarifa * 12
+                            : consumoReais * 12 || 0;
+                          
+                          // Crescimento anual usado no slide 03 do backend (4,1%)
+                          const crescimento = 0.041;
+                          const gastosAnuais = [];
+                          for (let ano = 1; ano <= 25; ano++) {
+                            gastosAnuais.push(contaAnual * Math.pow(1 + crescimento, ano - 1));
+                          }
+                          const gastosAcumulados = [];
+                          gastosAnuais.reduce((acc, v) => {
+                            const nv = acc + v;
+                            gastosAcumulados.push(nv);
+                            return nv;
+                          }, 0);
+                          const pontos = [0, 4, 9, 14, 19, 24]; // anos 1,5,10,15,20,25
+                          const valoresSlide03 = pontos.map(i => gastosAcumulados[i] || 0);
+                          const gastoAcumulado25 = valoresSlide03[5] || 0;
+
+                          // Slide 06 (economia acumulada nos 5 anos)
+                          const economiaMensal = consumoKwh * tarifa * 0.95 || 0;
+                          const economiaAcumulada5 = Array.from({ length: 5 }, (_, i) => economiaMensal * 12 * (i + 1));
+
+                          // Projeção completa (grid 25 anos)
+                          const qtdPlacas = quantidadesCalculadas.paineis || 0;
+                          const kwp = formData.potencia_kw || 0;
+                          const custoEquip = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+                          const op = calcularCustoOperacional(qtdPlacas, kwp, custoEquip);
+                          const comissaoPct = formData.comissao_vendedor || 5;
+                          const precoVenda = calcularPrecoVenda(op.total, comissaoPct);
+                          const consumoMensalBase =
+                            consumoKwh > 0 ? consumoKwh : (consumoReais > 0 ? (consumoReais / (parseFloat(formData.tarifa_energia || 0.75) || 0.75)) : 0);
+                          // Produção Ano 1 (kWh/ano): usa a produção mensal estimada do resumo quando disponível
+                          const prodAno1Kwh = (() => {
+                            const prodResumoMensal = parseFloat((resumoCalculos?.prodMensalEst ?? 0)) || 0;
+                            if (prodResumoMensal > 0) return prodResumoMensal * 12;
+                            const pm = parseFloat(projecoesFinanceiras?.geracao_media_mensal ?? resultados?.geracao_media_mensal ?? 0) || 0;
+                            if (pm > 0) return pm * 12;
+                            return 0;
+                          })();
+                          const taxaDistMensal = obterTaxaDistribuicaoMensal();
+                          const proj = buildProjecoesEnergia({
+                            consumoMensalKwhAtual: consumoMensalBase,
+                            tarifaInicial: parseFloat(formData.tarifa_energia || 0.75) || 0.75,
+                            inflacaoAnual: 0.0484,
+                            crescimentoConsumo: 0.035,
+                            degradacaoAnual: 0.008,
+                            producaoAnualKwhAno1: prodAno1Kwh,
+                            taxaDistribuicaoMensalInicial: taxaDistMensal,
+                            investimentoInicial: precoVenda || 0
+                          });
+
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Conta anual atual (base):</span>
+                                  <span className="font-semibold">{formatCurrency(contaAnual)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Crescimento anual (slide 03):</span>
+                                  <span className="font-semibold">4,1% a.a.</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Gasto acumulado (25 anos):</span>
+                                  <span className="font-bold">{formatCurrency(gastoAcumulado25)}</span>
+                                </div>
+                                <div className="mt-2 font-semibold text-gray-700">Acumulado por marco (anos):</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="flex justify-between"><span>1</span><span>{formatCurrency(valoresSlide03[0])}</span></div>
+                                  <div className="flex justify-between"><span>5</span><span>{formatCurrency(valoresSlide03[1])}</span></div>
+                                  <div className="flex justify-between"><span>10</span><span>{formatCurrency(valoresSlide03[2])}</span></div>
+                                  <div className="flex justify-between"><span>15</span><span>{formatCurrency(valoresSlide03[3])}</span></div>
+                                  <div className="flex justify-between"><span>20</span><span>{formatCurrency(valoresSlide03[4])}</span></div>
+                                  <div className="flex justify-between"><span>25</span><span>{formatCurrency(valoresSlide03[5])}</span></div>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Economia mensal estimada:</span>
+                                  <span className="font-semibold text-green-700">{formatCurrency(economiaMensal)}</span>
+                                </div>
+                                <div className="mt-2 font-semibold text-gray-700">Economia acumulada (anos):</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="flex justify-between"><span>1</span><span>{formatCurrency(economiaAcumulada5[0])}</span></div>
+                                  <div className="flex justify-between"><span>2</span><span>{formatCurrency(economiaAcumulada5[1])}</span></div>
+                                  <div className="flex justify-between"><span>3</span><span>{formatCurrency(economiaAcumulada5[2])}</span></div>
+                                  <div className="flex justify-between"><span>4</span><span>{formatCurrency(economiaAcumulada5[3])}</span></div>
+                                  <div className="flex justify-between"><span>5</span><span>{formatCurrency(economiaAcumulada5[4])}</span></div>
+                                </div>
+                              </div>
+
+                              {/* Grid 25 anos */}
+                              <div className="md:col-span-2">
+                                <div className="overflow-auto rounded border border-gray-200">
+                                  <table className="min-w-[1200px] w-full text-xs">
+                                    <thead className="bg-gray-50 text-gray-700">
+                                      <tr>
+                                        <th className="px-2 py-2 text-left">Ano</th>
+                                        <th className="px-2 py-2 text-right">Consumo (kWh/mês)</th>
+                                        <th className="px-2 py-2 text-right">Consumo (kWh/ano)</th>
+                                        <th className="px-2 py-2 text-right">Tarifa (R$/kWh)</th>
+                                        <th className="px-2 py-2 text-right">Sem Solar (R$/ano)</th>
+                                        <th className="px-2 py-2 text-right">Sem Solar Acum.</th>
+                                        <th className="px-2 py-2 text-right">Prod. (kWh/ano)</th>
+                                        <th className="px-2 py-2 text-right">Receita (R$/ano)</th>
+                                        <th className="px-2 py-2 text-right">Com Solar (R$/ano)</th>
+                                        <th className="px-2 py-2 text-right">Com Solar Acum.</th>
+                                        <th className="px-2 py-2 text-right">Economia (R$/ano)</th>
+                                        <th className="px-2 py-2 text-right">Economia Acum.</th>
+                                        <th className="px-2 py-2 text-right">Fluxo (R$/ano)</th>
+                                        <th className="px-2 py-2 text-right">Fluxo Acum.</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {proj.anos.map((ano, idx) => (
+                                        <tr key={ano} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                                          <td className="px-2 py-1">{ano}</td>
+                                          <td className="px-2 py-1 text-right">{(proj.consumoMensalKwh[idx]).toFixed(2)}</td>
+                                          <td className="px-2 py-1 text-right">{(proj.consumoAnualKwh[idx]).toFixed(2)}</td>
+                                          <td className="px-2 py-1 text-right">{proj.tarifaR$kWh[idx].toFixed(4)}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.custoSemSolarAnual[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.custoSemSolarAcum[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{(proj.producaoAnualKwh[idx]).toFixed(2)}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.producaoAnualR$[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.custoComSolarAnual[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.custoComSolarAcum[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.economiaAnual[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.economiaAcum[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.fluxoCaixaAnual[idx])}</td>
+                                          <td className="px-2 py-1 text-right">{formatCurrency(proj.fluxoCaixaAcum[idx])}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </CardContent>
                     </Card>
                   </div>

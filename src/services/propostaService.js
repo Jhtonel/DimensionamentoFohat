@@ -57,7 +57,23 @@ export const propostaService = {
       console.log('📡 Headers da resposta:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
+        // Tentar extrair mensagem do backend (JSON ou texto)
+        let backendMessage = '';
+        try {
+          const ct = response.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const errJson = await response.json();
+            backendMessage = errJson?.message || errJson?.error || '';
+          } else {
+            backendMessage = await response.text();
+          }
+        } catch (_) {
+          // ignore
+        }
+        const msg = backendMessage?.trim()
+          ? backendMessage.trim()
+          : `Erro HTTP ${response.status} - ${response.statusText || 'Falha ao salvar a proposta'}`;
+        throw new Error(msg);
       }
 
       const result = await response.json();
@@ -66,8 +82,94 @@ export const propostaService = {
       return result;
     } catch (error) {
       console.error('❌ Erro ao salvar proposta no servidor:', error);
-      // Não salvar fallback local: exigimos backend para gerar imagens/gráficos
-      throw new Error('Servidor indisponível na porta 8000. Inicie o backend para salvar a proposta.');
+      // Mensagens conhecidas do backend (ex.: validações 400/422)
+      const known = [
+        'Selecione a concessionária',
+        'tarifa válida',
+        'concessionária inválida',
+        'dados inválidos',
+      ];
+      const errMsg = String(error?.message || '').toLowerCase();
+      if (known.some(k => errMsg.includes(k.toLowerCase()))) {
+        throw error;
+      }
+      // Se for erro de rede/timeout, retornar orientação de iniciar backend
+      const networkHints = ['Failed to fetch', 'NetworkError', 'TypeError: fetch', 'aborted'];
+      if (networkHints.some(h => String(error).includes(h))) {
+        throw new Error('Servidor indisponível (porta 8000). Inicie o backend e tente novamente.');
+      }
+      // Fallback genérico preservando a mensagem original
+      throw new Error(error?.message || 'Não foi possível salvar a proposta.');
+    }
+  },
+
+  /**
+   * Gera os 5 gráficos da análise financeira no backend (sem salvar proposta)
+   * @param {Object} payload - { consumo_mensal_kwh | consumo_mensal_reais, tarifa_energia, potencia_sistema, preco_venda, irradiacao_media | irradiancia_mensal_kwh_m2_dia }
+   * @returns {Promise<Object>} { graficos_base64, metrics }
+   */
+  async gerarGraficos(payload) {
+    try {
+      const response = await fetch(`${SERVER_URL}/analise/gerar-graficos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Erro ao gerar gráficos: ${response.status} ${errText || ''}`);
+      }
+      const result = await response.json();
+      if (!result?.success) {
+        throw new Error(result?.message || 'Falha ao gerar gráficos');
+      }
+      return result;
+    } catch (e) {
+      console.error('❌ Erro ao gerar gráficos:', e);
+      throw e;
+    }
+  },
+
+  /**
+   * Gera tabelas e gráficos (base64) da análise financeira
+   * @param {Object} payload - { consumo_mensal_kwh | consumo_mensal_reais+tarifa_energia, tarifa_energia, potencia_sistema/kwp, irradiacao_media|irradiancia_mensal_kwh_m2_dia, preco_venda }
+   */
+  async analiseGerarGraficos(payload) {
+    try {
+      const response = await fetch(`${SERVER_URL}/analise/gerar-graficos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(errText || `Erro ${response.status}`);
+      }
+      return await response.json();
+    } catch (e) {
+      console.error('❌ Erro ao gerar gráficos:', e);
+      return { success: false, message: e.message };
+    }
+  },
+
+  /**
+   * Anexa gráficos gerados ao JSON da proposta
+   */
+  async anexarGraficos(propostaId, body) {
+    try {
+      const res = await fetch(`${SERVER_URL}/propostas/${propostaId}/anexar-graficos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text().catch(() => '');
+        throw new Error(err || `Erro ${res.status}`);
+      }
+      return await res.json();
+    } catch (e) {
+      console.error('❌ Erro ao anexar gráficos na proposta:', e);
+      return { success: false, message: e.message };
     }
   },
 

@@ -36,5 +36,6 @@
   "comissao_vendedor": 5,
   "custo_ca_aterramento": 0,
   "custo_plaquinhas": 60,
-  "custo_obra": 0.0
+  "custo_obra": 0.0,
+  "status": "dimensionamento"
 }

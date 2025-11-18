@@ -3,7 +3,7 @@ import { Button } from '../../components/ui/button';
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { propostaService } from '../../services/propostaService';
-import { Projeto } from '../../entities';
+import { Projeto, Configuracao } from '../../entities';
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete }) {
   const [propostaSalva, setPropostaSalva] = useState(false);
@@ -13,6 +13,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   const [showPreview, setShowPreview] = useState(false);
   const [propostaData, setPropostaData] = useState(null);
   const pdfRef = useRef(null);
+  const autoTimerRef = useRef(null);
 
   // Função para obter dados seguros com fallbacks
   // Funções auxiliares para calcular valores financeiros
@@ -134,12 +135,37 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       }
     }
 
+    // Calcular economia mensal estimada alinhada com a aba de Custos
+    const tarifaKwhCalc = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
+      ? Number(formData.tarifa_energia)
+      : 0;
+    const consumoMensalKwhBase = (() => {
+      const kwh = Number(formData?.consumo_mensal_kwh) || 0;
+      if (kwh > 0) return kwh;
+      const reais = Number(formData?.consumo_mensal_reais) || 0;
+      return (reais > 0 && tarifaKwhCalc > 0) ? (reais / tarifaKwhCalc) : 0;
+    })();
+    const prodMensalEst = (() => {
+      const a = Number(projecoes?.geracao_mensal_estimada || projecoes?.geracao_media_mensal || 0);
+      if (a > 0) return a;
+      const b = Number(resultados?.geracao_media_mensal || 0);
+      if (b > 0) return b;
+      const pot = Number(dadosBase?.potencia_sistema_kwp || kit?.potencia || 0);
+      const irr = Number(formData?.irradiacao_media || 5.15) || 5.15;
+      const pr = 0.85;
+      return pot > 0 ? pot * irr * 30.4 * pr : 0;
+    })();
+    const economiaMensalEstCalc = (tarifaKwhCalc > 0)
+      ? Math.min(Math.max(consumoMensalKwhBase, 0), Math.max(prodMensalEst, 0)) * tarifaKwhCalc
+      : 0;
+
     const dadosSeguros = {
       potencia_sistema_kwp: dadosBase.potencia_sistema_kwp || kit.potencia || 0,
       quantidade_placas: quantidade_placas,
       potencia_placa_w: potencia_placa_w,
-      preco_final: dadosBase.preco_venda || kit.precoTotal || 0,
-      economia_mensal_estimada: projecoes.economia_mensal_estimada || 0,
+      // Prioriza o preço de venda calculado e salvo no form
+      preco_final: formData?.preco_venda || (dadosBase.preco_final ?? dadosBase.preco_venda) || kit.precoTotal || 0,
+      economia_mensal_estimada: economiaMensalEstCalc || projecoes.economia_mensal_estimada || 0,
       payback_meses: projecoes.payback_meses || 0,
       economia_total_25_anos: projecoes.economia_total_25_anos || 0,
       consumo_mensal_kwh: formData?.consumo_mensal_kwh || 0,
@@ -153,7 +179,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       custo_homologacao: projecoes.custo_homologacao || 0,
       custo_outros: projecoes.custo_outros || 0,
       margem_lucro: projecoes.margem_lucro || 0,
-      tarifa_energia: formData?.tarifa_energia || (formData?.consumo_mensal_reais / (formData?.consumo_mensal_kwh || 1)) || 0.75,
+      // Tarifa: não derive com divisão por 1; use apenas o valor válido do formulário
+      tarifa_energia: (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
+        ? Number(formData.tarifa_energia)
+        : 0,
     // Dados financeiros calculados
     conta_atual_anual: calcularContaAtualAnual(),
     anos_payback: Math.round((projecoes.payback_meses || 0) / 12),
@@ -175,7 +204,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
   // useEffect para auto-geração da proposta
   useEffect(() => {
-    if (autoGenerateProposta && formData && !showPreview) {
+    if (autoGenerateProposta && formData && !showPreview && !propostaSalva && !isGeneratingPDF) {
       console.log('🚀 Auto-geração da proposta ativada!');
       console.log('🔍 Verificando dados disponíveis:', {
         formData: !!formData,
@@ -185,11 +214,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       });
       
       // Aguardar um pouco para garantir que os dados estejam disponíveis
-      setTimeout(() => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+      }
+      autoTimerRef.current = setTimeout(() => {
         salvarProposta();
-      }, 1000);
+        autoTimerRef.current = null;
+      }, 800);
     }
-  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras]);
+  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras, propostaSalva, isGeneratingPDF]);
 
   // useEffect para notificar quando a auto-geração for concluída
   useEffect(() => {
@@ -272,10 +305,40 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   }, [formData, clientes, dadosSeguros, configs, templateContent]);
 
   const salvarProposta = async () => {
+    if (isGeneratingPDF || propostaSalva) {
+      console.log('⏸️ Salvamento ignorado (em andamento ou já salvo).');
+      return;
+    }
     setIsGeneratingPDF(true);
 
     try {
       console.log('🔄 Salvando proposta no servidor...');
+
+      // Garantir tarifa válida (fallback pela concessionária)
+      let tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
+        ? Number(formData.tarifa_energia)
+        : 0;
+      if ((!tarifaParaEnvio || tarifaParaEnvio <= 0 || tarifaParaEnvio > 10) && formData?.concessionaria) {
+        try {
+          const t = await Configuracao.getTarifaByConcessionaria(formData.concessionaria);
+          if (t && t > 0 && t <= 10) {
+            tarifaParaEnvio = t;
+          }
+        } catch (_) {}
+      }
+      // Derivar consumo kWh se necessário (a partir de R$ e tarifa válida)
+      let consumoKwhParaEnvio = Number(formData?.consumo_mensal_kwh) || 0;
+      if ((consumoKwhParaEnvio <= 0) && Number(formData?.consumo_mensal_reais) > 0 && tarifaParaEnvio > 0) {
+        consumoKwhParaEnvio = Number(formData.consumo_mensal_reais) / tarifaParaEnvio;
+      }
+
+      // Calcular payback (anos) com 1 casa decimal para alinhar com a aba de custos
+      const precoVendaParaPayback = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+      const economiaMensalParaPayback = Number(dadosSeguros?.economia_mensal_estimada || 0);
+      const anosPaybackPrecisao = economiaMensalParaPayback > 0
+        ? Math.round((precoVendaParaPayback / (economiaMensalParaPayback * 12)) * 10) / 10
+        : 0;
+      const paybackMesesPrecisao = Math.round(anosPaybackPrecisao * 12);
 
       // Preparar dados da proposta para o servidor
       const propostaData = {
@@ -284,7 +347,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         cliente_endereco: formData?.endereco_completo || clientes.find(c => c.id === formData?.cliente_id)?.endereco_completo || 'Endereço não informado',
         cliente_telefone: clientes.find(c => c.id === formData?.cliente_id)?.telefone || 'Telefone não informado',
         potencia_sistema: dadosSeguros.potencia_sistema_kwp,
-        preco_final: dadosSeguros.preco_final,
+        // A proposta deve usar o preço de venda; enviamos explicitamente
+        preco_venda: precoVendaParaPayback,
+        preco_final: precoVendaParaPayback,
+        concessionaria: formData?.concessionaria || '',
         cidade: formData?.cidade || 'Projeto',
         vendedor_nome: configs.vendedor_nome || 'Representante Comercial',
         vendedor_cargo: configs.vendedor_cargo || 'Especialista em Energia Solar',
@@ -292,11 +358,14 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         vendedor_email: configs.vendedor_email || 'contato@empresa.com',
         // Dados financeiros
         conta_atual_anual: dadosSeguros.conta_atual_anual || 0,
-        anos_payback: dadosSeguros.anos_payback || 0,
+        anos_payback: anosPaybackPrecisao || 0,
+        payback_anos: anosPaybackPrecisao || 0,
+        payback_meses: paybackMesesPrecisao || 0,
         gasto_acumulado_payback: dadosSeguros.gasto_acumulado_payback || 0,
-        consumo_mensal_kwh: formData?.consumo_mensal_kwh || 0,
+        consumo_mensal_kwh: consumoKwhParaEnvio || 0,
         consumo_mes_a_mes: Array.isArray(formData?.consumo_mes_a_mes) ? formData.consumo_mes_a_mes : [],
-        tarifa_energia: dadosSeguros.tarifa_energia || 0.75,
+        // Usar apenas tarifa válida do formulário (preenchida a partir da concessionária)
+        tarifa_energia: tarifaParaEnvio || 0,
         economia_mensal_estimada: dadosSeguros.economia_mensal_estimada || 0,
         // Dados do kit
         quantidade_placas: dadosSeguros.quantidade_placas || 0,
@@ -315,6 +384,33 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         custo_outros: dadosSeguros.custo_outros || 0,
         margem_lucro: dadosSeguros.margem_lucro || 0
       };
+
+      // 1) Geração dos gráficos antes de salvar (analise financeira)
+      try {
+        const graficosPayload = {
+          consumo_mensal_kwh: consumoKwhParaEnvio || undefined,
+          consumo_mensal_reais: Number(formData?.consumo_mensal_reais) || undefined,
+          tarifa_energia: tarifaParaEnvio || 0,
+          potencia_sistema: propostaData.potencia_sistema,
+          preco_venda: propostaData.preco_venda,
+          irradiacao_media: propostaData.irradiacao_media,
+          irradiancia_mensal_kwh_m2_dia: formData?.irradiancia_mensal_kwh_m2_dia || undefined,
+        };
+        const graficosResp = await propostaService.gerarGraficos(graficosPayload);
+        if (graficosResp?.graficos_base64) {
+          propostaData.graficos_base64 = graficosResp.graficos_base64;
+        }
+        // Se backend sugerir anos_payback/economia, não sobreescrevemos o que já calculamos,
+        // mas poderíamos sincronizar se vier vazio.
+        if (!propostaData.anos_payback && graficosResp?.metrics?.anos_payback_formula) {
+          propostaData.anos_payback = graficosResp.metrics.anos_payback_formula;
+        }
+        if (!propostaData.economia_mensal_estimada && graficosResp?.metrics?.economia_mensal_estimada) {
+          propostaData.economia_mensal_estimada = graficosResp.metrics.economia_mensal_estimada;
+        }
+      } catch (e) {
+        console.warn('⚠️ Não foi possível gerar gráficos antes de salvar:', e?.message || e);
+      }
 
       console.log('📊 Dados da proposta para o servidor:', propostaData);
       console.log('💰 Valores financeiros específicos sendo enviados:', {

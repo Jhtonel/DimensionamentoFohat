@@ -33,6 +33,8 @@ from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB
 from analise_financeira import calcular_tabelas as af_calcular_tabelas
 from analise_financeira import gerar_graficos_base64 as af_gerar_graficos_base64
 from analise_financeira import irradiancia_mensal_kwh_m2_dia_ex as af_irr_mensal_ex
+import requests
+from datetime import date
 #
 # Firebase Admin (opcional, para gerenciar usuários do Auth)
 FIREBASE_ADMIN_AVAILABLE = False
@@ -118,6 +120,23 @@ DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 ROLES_FILE = DATA_DIR / "users_roles.json"
 
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+def format_brl(value) -> str:
+    """Formata valor em BRL como R$ 0.000,00."""
+    try:
+        v = float(value)
+    except Exception:
+        try:
+            v = float(str(value).replace('R$', '').replace('.', '').replace(',', '.').strip())
+        except Exception:
+            return f"R$ {value}"
+    s = f"R$ {v:,.2f}"
+    # Converter estilo en-US para pt-BR
+    return s.replace(',', 'X').replace('.', ',').replace('X', '.')
+TAXAS_FILE = DATA_DIR / "taxas_distribuicao.json"
+
 def _load_roles() -> dict:
     try:
         if ROLES_FILE.exists():
@@ -135,6 +154,69 @@ def _save_roles(mapping: dict) -> None:
             json.dump(mapping, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"⚠️ Falha ao salvar roles: {e}")
+
+def _slug(s: str) -> str:
+    return ''.join(ch.lower() if ch.isalnum() else '_' for ch in (s or '')).strip('_')
+
+def _load_taxas() -> dict:
+    if TAXAS_FILE.exists():
+        try:
+            with open(TAXAS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_taxas(mapping: dict) -> None:
+    with open(TAXAS_FILE, "w", encoding="utf-8") as f:
+        json.dump(mapping, f, ensure_ascii=False, indent=2)
+
+def _calcular_disponibilidade(te_rskwh: float, tusd_rskwh: float, tipo: str) -> float:
+    # Custo de disponibilidade (Grupo B, RN 1000): mono 30 kWh; bi 50; tri 100
+    kwh_min = 30 if tipo == "monofasica" else 50 if tipo == "bifasica" else 100
+    return float(kwh_min) * (float(te_rskwh) + float(tusd_rskwh))
+
+def _fetch_estrutura_tarifaria_aneel() -> list[dict]:
+    url = "https://dados.aneel.gov.br/dataset/estrutura-tarifaria/resource/6f7bd2f1-1a0a-4b3a-9d4f-0cefa5f46ccf/download/estrutura_tarifaria_grupo_b.csv"
+    r = requests.get(url, timeout=60)
+    r.raise_for_status()
+    # csv -> linhas
+    import csv, io
+    reader = csv.DictReader(io.StringIO(r.text), delimiter=';')
+    return list(reader)
+
+def _atualizar_taxas_distribuicao():
+    rows = _fetch_estrutura_tarifaria_aneel()
+    # mapear colunas possíveis
+    def pick(row, keys):
+        for k in keys:
+            if k in row and row[k]:
+                return row[k]
+        return ""
+    taxa_map = _load_taxas()
+    for row in rows:
+        nome = pick(row, ["Distribuidora", "Empresa", "Concessionaria", "Empreendimento"]).strip()
+        classe = pick(row, [k for k in row.keys() if "classe" in k.lower()]).lower()
+        if not nome or "resid" not in classe or "b1" not in classe:
+            continue
+        # TE/TUSD em R$/MWh -> R$/kWh
+        te = pick(row, [k for k in row.keys() if "te" in k.lower() and "r$" in k.lower()])
+        tusd = pick(row, [k for k in row.keys() if "tusd" in k.lower() and "r$" in k.lower()])
+        try:
+            te_kwh = float(str(te).replace(',', '.')) / 1000.0
+            tusd_kwh = float(str(tusd).replace(',', '.')) / 1000.0
+        except Exception:
+            continue
+        slug = _slug(nome)
+        taxa_map[slug] = {
+            "nome": nome,
+            "monofasica": round(_calcular_disponibilidade(te_kwh, tusd_kwh, "monofasica"), 2),
+            "bifasica": round(_calcular_disponibilidade(te_kwh, tusd_kwh, "bifasica"), 2),
+            "trifasica": round(_calcular_disponibilidade(te_kwh, tusd_kwh, "trifasica"), 2),
+            "fonte": "ANEEL: Estrutura Tarifária Grupo B (TE/TUSD sem impostos)"
+        }
+    _save_taxas(taxa_map)
+    return taxa_map
 
 def convert_image_to_base64(image_path):
     """Converte uma imagem para base64"""
@@ -631,12 +713,24 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         # Extrair parâmetros da proposta
         def to_float(value, default=0.0):
             try:
+                if isinstance(value, str):
+                    s = value.strip()
+                    # remover moeda/espacos e normalizar separadores BR -> EN
+                    for token in ['R$', 'r$', ' ']:
+                        s = s.replace(token, '')
+                    s = s.replace('.', '').replace(',', '.')
+                    return float(s)
                 return float(value)
             except (TypeError, ValueError):
                 return default
 
         consumo_medio_kwh_mes = to_float(proposta_data.get('consumo_mensal_kwh', 0), 0.0)
-        tarifa_atual_r_kwh = to_float(proposta_data.get('tarifa_energia', 0.75), 0.75)
+        tarifa_atual_r_kwh = to_float(proposta_data.get('tarifa_energia', 0.0), 0.0)
+        # Fallback: se consumo kWh vier 0 mas existe consumo em R$, derive kWh
+        if consumo_medio_kwh_mes <= 0:
+            consumo_reais = to_float(proposta_data.get('consumo_mensal_reais', 0), 0.0)
+            if consumo_reais > 0 and tarifa_atual_r_kwh > 0:
+                consumo_medio_kwh_mes = consumo_reais / tarifa_atual_r_kwh
         potencia_kwp = to_float(proposta_data.get('potencia_sistema', 0), 0.0)
         valor_usina = to_float(
             proposta_data.get('preco_venda',
@@ -721,7 +815,18 @@ def process_template_html(proposta_data):
             template_html = template_html.replace('src="/img/como-funciona.png"', f'src="{como_funciona_base64}"')
             template_html = template_html.replace('src="img/como-funciona.png"', f'src="{como_funciona_base64}"')
         
-        # Substituir todas as variáveis {{}} no template
+        # ====== Modo sem cálculo: usar apenas valores pré-calculados que vieram no payload ======
+        try:
+            print("🔎 [process_template_html] no-compute: usando valores fornecidos.")
+            conta_atual_anual_calc = float(proposta_data.get('conta_atual_anual', 0) or 0)
+            anos_payback_calc = float(proposta_data.get('anos_payback', 0) or 0)
+            gasto_acum_payback_calc = float(proposta_data.get('gasto_acumulado_payback', 0) or 0)
+        except Exception:
+            conta_atual_anual_calc = float(proposta_data.get('conta_atual_anual', 0) or 0)
+            anos_payback_calc = float(proposta_data.get('anos_payback', 0) or 0)
+            gasto_acum_payback_calc = float(proposta_data.get('gasto_acumulado_payback', 0) or 0)
+
+        # Substituir todas as variáveis {{}} no template (agora com valores normalizados)
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
         endereco_resumido = format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade'))
         template_html = template_html.replace('{{cliente_endereco}}', endereco_resumido)
@@ -739,7 +844,7 @@ def process_template_html(proposta_data):
         # Substituir variáveis financeiras
         template_html = template_html.replace('{{conta_atual_anual}}', f"R$ {proposta_data.get('conta_atual_anual', 0):,.2f}")
         template_html = template_html.replace('{{anos_payback}}', str(proposta_data.get('anos_payback', 0)))
-        template_html = template_html.replace('{{gasto_acumulado_payback}}', f"R$ {proposta_data.get('gasto_acumulado_payback', 0):,.2f}")
+        # Não substituir aqui o {{gasto_acumulado_payback}}. Vamos definir após calcular o gráfico
         template_html = template_html.replace('{{consumo_mensal_kwh}}', str(int(float(proposta_data.get('consumo_mensal_kwh', 0)))))
         template_html = template_html.replace('{{tarifa_energia}}', f"{proposta_data.get('tarifa_energia', 0.75):.3f}")
         template_html = template_html.replace('{{economia_mensal_estimada}}', f"R$ {proposta_data.get('economia_mensal_estimada', 0):,.2f}")
@@ -760,104 +865,72 @@ def process_template_html(proposta_data):
         template_html = template_html.replace('{{custo_instalacao}}', f"R$ {proposta_data.get('custo_instalacao', 0):,.2f}")
         template_html = template_html.replace('{{custo_homologacao}}', f"R$ {proposta_data.get('custo_homologacao', 0):,.2f}")
         template_html = template_html.replace('{{custo_outros}}', f"R$ {proposta_data.get('custo_outros', 0):,.2f}")
+        # Detalhamento adicional de custos calculados antes de gerar a proposta
+        template_html = template_html.replace('{{custo_ca_aterramento}}', f"R$ {proposta_data.get('custo_ca_aterramento', 0):,.2f}")
+        template_html = template_html.replace('{{custo_plaquinhas}}', f"R$ {proposta_data.get('custo_plaquinhas', 0):,.2f}")
+        template_html = template_html.replace('{{custo_obra}}', f"R$ {proposta_data.get('custo_obra', 0):,.2f}")
+        template_html = template_html.replace('{{preco_venda}}', f"R$ {proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)):,.2f}")
+        try:
+            _comissao_pct_b = float(proposta_data.get('comissao_vendedor', 0))
+        except Exception:
+            _comissao_pct_b = 0.0
+        template_html = template_html.replace('{{comissao_vendedor}}', f"{_comissao_pct_b:.2f}%")
+        try:
+            _margem_desejada_b = float(proposta_data.get('margem_desejada', 0))
+        except Exception:
+            _margem_desejada_b = 0.0
+        template_html = template_html.replace('{{margem_desejada}}', f"{_margem_desejada_b:.1f}%")
         template_html = template_html.replace('{{margem_lucro}}', f"R$ {proposta_data.get('margem_lucro', 0):,.2f}")
+        # Detalhamento adicional de custos calculados antes de gerar a proposta
+        template_html = template_html.replace('{{custo_ca_aterramento}}', f"R$ {proposta_data.get('custo_ca_aterramento', 0):,.2f}")
+        template_html = template_html.replace('{{custo_plaquinhas}}', f"R$ {proposta_data.get('custo_plaquinhas', 0):,.2f}")
+        template_html = template_html.replace('{{custo_obra}}', f"R$ {proposta_data.get('custo_obra', 0):,.2f}")
+        template_html = template_html.replace('{{preco_venda}}', f"R$ {proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)):,.2f}")
+        try:
+            _comissao_pct = float(proposta_data.get('comissao_vendedor', 0))
+        except Exception:
+            _comissao_pct = 0.0
+        template_html = template_html.replace('{{comissao_vendedor}}', f"{_comissao_pct:.2f}%")
+        try:
+            _margem_desejada = float(proposta_data.get('margem_desejada', 0))
+        except Exception:
+            _margem_desejada = 0.0
+        template_html = template_html.replace('{{margem_desejada}}', f"{_margem_desejada:.1f}%")
         
-        # ====== GERAR TODOS OS GRÁFICOS ======
-        conta_atual_anual = proposta_data.get('conta_atual_anual', 0)
-        
-        if conta_atual_anual > 0:
-            # Calcular valores para os gráficos
-            gasto_mensal_atual = conta_atual_anual / 12
-            gastos_anuais = []
-            for ano in range(1, 26):
-                gasto_anual = gasto_mensal_atual * (1.041 ** (ano - 1)) * 12
-                gastos_anuais.append(gasto_anual)
-            
-            soma_acumulada = 0
-            gastos_acumulados = []
-            for gasto_anual in gastos_anuais:
-                soma_acumulada += gasto_anual
-                gastos_acumulados.append(soma_acumulada)
-            
-            indices_anos = [0, 4, 9, 14, 19, 24]
-            valores = [gastos_acumulados[i] for i in indices_anos]
-            labels = ['Ano 1', 'Ano 5', 'Ano 10', 'Ano 15', 'Ano 20', 'Ano 25']
-            cores = ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A']
-            
-            # Gráfico Slide-03
-            chart_base64 = generate_chart_base64('bar', valores, labels, "Seu Gasto Atual", cores, figsize=(20, 14))
-            if chart_base64:
-                import re
-                pattern = r'id="grafico-slide-03" src="[^"]*"'
-                replacement = f'id="grafico-slide-03" src="{chart_base64}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            
-            # Gráfico Slide-04
-            chart_base64_linha = generate_chart_base64('line', valores, labels, "Evolução da Conta de Luz (25 anos)", ['#3b82f6'])
-            if chart_base64_linha:
-                import re
-                pattern = r'id="grafico-slide-04" src="[^"]*"'
-                replacement = f'id="grafico-slide-04" src="{chart_base64_linha}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            
-            # Gráfico Slide-05
-            meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-            producao_mensal = [120, 110, 130, 100, 90, 80, 85, 95, 110, 125, 135, 140]
-            consumo_mensal = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
-            chart_base64_slide05 = generate_chart_base64('dual_bar', [producao_mensal, consumo_mensal], meses, "Consumo x Geração (kWh/mês)", ['#2ca02c', '#d62728'])
-            if chart_base64_slide05:
-                import re
-                pattern = r'id="grafico-slide-05" src="[^"]*"'
-                replacement = f'id="grafico-slide-05" src="{chart_base64_slide05}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            
-            # Gráfico Slide-06
-            economia_mensal = proposta_data.get('economia_mensal_estimada', 75)
-            anos_payback = ['Ano 1', 'Ano 2', 'Ano 3', 'Ano 4', 'Ano 5']
-            economia_acumulada = [economia_mensal * 12 * (i + 1) for i in range(5)]
-            chart_base64_slide06 = generate_chart_base64('line', economia_acumulada, anos_payback, "Economia Acumulada vs Investimento", ['#2ca02c'])
-            if chart_base64_slide06:
-                pattern = r'id="grafico-slide-06" src="[^"]*"'
-                replacement = f'id="grafico-slide-06" src="{chart_base64_slide06}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            
-            # Gráfico Slide-09
-            conta_ano_1 = valores[0]
-            conta_ano_5 = valores[1]
-            conta_ano_10 = valores[2]
-            conta_ano_15 = valores[3]
-            conta_ano_20 = valores[4]
-            conta_ano_25 = valores[5]
-            
-            gastos_sem_solar = [conta_atual_anual, conta_ano_5, conta_ano_10, conta_ano_15, conta_ano_20, conta_ano_25]
-            chart_base64_slide09 = generate_chart_base64('line', gastos_sem_solar, labels, "Evolução dos Gastos - Próximos 25 Anos", ['#d62728'], figsize=(18, 10))
-            if chart_base64_slide09:
-                pattern = r'id="grafico-slide-09" src="[^"]*"'
-                replacement = f'id="grafico-slide-09" src="{chart_base64_slide09}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            
-            # Substituir valores das contas
-            valor_maximo = conta_ano_25
-            altura_barra_ano_1 = int((conta_ano_1 / valor_maximo) * 100)
-            altura_barra_ano_5 = int((conta_ano_5 / valor_maximo) * 100)
-            altura_barra_ano_10 = int((conta_ano_10 / valor_maximo) * 100)
-            altura_barra_ano_15 = int((conta_ano_15 / valor_maximo) * 100)
-            altura_barra_ano_20 = int((conta_ano_20 / valor_maximo) * 100)
-            altura_barra_ano_25 = 100
-            
-            template_html = template_html.replace('{{altura_barra_ano_1}}', f"{altura_barra_ano_1}px")
-            template_html = template_html.replace('{{altura_barra_ano_5}}', f"{altura_barra_ano_5}px")
-            template_html = template_html.replace('{{altura_barra_ano_10}}', f"{altura_barra_ano_10}px")
-            template_html = template_html.replace('{{altura_barra_ano_15}}', f"{altura_barra_ano_15}px")
-            template_html = template_html.replace('{{altura_barra_ano_20}}', f"{altura_barra_ano_20}px")
-            template_html = template_html.replace('{{altura_barra_ano_25}}', f"{altura_barra_ano_25}px")
-            
-            template_html = template_html.replace('{{conta_ano_1}}', f"R$ {conta_ano_1:,.2f}")
-            template_html = template_html.replace('{{conta_ano_5}}', f"R$ {conta_ano_5:,.2f}")
-            template_html = template_html.replace('{{conta_ano_10}}', f"R$ {conta_ano_10:,.2f}")
-            template_html = template_html.replace('{{conta_ano_15}}', f"R$ {conta_ano_15:,.2f}")
-            template_html = template_html.replace('{{conta_ano_20}}', f"R$ {conta_ano_20:,.2f}")
-            template_html = template_html.replace('{{conta_ano_25}}', f"R$ {conta_ano_25:,.2f}")
+        # ====== Sem gerar novos gráficos: aplicar somente os já fornecidos (se existirem) ======
+        try:
+            graficos = proposta_data.get('graficos_base64')
+            if isinstance(graficos, dict):
+                id_map = {
+                    "grafico1": "grafico-slide-03",
+                    "grafico2": "grafico-slide-04",
+                    "grafico3": "grafico-slide-05",
+                    "grafico4": "grafico-slide-06",
+                    "grafico5": "grafico-slide-09",
+                }
+                # Helper robusto para substituir src do <img id="...">
+                def _inject_img_src(html: str, element_id: str, new_src: str) -> str:
+                    # 1) Se já existe src no mesmo tag (ordem de atributos indiferente, aspas simples/duplas)
+                    pattern1 = re.compile(
+                        r'(<img\b[^>]*\bid=["\']%s["\'][^>]*\bsrc=["\'])([^"\']*)(["\'][^>]*>)' % re.escape(element_id),
+                        flags=re.IGNORECASE
+                    )
+                    if pattern1.search(html):
+                        return pattern1.sub(r'\1' + new_src + r'\3', html)
+                    # 2) Se não tem src ainda, injeta antes do fechamento do tag
+                    pattern2 = re.compile(
+                        r'(<img\b[^>]*\bid=["\']%s["\'][^>]*)(>)' % re.escape(element_id),
+                        flags=re.IGNORECASE
+                    )
+                    if pattern2.search(html):
+                        return pattern2.sub(r'\1 src="' + new_src + r'"\2', html)
+                    return html
+
+                for k, v in graficos.items():
+                    if k in id_map and v:
+                        template_html = _inject_img_src(template_html, id_map[k], v)
+        except Exception as _e:
+            print(f"⚠️ Falha ao injetar gráficos prontos: {_e}")
         
         # Substituir variáveis restantes com valores padrão
         template_html = template_html.replace('{{conta_futura_25_anos}}', f"R$ {proposta_data.get('conta_futura_25_anos', proposta_data.get('conta_atual_anual', 0) * 5.4):,.2f}")
@@ -943,11 +1016,18 @@ def process_template_html(proposta_data):
         template_html = template_html.replace('{{altura_investimento}}', str(int(altura_investimento)))
         
         gasto_maximo = conta_anual * 5.4
-        template_html = template_html.replace('{{altura_ano_5_com_solar}}', str(int(((investimento_inicial + 500) / gasto_maximo) * 100)))
-        template_html = template_html.replace('{{altura_ano_10_com_solar}}', str(int(((investimento_inicial + 1000) / gasto_maximo) * 100)))
-        template_html = template_html.replace('{{altura_ano_15_com_solar}}', str(int(((investimento_inicial + 1500) / gasto_maximo) * 100)))
-        template_html = template_html.replace('{{altura_ano_20_com_solar}}', str(int(((investimento_inicial + 2000) / gasto_maximo) * 100)))
-        template_html = template_html.replace('{{altura_ano_25_com_solar}}', str(int(((investimento_inicial + 2500) / gasto_maximo) * 100)))
+        if gasto_maximo <= 0:
+            template_html = template_html.replace('{{altura_ano_5_com_solar}}', '0')
+            template_html = template_html.replace('{{altura_ano_10_com_solar}}', '0')
+            template_html = template_html.replace('{{altura_ano_15_com_solar}}', '0')
+            template_html = template_html.replace('{{altura_ano_20_com_solar}}', '0')
+            template_html = template_html.replace('{{altura_ano_25_com_solar}}', '0')
+        else:
+            template_html = template_html.replace('{{altura_ano_5_com_solar}}', str(int(((investimento_inicial + 500) / gasto_maximo) * 100)))
+            template_html = template_html.replace('{{altura_ano_10_com_solar}}', str(int(((investimento_inicial + 1000) / gasto_maximo) * 100)))
+            template_html = template_html.replace('{{altura_ano_15_com_solar}}', str(int(((investimento_inicial + 1500) / gasto_maximo) * 100)))
+            template_html = template_html.replace('{{altura_ano_20_com_solar}}', str(int(((investimento_inicial + 2000) / gasto_maximo) * 100)))
+            template_html = template_html.replace('{{altura_ano_25_com_solar}}', str(int(((investimento_inicial + 2500) / gasto_maximo) * 100)))
         
         template_html = template_html.replace('{{valor_maximo_economia}}', f"R$ {proposta_data.get('valor_maximo_economia', proposta_data.get('economia_total_25_anos', 0)):,.2f}")
         template_html = template_html.replace('{{valor_medio_economia}}', f"R$ {proposta_data.get('valor_medio_economia', proposta_data.get('economia_total_25_anos', 0) / 2):,.2f}")
@@ -957,8 +1037,22 @@ def process_template_html(proposta_data):
         template_html = template_html.replace('{{valor_medio_grafico}}', f"R$ {proposta_data.get('valor_medio_grafico', conta_anual * 2.7):,.2f}")
         template_html = template_html.replace('{{valor_minimo_grafico}}', f"R$ {proposta_data.get('valor_minimo_grafico', conta_anual):,.2f}")
         
-        # Aplicar gráficos oficiais (5 gráficos) usando analise_financeira
-        template_html = apply_analise_financeira_graphs(template_html, proposta_data)
+        # Não recalcular gráficos aqui. Se necessário, uma etapa anterior deve ter gerado e enviado.
+
+        # Fallback: caso '{{gasto_acumulado_payback}}' ainda não tenha sido substituído (ex.: conta_atual_anual=0),
+        # usar o valor calculado a partir da conta anual e do payback, se existir.
+        if '{{gasto_acumulado_payback}}' in template_html:
+            try:
+                metrics = proposta_data.get('metrics') or {}
+                # Preferir o acumulado de 25 anos calculado na análise financeira, se existir
+                metric_gap = metrics.get('gasto_acumulado_sem_solar_25')
+                if metric_gap is not None:
+                    _gap = float(metric_gap)
+                else:
+                    _gap = float(proposta_data.get('gasto_acumulado_payback', 0) or gasto_acum_payback_calc or 0)
+            except Exception:
+                _gap = 0.0
+            template_html = template_html.replace('{{gasto_acumulado_payback}}', format_brl(_gap))
         return template_html
         
     except Exception as e:
@@ -966,6 +1060,198 @@ def process_template_html(proposta_data):
         import traceback
         traceback.print_exc()
         raise
+
+@app.route('/config/taxas-distribuicao', methods=['GET'])
+def get_taxas_distribuicao():
+    """
+    Lista o mapa de taxas de distribuição mensais por concessionária.
+    """
+    try:
+        return jsonify({"success": True, "items": _load_taxas()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/taxas-distribuicao', methods=['POST'])
+def upsert_taxa_distribuicao():
+    """
+    Upsert manual (Admin) no mapa de taxas:
+    Body: { "concessionaria": "enel_sp", "nome": "Enel SP", "monofasica": 40, "bifasica": 65, "trifasica": 130 }
+    """
+    try:
+        body = request.get_json() or {}
+        slug = ''.join(ch.lower() if ch.isalnum() else '_' for ch in (body.get("concessionaria") or body.get("nome") or "")).strip('_')
+        if not slug:
+            return jsonify({"success": False, "message": "Concessionária inválida"}), 400
+        cur = _load_taxas()
+        cur[slug] = {
+            "nome": body.get("nome") or slug,
+            "monofasica": float(body.get("monofasica") or 0),
+            "bifasica": float(body.get("bifasica") or 0),
+            "trifasica": float(body.get("trifasica") or 0),
+            "fonte": body.get("fonte") or "Admin"
+        }
+        _save_taxas(cur)
+        return jsonify({"success": True, "items": cur})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/taxas-distribuicao/atualizar-aneel', methods=['POST'])
+def atualizar_taxas_aneel():
+    """
+    Atualiza automaticamente pela ANEEL (Estrutura Tarifária Grupo B).
+    """
+    try:
+        taxa_map = _atualizar_taxas_distribuicao()
+        return jsonify({"success": True, "items": taxa_map})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/analise/gerar-graficos', methods=['POST'])
+def analise_gerar_graficos():
+    """
+    Gera tabelas da análise financeira e devolve os 5 gráficos em base64,
+    além de métricas úteis (payback natural por fluxo, valores resumidos).
+    Nenhum dado é persistido aqui; a tela de análise deve chamar este endpoint
+    antes de salvar/gerar a proposta.
+    """
+    try:
+        body = request.get_json() or {}
+
+        def _to_float(v, d=0.0):
+            try:
+                if isinstance(v, str):
+                    s = v.strip()
+                    for token in ['R$', 'r$', ' ']:
+                        s = s.replace(token, '')
+                    s = s.replace('.', '').replace(',', '.')
+                    return float(s)
+                return float(v)
+            except Exception:
+                return d
+
+        # Entradas (aceita tanto nomes "frontend" quanto "backend")
+        consumo_kwh = _to_float(body.get('consumo_mensal_kwh', body.get('consumo_medio_kwh_mes', 0)), 0.0)
+        consumo_reais = _to_float(body.get('consumo_mensal_reais', 0), 0.0)
+        tarifa = _to_float(body.get('tarifa_energia', 0), 0.0)
+        potencia_kwp = _to_float(body.get('potencia_kwp', body.get('potencia_sistema', 0)), 0.0)
+        preco_venda = _to_float(body.get('preco_venda', body.get('preco_final', 0)), 0.0)
+
+        # Vetor de irradiância mensal opcional; senão replicar média
+        irr_vec_in = body.get('irradiancia_mensal_kwh_m2_dia')
+        if isinstance(irr_vec_in, list) and len(irr_vec_in) == 12:
+            irr_vec = [_to_float(v, 0.0) for v in irr_vec_in]
+        else:
+            irr_media = _to_float(body.get('irradiacao_media', 5.15), 5.15)
+            irr_vec = af_irr_mensal_ex if isinstance(af_irr_mensal_ex, list) and len(af_irr_mensal_ex) == 12 else [irr_media] * 12
+
+        # Derivar kWh se vier apenas R$ e tarifa
+        if (consumo_kwh <= 0) and (consumo_reais > 0) and (tarifa > 0):
+            consumo_kwh = consumo_reais / tarifa
+
+        # Sanitização mínima
+        if tarifa <= 0 or tarifa > 10:
+            return jsonify({"success": False, "message": "Tarifa inválida. Informe tarifa (R$/kWh)."}), 400
+        if potencia_kwp <= 0:
+            return jsonify({"success": False, "message": "Potência do sistema (kWp) inválida."}), 400
+
+        # Tabelas 25 anos
+        tabelas = af_calcular_tabelas(
+            consumo_medio_kwh_mes=consumo_kwh,
+            tarifa_atual_r_kwh=tarifa,
+            potencia_kwp=potencia_kwp,
+            irradiancia_mensal_kwh_m2_dia=irr_vec,
+            valor_usina=preco_venda
+        )
+
+        # Gráficos base64
+        graficos = af_gerar_graficos_base64(tabelas)
+
+        # Métricas de resumo
+        df_custo = tabelas["custo_sem_solar"]
+        df_fx = tabelas["fluxo_caixa"]
+        # Gasto acumulado sem solar (ano 25)
+        gasto_acumulado_25 = float(df_custo["custo_acumulado_sem_solar_r"].iloc[24])
+        # Payback natural pelo fluxo (primeiro ano com acumulado >= 0)
+        ano_payback_fluxo = None
+        try:
+            for y, v in zip(list(df_fx["ano"]), list(df_fx["fluxo_caixa_acumulado_r"])):
+                if v >= 0:
+                    ano_payback_fluxo = int(y)
+                    break
+        except Exception:
+            ano_payback_fluxo = None
+
+        # Payback pela fórmula preco/economia (se possível)
+        economia_mensal_est = 0.0
+        try:
+            # Produção anual ano 1 / 12 (kWh/mês)
+            prod_kwh_mes_ano1 = float(tabelas["producao_anual"]["producao_anual_kwh"].iloc[0]) / 12.0
+            energia_aproveitada = min(consumo_kwh, prod_kwh_mes_ano1)
+            economia_mensal_est = energia_aproveitada * tarifa
+        except Exception:
+            pass
+        anos_payback_formula = round(preco_venda / (economia_mensal_est * 12), 1) if economia_mensal_est > 0 and preco_venda > 0 else 0.0
+
+        # Resumo de pontos do gráfico 1 (anos 1,5,10,15,20,25)
+        idxs = [0, 4, 9, 14, 19, 24]
+        pontos_sem_solar = [float(df_custo["custo_acumulado_sem_solar_r"].iloc[i]) for i in idxs]
+
+        return jsonify({
+            "success": True,
+            "graficos_base64": graficos,
+            "metrics": {
+                "consumo_medio_kwh_mes": consumo_kwh,
+                "tarifa_energia": tarifa,
+                "preco_venda": preco_venda,
+                "economia_mensal_estimada": economia_mensal_est,
+                "anos_payback_formula": anos_payback_formula,
+                "ano_payback_fluxo": ano_payback_fluxo,
+                "gasto_acumulado_sem_solar_25": gasto_acumulado_25,
+                "pontos_sem_solar": {
+                    "ano_1": pontos_sem_solar[0],
+                    "ano_5": pontos_sem_solar[1],
+                    "ano_10": pontos_sem_solar[2],
+                    "ano_15": pontos_sem_solar[3],
+                    "ano_20": pontos_sem_solar[4],
+                    "ano_25": pontos_sem_solar[5],
+                }
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/propostas/<proposta_id>/anexar-graficos', methods=['POST'])
+def anexar_graficos_a_proposta(proposta_id):
+    """
+    Atualiza o JSON da proposta anexando 'graficos_base64' e métricas já calculadas.
+    Use após chamar /analise/gerar-graficos na etapa anterior.
+    """
+    try:
+        body = request.get_json() or {}
+        graficos = body.get('graficos_base64') or {}
+        metrics = body.get('metrics') or {}
+        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+        if not proposta_file.exists():
+            return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+        with open(proposta_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(graficos, dict) and graficos:
+            data['graficos_base64'] = graficos
+        # Opcionalmente, sincroniza alguns campos úteis
+        try:
+            if 'anos_payback_formula' in metrics and float(metrics['anos_payback_formula']) > 0:
+                data['anos_payback'] = float(metrics['anos_payback_formula'])
+            if 'economia_mensal_estimada' in metrics and float(metrics['economia_mensal_estimada']) > 0:
+                data['economia_mensal_estimada'] = float(metrics['economia_mensal_estimada'])
+        except Exception:
+            pass
+        with open(proposta_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return jsonify({"success": True, "message": "Gráficos anexados à proposta."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/salvar-proposta', methods=['POST'])
 def salvar_proposta():
@@ -977,6 +1263,26 @@ def salvar_proposta():
         # Gerar ID único para a proposta
         proposta_id = str(uuid.uuid4())
         print(f"🔍 DEBUG: ID gerado: {proposta_id}")
+        
+        # Validação obrigatória: concessionária e tarifa válidas
+        def _to_float(v, d=0.0):
+            try:
+                if isinstance(v, str):
+                    s = v.strip()
+                    for token in ['R$', 'r$', ' ']:
+                        s = s.replace(token, '')
+                    s = s.replace('.', '').replace(',', '.')
+                    return float(s)
+                return float(v)
+            except Exception:
+                return d
+        concessionaria_payload = (data.get('concessionaria') or data.get('concessionária') or '').strip()
+        tarifa_payload = _to_float(data.get('tarifa_energia', 0), 0.0)
+        if not concessionaria_payload or tarifa_payload <= 0 or tarifa_payload > 10:
+            return jsonify({
+                "success": False,
+                "message": "Selecione a concessionária e informe uma tarifa válida (R$/kWh)."
+            }), 400
         
         # Preparar dados da proposta
         proposta_data = {
@@ -1001,7 +1307,7 @@ def salvar_proposta():
             'anos_payback': data.get('anos_payback', 0),
             'gasto_acumulado_payback': data.get('gasto_acumulado_payback', 0),
             'consumo_mensal_kwh': data.get('consumo_mensal_kwh', 0),
-            'tarifa_energia': data.get('tarifa_energia', 0.75),
+            'tarifa_energia': tarifa_payload,
             'economia_mensal_estimada': data.get('economia_mensal_estimada', 0),
             # Dados do kit
             'quantidade_placas': data.get('quantidade_placas', 0),
@@ -1019,93 +1325,21 @@ def salvar_proposta():
             'custo_homologacao': data.get('custo_homologacao', 0),
             'custo_outros': data.get('custo_outros', 0),
             'margem_lucro': data.get('margem_lucro', 0),
-            'comissao_vendedor': data.get('comissao_vendedor', 5)
+            'comissao_vendedor': data.get('comissao_vendedor', 5),
+            # Preservar gráficos e métricas gerados na etapa de análise (se enviados pelo frontend)
+            'graficos_base64': data.get('graficos_base64') or {},
+            'metrics': data.get('metrics') or {}
         }
-        
-        # Calcular todos os custos automaticamente usando as fórmulas da aba de custos
-        print(f"🔍 DEBUG: Iniciando cálculos automáticos")
-        print(f"🔍 DEBUG: proposta_data keys: {list(proposta_data.keys())}")
-        # Usar calculadora centralizada para todos os cálculos
-        print(f"🔍 DEBUG: Usando calculadora centralizada")
-        
+        # Garantir que a proposta use apenas o preço de venda
         try:
-            print(f"🔍 DEBUG: Criando objeto DadosProjeto...")
-            
-            # Criar objeto de dados para a calculadora
-            # Coerção de tipos para evitar erros (e.g., '499' como string)
-            def to_float(value, default=0.0):
-                try:
-                    return float(value)
-                except (TypeError, ValueError):
-                    return default
-
-            dados_projeto = DadosProjeto(
-                cliente_nome=proposta_data.get('cliente_nome', 'Cliente'),
-                cidade=proposta_data.get('cidade', 'Projeto'),
-                consumo_mensal_kwh=to_float(proposta_data.get('consumo_mensal_kwh', 0), 0.0),
-                consumo_mensal_reais=to_float(proposta_data.get('consumo_mensal_reais', 0), 0.0),
-                tarifa_energia=to_float(proposta_data.get('tarifa_energia', 0.75), 0.75),
-                potencia_sistema=to_float(proposta_data.get('potencia_sistema', 0), 0.0),
-                potencia_placa_w=to_float(proposta_data.get('potencia_placa_w', 600), 600.0),
-                custo_equipamentos=to_float(proposta_data.get('custo_equipamentos', proposta_data.get('preco_final', 0)), 0.0),
-                comissao_vendedor=to_float(proposta_data.get('comissao_vendedor', 5), 5.0),
-                irradiacao_media=to_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
-            )
-
-            # Se veio série mês a mês, usar média para priorizar cálculo
-            consumo_mes_a_mes = proposta_data.get('consumo_mes_a_mes')
-            if isinstance(consumo_mes_a_mes, list) and len(consumo_mes_a_mes) > 0:
-                try:
-                    total_anual = 0.0
-                    for item in consumo_mes_a_mes:
-                        # aceita formatos {'kwh': X} ou números diretos
-                        if isinstance(item, dict):
-                            total_anual += to_float(item.get('kwh'), 0.0)
-                        else:
-                            total_anual += to_float(item, 0.0)
-                    media_mensal = total_anual / 12 if total_anual > 0 else 0.0
-                    if media_mensal > 0:
-                        dados_projeto.consumo_mensal_kwh = media_mensal
-                except Exception as e:
-                    print(f"⚠️ Falha ao processar consumo mês a mês: {e}")
-            print(f"🔍 DEBUG: DadosProjeto criado com sucesso")
-            
-            # Executar cálculos completos
-            print(f"🔍 DEBUG: Criando calculadora...")
-            calculadora = CalculadoraSolar()
-            print(f"🔍 DEBUG: Executando cálculos completos...")
-            resultado = calculadora.calcular_projeto_completo(dados_projeto)
-            print(f"🔍 DEBUG: Cálculos completos executados com sucesso")
-            
-            # Atualizar dados da proposta com os resultados calculados
-            proposta_data.update({
-                'quantidade_placas': resultado['quantidade_placas'],
-                'potencia_sistema': resultado['potencia_sistema'],
-                'custo_equipamentos': resultado['custo_equipamentos'],
-                'custo_instalacao': resultado['custo_instalacao'],
-                'custo_ca_aterramento': resultado['custo_ca_aterramento'],
-                'custo_homologacao': resultado['custo_homologacao'],
-                'custo_plaquinhas': resultado['custo_plaquinhas'],
-                'custo_obra': resultado['custo_obra'],
-                'custo_total_projeto': resultado['custo_total'],
-                'preco_venda': resultado['preco_venda'],
-                'conta_atual_anual': resultado['conta_atual_anual'],
-                'economia_mensal_estimada': resultado['economia_mensal_estimada'],
-                'anos_payback': resultado['anos_payback'],
-                'payback_meses': resultado['payback_meses'],
-                'gasto_acumulado_payback': resultado['gasto_acumulado_payback'],
-                'economia_total_25_anos': resultado['economia_total_25_anos'],
-                'geracao_media_mensal': resultado['geracao_media_mensal']
-            })
-            print(f"🔍 DEBUG: Dados da proposta atualizados com sucesso")
-            
-        except Exception as calc_error:
-            print(f"❌ DEBUG: Erro nos cálculos: {calc_error}")
-            print(f"❌ DEBUG: Tipo do erro: {type(calc_error)}")
-            import traceback
-            print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
-            # Continuar sem cálculos se houver erro
-            print(f"🔍 DEBUG: Continuando sem cálculos automáticos...")
+            _pv = float(proposta_data.get('preco_venda', 0) or 0)
+            if _pv > 0:
+                proposta_data['preco_final'] = _pv
+        except Exception:
+            pass
+        
+        # Não realizar cálculos aqui: a análise financeira deve ocorrer antes e enviar todos os valores
+        print("ℹ️ [salvar-proposta] no-compute: mantendo valores recebidos (sem chamar calculadoras).")
         
         # Salvar dados da proposta
         proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
@@ -1297,7 +1531,7 @@ def visualizar_proposta(proposta_id):
         # Substituir variáveis financeiras
         template_html = template_html.replace('{{conta_atual_anual}}', f"R$ {proposta_data.get('conta_atual_anual', 0):,.2f}")
         template_html = template_html.replace('{{anos_payback}}', str(proposta_data.get('anos_payback', 0)))
-        template_html = template_html.replace('{{gasto_acumulado_payback}}', f"R$ {proposta_data.get('gasto_acumulado_payback', 0):,.2f}")
+        # Não substituir aqui {{gasto_acumulado_payback}} para evitar divergência.
         template_html = template_html.replace('{{consumo_mensal_kwh}}', str(int(proposta_data.get('consumo_mensal_kwh', 0))))
         template_html = template_html.replace('{{tarifa_energia}}', f"{proposta_data.get('tarifa_energia', 0.75):.3f}")
         template_html = template_html.replace('{{economia_mensal_estimada}}', f"R$ {proposta_data.get('economia_mensal_estimada', 0):,.2f}")
@@ -1800,8 +2034,10 @@ def get_user_role():
             mapping[email] = 'admin'
             _save_roles(mapping)
             print(f"🔐 Bootstrap de roles: '{email}' definido como admin.")
-        role = mapping.get(email, 'vendedor')
-        return jsonify({'role': role})
+        raw = mapping.get(email, 'vendedor')
+        role = raw.get('role') if isinstance(raw, dict) else raw
+        nome = raw.get('nome') if isinstance(raw, dict) else None
+        return jsonify({'role': role or 'vendedor', 'nome': nome})
     except Exception as e:
         return jsonify({'role': 'vendedor', 'message': str(e)}), 200
 
@@ -1812,7 +2048,12 @@ def list_roles():
     """
     try:
         mapping = _load_roles()
-        items = [{'email': k, 'role': v} for k, v in mapping.items()]
+        items = []
+        for k, v in mapping.items():
+            if isinstance(v, dict):
+                items.append({'email': k, 'role': v.get('role'), 'nome': v.get('nome')})
+            else:
+                items.append({'email': k, 'role': v})
         return jsonify({'success': True, 'items': items})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1827,10 +2068,21 @@ def upsert_role():
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()
         role = (data.get('role') or '').strip().lower()
+        nome = (data.get('nome') or '').strip() or None
         if not email or role not in ('admin', 'gestor', 'vendedor', 'instalador'):
             return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
         mapping = _load_roles()
-        mapping[email] = role
+        current = mapping.get(email)
+        if isinstance(current, dict):
+            current['role'] = role
+            if nome is not None:
+                current['nome'] = nome
+            mapping[email] = current
+        else:
+            obj = {'role': role}
+            if nome is not None:
+                obj['nome'] = nome
+            mapping[email] = obj
         _save_roles(mapping)
         return jsonify({'success': True})
     except Exception as e:
@@ -1903,7 +2155,8 @@ def atualizar_status_projeto():
         data = request.get_json() or {}
         prop_id = (data.get('id') or '').strip()
         new_status = (data.get('status') or '').strip()
-        if not prop_id or new_status not in ('dimensionamento', 'orcamento_enviado', 'negociacao', 'fechado', 'instalacao'):
+        allowed = ('dimensionamento', 'orcamento_enviado', 'negociacao', 'fechado', 'instalacao', 'concluido', 'perdido')
+        if not prop_id or new_status not in allowed:
             return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
         prop_file = PROPOSTAS_DIR / f"{prop_id}.json"
         if not prop_file.exists():

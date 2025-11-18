@@ -88,11 +88,17 @@ const statusOrder = [
 
 export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) {
   const [draggedProject, setDraggedProject] = useState(null);
+  const [projetosState, setProjetosState] = useState(projetos);
+
+  // Sincroniza quando o pai trouxer novos dados
+  React.useEffect(() => {
+    setProjetosState(projetos);
+  }, [projetos]);
 
   const groupByStatus = () => {
     const groups = {};
     statusOrder.forEach(status => {
-      groups[status] = projetos.filter(p => p.status === status);
+      groups[status] = (projetosState || []).filter(p => p.status === status);
     });
     return groups;
   };
@@ -113,12 +119,32 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
     e.preventDefault();
     if (draggedProject && draggedProject.status !== newStatus) {
       try {
-        // Persistir status
+        // Atualização otimista local
+        setProjetosState(prev =>
+          (prev || []).map(p => p.id === draggedProject.id ? { ...p, status: newStatus } : p)
+        );
+        // 1) Tenta persistir no backend Python (fonte de verdade do Dashboard)
+        try {
+          const url = `${Projeto.getServerUrl?.() || ''}/projetos/status`;
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: draggedProject.id, status: newStatus })
+          }).catch(() => {});
+        } catch (_) {}
+        // 2) Persistir também no Supabase/cache local
         await Projeto.update(draggedProject.id, { status: newStatus });
-        // Atualização otimista: reflete de imediato na UI
+        // 3) Manter cache local consistente
+        try {
+          const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
+          const idx = stored.findIndex(p => p.id === draggedProject.id);
+          if (idx !== -1) {
+            stored[idx] = { ...stored[idx], status: newStatus };
+            localStorage.setItem('projetos_local', JSON.stringify(stored));
+          }
+        } catch (_) {}
+        // 4) Atualização de tela
         if (typeof onUpdate === 'function') onUpdate();
-        // Também atualiza o array local para o caso de Dashboard não recarregar
-        setDraggedProject(null);
       } catch (error) {
         console.error('Erro ao atualizar status:', error);
       }

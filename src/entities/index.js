@@ -299,13 +299,13 @@ class Projeto extends BaseEntity {
       if (backend !== null) return backend;
 
       // Fallback: Supabase
-      try {
-        const col = String(orderBy || '').replace('-', '') || 'created_at';
-        const orderCol = col === 'created_date' ? 'created_at' : col;
-        const { data, error } = await supabase
-          .from('projetos')
-          .select('*')
-          .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
+    try {
+      const col = String(orderBy || '').replace('-', '') || 'created_at';
+      const orderCol = col === 'created_date' ? 'created_at' : col;
+      const { data, error } = await supabase
+        .from('projetos')
+        .select('*')
+        .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
         if (!error && Array.isArray(data)) {
           localStorage.setItem('projetos_local', JSON.stringify(data));
           return data;
@@ -405,8 +405,8 @@ class Projeto extends BaseEntity {
         await fetch(url, { method: 'DELETE' });
       } catch (_) {}
       // Tentar remover no Supabase (se existir)
-      try {
-        const { error } = await supabase.from('projetos').delete().eq('id', id);
+    try {
+      const { error } = await supabase.from('projetos').delete().eq('id', id);
         if (error) {
           // apenas loga; seguimos com remoção local
           console.warn('Supabase delete falhou (seguindo com remoção local):', error?.message || error);

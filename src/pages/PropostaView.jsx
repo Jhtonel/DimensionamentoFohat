@@ -17,7 +17,7 @@ export default function PropostaView() {
     if (!propostaId) return;
     if (hasLoadedRef.current) return; // evita dupla execução em StrictMode
     hasLoadedRef.current = true;
-    loadPdfFromBackend();
+      loadPdfFromBackend();
   }, [propostaId]);
 
   const loadPdfFromBackend = async () => {
@@ -29,7 +29,7 @@ export default function PropostaView() {
       const serverUp = await propostaService.verificarServidor();
       if (!serverUp) {
         throw new Error('Servidor de propostas (porta 8000) indisponível. Inicie o backend e tente novamente.');
-      }
+        }
       // Carregar diretamente do backend no iframe (evita CORS/timeouts)
       const backendUrl = `${propostaService.getPropostaURL(propostaId)}?t=${Date.now()}`;
       console.log('🔁 Carregando direto do backend no iframe:', backendUrl);

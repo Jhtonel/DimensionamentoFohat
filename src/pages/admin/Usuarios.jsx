@@ -19,6 +19,9 @@ export default function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("todos");
+  const [onlyNoName, setOnlyNoName] = useState(false);
+  const [editedNome, setEditedNome] = useState({});
 
   useEffect(() => {
     load();
@@ -46,7 +49,7 @@ export default function AdminUsuarios() {
           const rolesJson = await rolesResp.json();
           const items = Array.isArray(rolesJson?.items) ? rolesJson.items : [];
           items.forEach((it) => {
-            if (it?.email && it?.role) roleByEmail[it.email.toLowerCase()] = { role: it.role };
+            if (it?.email && it?.role) roleByEmail[it.email.toLowerCase()] = { role: it.role, nome: it?.nome };
           });
         }
       } catch (_) {}
@@ -56,7 +59,7 @@ export default function AdminUsuarios() {
         return {
           id: u.uid,
           uid: u.uid,
-          nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário'),
+          nome: info?.nome || u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário'),
           email: u.email || '',
           telefone: u.phone_number || '',
           role: info.role || 'vendedor'
@@ -80,7 +83,7 @@ export default function AdminUsuarios() {
       await fetch(`${serverUrl}/auth/roles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: target.email, role: data.role || 'vendedor' })
+        body: JSON.stringify({ email: target.email, role: data.role || target.role || 'vendedor', nome: data?.nome })
       });
       await load();
     } finally {
@@ -124,13 +127,19 @@ export default function AdminUsuarios() {
       base[role].push(u);
     });
     // filtro de busca
-    if (!search) return base;
-    const filtro = (u) =>
+    const filtroTexto = (u) =>
       String(u.nome || "").toLowerCase().includes(search.toLowerCase()) ||
       String(u.email || "").toLowerCase().includes(search.toLowerCase()) ||
       String(u.telefone || "").toLowerCase().includes(search.toLowerCase());
-    return Object.fromEntries(Object.entries(base).map(([k, arr]) => [k, arr.filter(filtro)]));
-  }, [usuarios, search]);
+    const filtroNome = (u) => (!onlyNoName ? true : !u.nome || u.nome.trim().length === 0 || u.nome === u.email);
+    const filtrarArr = (arr) => arr.filter(u => filtroTexto(u) && filtroNome(u));
+    let result = Object.fromEntries(Object.entries(base).map(([k, arr]) => [k, filtrarArr(arr)]));
+    // filtro por role
+    if (roleFilter && roleFilter !== 'todos') {
+      result = Object.fromEntries(Object.entries(result).map(([k, arr]) => [k, k === roleFilter ? arr : []]));
+    }
+    return result;
+  }, [usuarios, search, roleFilter, onlyNoName]);
 
   const RoleColumn = ({ tipo, items }) => (
     <div className="bg-white rounded-lg border border-gray-200">
@@ -143,8 +152,22 @@ export default function AdminUsuarios() {
           <Card key={u.id} className="border-gray-200">
             <CardContent className="p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="font-semibold text-gray-900 truncate">{u.nome}</div>
+                <div className="font-semibold text-gray-900 truncate w-1/2">
+                  <Input
+                    value={editedNome[u.id] ?? u.nome ?? ''}
+                    onChange={(e) => setEditedNome(prev => ({ ...prev, [u.id]: e.target.value }))}
+                    placeholder="Nome do usuário"
+                  />
+                </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => atualizarUsuario(u.id, { nome: editedNome[u.id] ?? u.nome, role: u.role })}
+                    className="text-sky-700 border-sky-200"
+                  >
+                    Salvar nome
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -191,7 +214,31 @@ export default function AdminUsuarios() {
           <h1 className="text-2xl font-bold text-gray-900">Admin • Usuários</h1>
           <p className="text-gray-600">Gerencie usuários, papéis e permissões.</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="w-48">
+            <Label className="text-xs text-gray-500">Filtrar por papel</Label>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {Usuario.roles.map(r => (
+                  <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="only-noname"
+              type="checkbox"
+              className="h-4 w-4"
+              checked={onlyNoName}
+              onChange={(e) => setOnlyNoName(e.target.checked)}
+            />
+            <Label htmlFor="only-noname" className="text-xs text-gray-600">Somente sem nome</Label>
+          </div>
           <div className="w-64">
             <Label className="text-xs text-gray-500">Buscar</Label>
             <Input

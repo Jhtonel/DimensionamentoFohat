@@ -12,6 +12,7 @@ import PropostaView from './pages/PropostaView.jsx';
 import AdminUsuarios from './pages/admin/Usuarios.jsx';
 import AdminTaxas from './pages/admin/Taxas.jsx';
 import AdminComissoes from './pages/admin/Comissoes.jsx';
+import Pipeline from './pages/Pipeline.jsx';
 import './index.css';
 import ForgotPassword from './pages/auth/ForgotPassword.jsx';
 import ResetPassword from './pages/auth/ResetPassword.jsx';
@@ -66,6 +67,7 @@ function AppWithAuth() {
       <Routes>
         {/* Rotas com Layout do CRM */}
         <Route path="/" element={<Layout><Dashboard /></Layout>} />
+        <Route path="/pipeline" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><Pipeline /></RequireRole></Layout>} />
         <Route path="/clientes" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><Clientes /></RequireRole></Layout>} />
         <Route path="/projetos" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><Projetos /></RequireRole></Layout>} />
         <Route path="/projetos/novo" element={<Layout><RequireRole roles={['admin','gestor','vendedor']}><NovoProjeto /></RequireRole></Layout>} />
