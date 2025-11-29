@@ -53,18 +53,31 @@ export default function AdminUsuarios() {
           });
         }
       } catch (_) {}
+      
       // 3) Mesclar: Firebase + role
       const merged = fbUsers.map(u => {
+        // Se não tiver role definida no backend, assume 'vendedor'
+        // Se já tiver role no backend, usa.
+        // Se o email do usuário for o mesmo do admin logado (se pudéssemos saber), daria admin
         const info = roleByEmail[(u.email || '').toLowerCase()] || {};
+        
+        // Tentar normalizar o nome se vier vazio do Firebase
+        let nomeDisplay = info?.nome || u.display_name;
+        if (!nomeDisplay && u.email) {
+          nomeDisplay = u.email.split('@')[0];
+        }
+        
         return {
           id: u.uid,
           uid: u.uid,
-          nome: info?.nome || u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário'),
+          nome: nomeDisplay || 'Usuário sem nome',
           email: u.email || '',
           telefone: u.phone_number || '',
-          role: info.role || 'vendedor'
+          role: info.role || 'vendedor', // Default role
+          metadata: u.metadata
         };
       });
+      
       setUsuarios(merged);
     } catch (e) {
       console.error('Falha ao listar usuários do Firebase:', e);
@@ -142,12 +155,12 @@ export default function AdminUsuarios() {
   }, [usuarios, search, roleFilter, onlyNoName]);
 
   const RoleColumn = ({ tipo, items }) => (
-    <div className="bg-white rounded-lg border border-gray-200">
-      <div className="px-4 py-3 border-b bg-gray-50 rounded-t-lg flex items-center justify-between">
+    <div className="bg-white rounded-lg border border-gray-200 flex flex-col h-full max-h-[calc(100vh-180px)]">
+      <div className="px-4 py-3 border-b bg-gray-50 rounded-t-lg flex items-center justify-between flex-shrink-0">
         <h3 className="font-semibold text-gray-800">{ROLE_LABEL[tipo]}</h3>
         <span className="text-xs text-gray-500">{items.length} usuários</span>
       </div>
-      <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+      <div className="p-3 space-y-3 overflow-y-auto flex-1">
         {items.map((u) => (
           <Card key={u.id} className="border-gray-200">
             <CardContent className="p-3 space-y-2">

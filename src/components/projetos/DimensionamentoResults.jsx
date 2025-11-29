@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '../../components/ui/button';
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { propostaService } from '../../services/propostaService';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { Projeto, Configuracao } from '../../entities';
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete }) {
@@ -12,8 +15,30 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   const [templateContent, setTemplateContent] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [propostaData, setPropostaData] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const pdfRef = useRef(null);
+  const iframeContainerRef = useRef(null);
   const autoTimerRef = useRef(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (iframeContainerRef.current) {
+        iframeContainerRef.current.requestFullscreen().catch(err => {
+          console.error(`Erro ao tentar entrar em tela cheia: ${err.message}`);
+        });
+      }
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Função para obter dados seguros com fallbacks
   // Funções auxiliares para calcular valores financeiros
@@ -62,14 +87,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     return 0;
   }, [formData]);
 
+  // Cálculo removido: gasto acumulado até o payback agora é calculado apenas no backend.
   const calcularGastoAcumuladoPayback = useCallback(() => {
-    const contaAnual = calcularContaAtualAnual();
-    const anosPayback = Math.round((projecoesFinanceiras?.payback_meses || 0) / 12);
-    console.log('💰 DEBUG calcularGastoAcumuladoPayback - contaAnual:', contaAnual, 'anosPayback:', anosPayback);
-    const resultado = contaAnual * anosPayback;
-    console.log('💰 DEBUG calcularGastoAcumuladoPayback - resultado:', resultado);
-    return resultado;
-  }, [calcularContaAtualAnual, projecoesFinanceiras]);
+    return 0;
+  }, []);
 
   const getDadosSeguros = useCallback(() => {
     // Verificar se todos os dados necessários estão disponíveis (relaxado)
@@ -77,7 +98,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       console.warn('Dados do projeto incompletos - prosseguindo com defaults');
     }
 
-    if (!projecoesFinanceiras.payback_meses) {
+    if (!projecoesFinanceiras || !projecoesFinanceiras.payback_meses) {
       console.warn('Payback não calculado - usando 0 para continuar');
     }
 
@@ -160,7 +181,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       : 0;
 
     const dadosSeguros = {
-      potencia_sistema_kwp: dadosBase.potencia_sistema_kwp || kit.potencia || 0,
+      // Potência: priorizar a que está no formulário (dimensionamento atual)
+      potencia_sistema_kwp: (Number(formData?.potencia_kw) || 0) > 0
+        ? Number(formData.potencia_kw)
+        : (dadosBase.potencia_sistema_kwp || kit.potencia || 0),
       quantidade_placas: quantidade_placas,
       potencia_placa_w: potencia_placa_w,
       // Prioriza o preço de venda calculado e salvo no form
@@ -183,22 +207,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       tarifa_energia: (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
         ? Number(formData.tarifa_energia)
         : 0,
-    // Dados financeiros calculados
-    conta_atual_anual: calcularContaAtualAnual(),
-    anos_payback: Math.round((projecoes.payback_meses || 0) / 12),
-    gasto_acumulado_payback: calcularGastoAcumuladoPayback(),
+      // Dados financeiros ficarão a cargo do backend (metrics)
     };
 
         console.log('🔍 DEBUG getDadosSeguros - resultado final:', dadosSeguros);
-        console.log('💰 DEBUG valores financeiros específicos:', {
-          conta_atual_anual: dadosSeguros.conta_atual_anual,
-          anos_payback: dadosSeguros.anos_payback,
-          gasto_acumulado_payback: dadosSeguros.gasto_acumulado_payback,
-          potencia_sistema_kwp: dadosSeguros.potencia_sistema_kwp,
-          preco_final: dadosSeguros.preco_final
-        });
+        console.log('💰 DEBUG valores financeiros virão do backend via metrics.');
         return dadosSeguros;
-  }, [resultados, formData, projecoesFinanceiras, kitSelecionado, calcularContaAtualAnual, calcularGastoAcumuladoPayback]);
+  }, [resultados, formData, projecoesFinanceiras, kitSelecionado, calcularContaAtualAnual]);
 
   const dadosSeguros = getDadosSeguros();
 
@@ -326,19 +341,27 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           }
         } catch (_) {}
       }
-      // Derivar consumo kWh se necessário (a partir de R$ e tarifa válida)
-      let consumoKwhParaEnvio = Number(formData?.consumo_mensal_kwh) || 0;
+      // Derivar consumo kWh:
+      // 1) Preferir média a partir do vetor mês a mês se existir
+      let consumoKwhParaEnvio = 0;
+      if (Array.isArray(formData?.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+        try {
+          const soma = formData.consumo_mes_a_mes.reduce((acc, item) => {
+            const v = Number((item && item.kwh) || 0);
+            return acc + (isFinite(v) ? v : 0);
+          }, 0);
+          const media = soma / 12;
+          if (media > 0) consumoKwhParaEnvio = media;
+        } catch (_) {}
+      }
+      // 2) Senão, usar o campo direto de kWh mensal
+      if (consumoKwhParaEnvio <= 0) {
+        consumoKwhParaEnvio = Number(formData?.consumo_mensal_kwh) || 0;
+      }
+      // 3) Senão, derivar de R$ / tarifa
       if ((consumoKwhParaEnvio <= 0) && Number(formData?.consumo_mensal_reais) > 0 && tarifaParaEnvio > 0) {
         consumoKwhParaEnvio = Number(formData.consumo_mensal_reais) / tarifaParaEnvio;
       }
-
-      // Calcular payback (anos) com 1 casa decimal para alinhar com a aba de custos
-      const precoVendaParaPayback = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
-      const economiaMensalParaPayback = Number(dadosSeguros?.economia_mensal_estimada || 0);
-      const anosPaybackPrecisao = economiaMensalParaPayback > 0
-        ? Math.round((precoVendaParaPayback / (economiaMensalParaPayback * 12)) * 10) / 10
-        : 0;
-      const paybackMesesPrecisao = Math.round(anosPaybackPrecisao * 12);
 
       // Preparar dados da proposta para o servidor
       const propostaData = {
@@ -346,10 +369,12 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         // Endereço deve vir da aba Dados Básicos (formData.endereco_completo)
         cliente_endereco: formData?.endereco_completo || clientes.find(c => c.id === formData?.cliente_id)?.endereco_completo || 'Endereço não informado',
         cliente_telefone: clientes.find(c => c.id === formData?.cliente_id)?.telefone || 'Telefone não informado',
-        potencia_sistema: dadosSeguros.potencia_sistema_kwp,
+        potencia_sistema: (Number(formData?.potencia_kw) || 0) > 0
+          ? Number(formData.potencia_kw)
+          : dadosSeguros.potencia_sistema_kwp,
         // A proposta deve usar o preço de venda; enviamos explicitamente
-        preco_venda: precoVendaParaPayback,
-        preco_final: precoVendaParaPayback,
+        preco_venda: Number(formData?.preco_venda || dadosSeguros?.preco_final || 0),
+        preco_final: Number(formData?.preco_venda || dadosSeguros?.preco_final || 0),
         concessionaria: formData?.concessionaria || '',
         cidade: formData?.cidade || 'Projeto',
         vendedor_nome: configs.vendedor_nome || 'Representante Comercial',
@@ -357,16 +382,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         vendedor_telefone: configs.vendedor_telefone || '(11) 99999-9999',
         vendedor_email: configs.vendedor_email || 'contato@empresa.com',
         // Dados financeiros
-        conta_atual_anual: dadosSeguros.conta_atual_anual || 0,
-        anos_payback: anosPaybackPrecisao || 0,
-        payback_anos: anosPaybackPrecisao || 0,
-        payback_meses: paybackMesesPrecisao || 0,
-        gasto_acumulado_payback: dadosSeguros.gasto_acumulado_payback || 0,
+        conta_atual_anual: 0, // será definido pelas métricas do backend
+        anos_payback: 0,
+        payback_anos: 0,
+        payback_meses: 0,
+        gasto_acumulado_payback: 0,
         consumo_mensal_kwh: consumoKwhParaEnvio || 0,
         consumo_mes_a_mes: Array.isArray(formData?.consumo_mes_a_mes) ? formData.consumo_mes_a_mes : [],
         // Usar apenas tarifa válida do formulário (preenchida a partir da concessionária)
         tarifa_energia: tarifaParaEnvio || 0,
-        economia_mensal_estimada: dadosSeguros.economia_mensal_estimada || 0,
+        economia_mensal_estimada: 0, // será definido pelas métricas do backend
         // Dados do kit
         quantidade_placas: dadosSeguros.quantidade_placas || 0,
         potencia_placa_w: dadosSeguros.potencia_placa_w || 0,
@@ -375,7 +400,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         geracao_media_mensal: dadosSeguros.geracao_media_mensal || 0,
         creditos_anuais: dadosSeguros.creditos_anuais || 0,
         economia_total_25_anos: dadosSeguros.economia_total_25_anos || 0,
-        payback_meses: dadosSeguros.payback_meses || 0,
         // Custos
         custo_total_projeto: dadosSeguros.custo_total_projeto || 0,
         custo_equipamentos: dadosSeguros.custo_equipamentos || 0,
@@ -387,27 +411,71 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // 1) Geração dos gráficos antes de salvar (analise financeira)
       try {
+        // Derivar consumo em R$ se necessário (kWh × tarifa)
+        let consumoReaisParaEnvio = Number(formData?.consumo_mensal_reais) || 0;
+        if ((!consumoReaisParaEnvio || consumoReaisParaEnvio <= 0) && (consumoKwhParaEnvio > 0) && (tarifaParaEnvio > 0)) {
+          consumoReaisParaEnvio = consumoKwhParaEnvio * tarifaParaEnvio;
+        }
+
         const graficosPayload = {
           consumo_mensal_kwh: consumoKwhParaEnvio || undefined,
-          consumo_mensal_reais: Number(formData?.consumo_mensal_reais) || undefined,
+          consumo_mensal_reais: consumoReaisParaEnvio > 0 ? consumoReaisParaEnvio : undefined,
           tarifa_energia: tarifaParaEnvio || 0,
           potencia_sistema: propostaData.potencia_sistema,
           preco_venda: propostaData.preco_venda,
           irradiacao_media: propostaData.irradiacao_media,
           irradiancia_mensal_kwh_m2_dia: formData?.irradiancia_mensal_kwh_m2_dia || undefined,
         };
+        // Enviar vetor de consumo mês a mês quando informado (o backend aceita diversas chaves)
+        if (Array.isArray(formData?.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+          const arrKwh = formData.consumo_mes_a_mes.map(m => Number((m && m.kwh) || 0));
+          graficosPayload.consumo_mensal_kwh_meses = arrKwh;
+          graficosPayload.consumo_mes_a_mes_kwh = arrKwh;
+          graficosPayload.consumo_kwh_mensal = arrKwh;
+        }
         const graficosResp = await propostaService.gerarGraficos(graficosPayload);
         if (graficosResp?.graficos_base64) {
           propostaData.graficos_base64 = graficosResp.graficos_base64;
         }
-        // Se backend sugerir anos_payback/economia, não sobreescrevemos o que já calculamos,
-        // mas poderíamos sincronizar se vier vazio.
-        if (!propostaData.anos_payback && graficosResp?.metrics?.anos_payback_formula) {
-          propostaData.anos_payback = graficosResp.metrics.anos_payback_formula;
+        // Sempre usar as métricas do backend como fonte única
+        const m = graficosResp?.metrics || {};
+        if (typeof m.economia_mensal_estimada === 'number') {
+          propostaData.economia_mensal_estimada = m.economia_mensal_estimada;
         }
-        if (!propostaData.economia_mensal_estimada && graficosResp?.metrics?.economia_mensal_estimada) {
-          propostaData.economia_mensal_estimada = graficosResp.metrics.economia_mensal_estimada;
+        // Preferir SEMPRE o payback do fluxo: anos_payback_fluxo -> anos_payback
+        let preferPaybackAnos = 0;
+        if (typeof m.anos_payback_fluxo === 'number' && m.anos_payback_fluxo >= 0) {
+          preferPaybackAnos = m.anos_payback_fluxo;
+        } else if (typeof m.anos_payback === 'number' && m.anos_payback >= 0) {
+          preferPaybackAnos = m.anos_payback;
+        } else if (typeof m.payback_anos_excel === 'number' && m.payback_anos_excel > 0) {
+          preferPaybackAnos = m.payback_anos_excel;
+        } else if (typeof m.anos_payback_formula === 'number' && m.anos_payback_formula > 0) {
+          preferPaybackAnos = m.anos_payback_formula;
         }
+        if (preferPaybackAnos > 0) {
+          propostaData.anos_payback = preferPaybackAnos;
+          propostaData.payback_anos = preferPaybackAnos;
+          // Meses: preferir payback_meses (excel) → senão derivar
+          const preferPaybackMeses = (typeof m.payback_meses_fluxo === 'number' && m.payback_meses_fluxo > 0)
+            ? Math.round(m.payback_meses_fluxo)
+            : (typeof m.payback_meses === 'number' && m.payback_meses > 0)
+            ? Math.round(m.payback_meses)
+            : (typeof m.payback_meses_excel === 'number' && m.payback_meses_excel > 0
+              ? Math.round(m.payback_meses_excel)
+              : Math.round(preferPaybackAnos * 12));
+          propostaData.payback_meses = preferPaybackMeses;
+        }
+        if (typeof m.conta_atual_anual === 'number') {
+          propostaData.conta_atual_anual = m.conta_atual_anual;
+        }
+        if (typeof m.gasto_acumulado_payback === 'number') {
+          propostaData.gasto_acumulado_payback = m.gasto_acumulado_payback;
+        } else if (propostaData.conta_atual_anual > 0 && propostaData.anos_payback > 0) {
+          propostaData.gasto_acumulado_payback = propostaData.conta_atual_anual * propostaData.anos_payback;
+        }
+        // Persistir as métricas no payload
+        propostaData.metrics = m;
       } catch (e) {
         console.warn('⚠️ Não foi possível gerar gráficos antes de salvar:', e?.message || e);
       }
@@ -458,11 +526,20 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       setPropostaData(propostaData);
       setPropostaId(propostaId);
       setPropostaSalva(true);
+      setShowPreview(true);
       
-      // Abrir proposta em nova aba (mostrará o PDF do backend)
-      window.open(`/proposta/${propostaId}`, '_blank');
-      // Evitar alert bloqueante (navegadores pausam a guia nova com alert aberto)
-      console.log('✅ Proposta gerada com sucesso! Abrindo em nova aba...');
+      // Buscar o HTML processado para permitir a geração do PDF via cliente
+      try {
+        const htmlData = await propostaService.gerarPropostaHTML(propostaId);
+        if (htmlData && htmlData.html_content) {
+          setTemplateContent(htmlData.html_content);
+          console.log('✅ Template atualizado com HTML processado para geração de PDF');
+        }
+      } catch (errHtml) {
+        console.error('⚠️ Falha ao buscar HTML para PDF:', errHtml);
+      }
+
+      console.log('✅ Proposta gerada com sucesso! Exibindo preview...');
       
     } catch (error) {
       console.error('❌ Erro ao salvar proposta:', error);
@@ -604,6 +681,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           </Button>
         ) : (
             <>
+              <Button onClick={toggleFullscreen} variant="outline" title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </Button>
               <Button onClick={gerarPDF} disabled={isGeneratingPDF} className="bg-green-600 hover:bg-green-700 text-white">
                 {isGeneratingPDF ? 'Gerando PDF...' : 'Download PDF'}
               </Button>
@@ -615,8 +695,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         </div>
       </div>
 
-      {/* Preview da proposta */}
-      {showPreview && propostaData && (
+      {/* Preview da proposta (Iframe) */}
+      {showPreview && propostaId ? (
         <div className="space-y-4">
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center gap-2 text-green-800">
@@ -625,29 +705,20 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
               </svg>
               <span className="font-semibold">Proposta gerada com sucesso!</span>
             </div>
-            <p className="text-green-700 mt-1">
-              ID: {propostaId} | Cliente: {propostaData.cliente_nome} | Potência: {propostaData.potencia_sistema}kWp
-            </p>
           </div>
           
-          {/* Preview do template */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-700">Preview da Proposta</h3>
-            </div>
-            <div className="max-h-96 overflow-y-auto">
-              <div 
-                className="template-preview" 
-                dangerouslySetInnerHTML={{ __html: templateContent }}
-                style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%' }}
-              />
-            </div>
+          <div 
+            ref={iframeContainerRef}
+            className={`w-full border border-gray-200 rounded-lg overflow-hidden bg-gray-100 shadow-inner ${isFullscreen ? 'h-screen' : 'h-[800px]'}`}
+          >
+            <iframe 
+              src={propostaService.getPropostaURL(propostaId)}
+              className="w-full h-full border-0"
+              title="Proposta Comercial"
+            />
           </div>
         </div>
-      )}
-
-      {/* Conteúdo original quando não há preview */}
-      {!showPreview && (
+      ) : (
         <div className="text-center py-12">
           <div className="text-gray-500 mb-4">
             <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

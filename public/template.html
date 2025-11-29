@@ -305,7 +305,7 @@
   .cenario-atual-content{
     grid-column:1 / -1;
     display:grid;
-    grid-template-columns:45% 55%;
+    grid-template-columns: 1fr 1fr;
     gap:24px;
     align-items:stretch;
     align-self:stretch;
@@ -417,18 +417,18 @@
     height:100%;
     padding:0px;
     max-width:100%;
-    overflow:hidden;
+    overflow:visible; /* evitar corte do título e do gráfico */
   }
 
   .cenario-atual-grafico .grafico-container{
-    flex:1;
+    flex:0 0 auto;
     display:flex;
     flex-direction:column;
     gap:0px;
     padding:0px;
     background:transparent;
     border-radius:0px;
-    height:100%;
+    height:auto;
     margin:0px;
     max-width:100%;
     overflow:visible;
@@ -451,18 +451,20 @@
 
   .cenario-atual-grafico .grafico-barras{
     display:block;
-    background:transparent;
-    border-radius:8px;
-    padding:0px;
+    background:var(--n-50);
+    border-radius:12px;
+    padding:20px;
     position: relative;
     flex: 1;
     height: 100%;
+    overflow:visible; /* evita cortar labels do gráfico */
   }
 
 /* CSS específico para cada gráfico */
 #grafico-slide-03 {
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 100%;
   border-radius: 8px;
   display: block;
   object-fit: contain;
@@ -472,7 +474,8 @@
 
 #grafico-slide-04 {
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 100%;
   border-radius: 8px;
   display: block;
   object-fit: contain;
@@ -545,14 +548,14 @@
   .aumento-conta-content{
     grid-column:1 / -1;
     display:grid;
-    grid-template-columns:45% 55%;
+    grid-template-columns:1fr 1fr; /* igual ao slide-06 */
     gap:48px;
     align-items:stretch;
     align-self:stretch;
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden;
+    overflow:hidden; /* respeitar margens laterais como slide-05 */
   }
 
   .aumento-conta-texto{
@@ -619,16 +622,17 @@
   }
 
   .grafico-linha-container .grafico-linha{
-    flex:1;
+    flex:0 0 auto;
     display:flex;
     flex-direction:column;
     gap:12px;
     margin-top:16px;
     padding:20px;
-    background:transparent;
+    background:var(--n-50);
     border-radius:12px;
     min-height:250px;
-    overflow:hidden;
+    height:auto;
+    overflow:visible; /* evita cortar labels e mantém dentro da coluna */
   }
 
   .grafico-linha-container .eixo-y{
@@ -754,6 +758,7 @@
 
   .grafico-header{
     text-align:center;
+    margin-top:8px;
     margin-bottom:16px;
   }
 
@@ -899,7 +904,6 @@
     display:flex;
     flex-direction:column;
     gap:24px;
-    justify-content:space-between;
     height:100%;
   }
 
@@ -2060,7 +2064,7 @@
                 <span class="valor-payback">{{anos_payback}} anos</span>
               </div>
               <div class="gasto-acumulado">
-                <span class="label">Gasto acumulado:</span>
+                <span class="label">Gasto acumulado até o payback:</span>
                 <span class="valor-enorme">{{gasto_acumulado_payback}}</span>
               </div>
             </div>
@@ -2070,6 +2074,9 @@
         
         <div class="cenario-atual-grafico">
           <div class="grafico-container">
+            <div class="grafico-header">
+              <h4 class="grafico-titulo">Seu Gasto Atual</h4>
+            </div>
             <div class="grafico-barras">
               <img id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Evolução da Conta de Luz" style="display: block; width: 100%; height: 100%; object-fit: contain;">
             </div>
@@ -2120,6 +2127,9 @@
       </div>
 
         <div class="grafico-linha-container">
+          <div class="grafico-header">
+            <h4 class="grafico-titulo">Evolução da Conta de Luz (25 anos)</h4>
+          </div>
           <div class="grafico-linha">
             <img id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Linha - Evolução da Conta de Luz" style="display: block;">
           </div>

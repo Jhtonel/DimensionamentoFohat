@@ -16,7 +16,9 @@ import {
   MoreVertical,
   Calendar,
   DollarSign,
-  User
+  User,
+  LayoutGrid,
+  List
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -89,6 +91,7 @@ const statusOrder = [
 export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) {
   const [draggedProject, setDraggedProject] = useState(null);
   const [projetosState, setProjetosState] = useState(projetos);
+  const [viewMode, setViewMode] = useState("kanban");
 
   // Sincroniza quando o pai trouxer novos dados
   React.useEffect(() => {
@@ -184,18 +187,39 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
           <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Pipeline de Vendas</h2>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Gerencie seus projetos por estágio</p>
         </div>
-        <Link to={createPageUrl("NovoProjeto")} className="flex-shrink-0">
-          <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30 text-xs sm:text-sm">
-            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">Novo Projeto</span>
-            <span className="xs:hidden">Novo</span>
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex bg-white border border-gray-200 rounded-lg p-1 gap-1 shadow-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("kanban")}
+              className={`h-8 w-8 p-0 ${viewMode === "kanban" ? "bg-fohat-light text-fohat-blue" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-fohat-light text-fohat-blue" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+          <Link to={createPageUrl("NovoProjeto")} className="flex-shrink-0">
+            <Button className="bg-fohat-blue hover:bg-fohat-dark text-white shadow-lg shadow-blue-900/20 transition-colors duration-300 text-xs sm:text-sm">
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Novo Projeto</span>
+              <span className="xs:hidden">Novo</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <div 
-        className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto" 
-      >
+      {viewMode === "kanban" ? (
+        <div 
+          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto" 
+        >
         {statusOrder.map((status) => {
           const config = statusConfig[status];
           const Icon = config.icon;
@@ -292,6 +316,70 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
           );
         })}
       </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden flex flex-col max-h-[calc(100vh-180px)]">
+          <div className="overflow-auto flex-1">
+            <table className="w-full relative">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                <tr>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Projeto</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Valor</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Criado em</th>
+                  <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {projetosState.map((projeto) => {
+                  const config = statusConfig[projeto.status] || statusConfig['lead'];
+                  return (
+                    <tr key={projeto.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
+                            </div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {getClienteNome(projeto)}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge className={`${config.color} border whitespace-nowrap`}>
+                          {config.label}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-700">
+                        {formatCurrency(getValorProjeto(projeto))}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-500">
+                        {formatDate(projeto.created_date)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
+                          <Button variant="ghost" size="sm" className="text-fohat-blue hover:bg-fohat-light h-8 px-2">
+                            Abrir
+                          </Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {projetosState.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-gray-500">
+                      Nenhum projeto encontrado
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

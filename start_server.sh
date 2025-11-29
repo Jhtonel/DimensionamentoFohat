@@ -28,12 +28,11 @@ cd "$(dirname "$0")"
 # Criar diretório para propostas salvas se não existir
 mkdir -p propostas_salvas
 
-# Iniciar o servidor
-echo "🌐 Servidor iniciando em http://localhost:8000"
-echo "📁 Diretório de propostas: $(pwd)/propostas_salvas"
-echo "📁 Template HTML: $(test -f public/template.html && echo '✅ Encontrado' || echo '❌ Não encontrado')"
-echo ""
-echo "Para parar o servidor, pressione Ctrl+C"
-echo ""
+# Definir credenciais do Google se o arquivo existir
+if [ -f "fohat-energia-3c422e081e0e.json" ]; then
+    export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/fohat-energia-3c422e081e0e.json"
+    echo "🔑 Credenciais do Google encontradas e configuradas."
+fi
 
+# Iniciar o servidor
 python3 servidor_proposta.py

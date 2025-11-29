@@ -192,8 +192,6 @@ class Cliente extends BaseEntity {
 
   static async list(orderBy = '-created_at') {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      // Apenas para acionar RLS corretamente; não precisamos do uid explicitamente aqui
       const col = String(orderBy || '').replace('-', '') || 'created_at';
       const orderCol = col === 'created_date' ? 'created_at' : col;
       const { data, error } = await supabase
@@ -201,31 +199,96 @@ class Cliente extends BaseEntity {
         .select('*')
         .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
       if (error) throw error;
-      return Array.isArray(data) ? data : [];
+      // Se o Supabase retornou com sucesso:
+      if (Array.isArray(data)) {
+        // Tentar enriquecer com email do criador quando faltar e criador for o usuário da sessão
+        let sessionUid = null;
+        let sessionEmail = null;
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          sessionUid = sessionData?.session?.user?.id || null;
+          sessionEmail = sessionData?.session?.user?.email || null;
+        } catch (_) {}
+
+        const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+        // Estratégia: mesclar resultados do Supabase com o cache local
+        // Preferimos dados do Supabase, mas completamos campos ausentes (ex.: created_by_email) com o cache
+        const cacheById = new Map((cached || []).map((c) => [String(c?.id || ''), c]));
+        const merged = (data || []).map((srv) => {
+          const key = String(srv?.id || '');
+          const loc = cacheById.get(key) || {};
+          const base = { ...srv };
+          if ((base.created_by_email === undefined || base.created_by_email === null) && sessionUid && base.created_by === sessionUid) {
+            base.created_by_email = sessionEmail || null;
+          }
+          const completion = Object.fromEntries(Object.entries(loc).filter(([k,v]) => typeof base[k] === 'undefined' || base[k] === null));
+          return { ...base, ...completion };
+        });
+        // Também adiciona itens que existem apenas no cache (ainda não sincronizados)
+        for (const [key, loc] of cacheById.entries()) {
+          if (!merged.find((m) => String(m?.id || '') === key)) merged.push(loc);
+        }
+        // Atualiza o cache local com o conjunto mesclado
+        localStorage.setItem('clientes_local', JSON.stringify(merged));
+        return merged;
+      }
+      // Formato inesperado → tenta cache local
+      const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      if (cached.length > 0) return cached;
+      return [];
     } catch (_) {
+      // Fallback: cache local → memória
+      const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      if (cached.length > 0) return cached;
       return super.list(orderBy);
     }
   }
 
   static async create(data) {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const uid = sessionData?.session?.user?.id || null;
+      // 1. Tentar usar o ID passado explicitamente (do Firebase Auth no frontend)
+      let uid = data?.created_by || null;
+      let userEmail = data?.created_by_email || null;
+
+      // 2. Se não veio no data, tentar buscar sessão do Supabase
+      if (!uid) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        uid = sessionData?.session?.user?.id || null;
+        userEmail = sessionData?.session?.user?.email || null;
+      }
+
       const payload = {
         nome: data?.nome ?? '',
         telefone: data?.telefone ?? '',
         email: data?.email ?? null,
-        created_by: uid || null
+        endereco_completo: data?.endereco_completo ?? null,
+        cep: data?.cep ?? null,
+        tipo: data?.tipo ?? null,
+        observacoes: data?.observacoes ?? null,
+        created_by: uid || null,
+        created_by_email: (data?.created_by_email || userEmail || null),
+        // Se tiver coluna created_by_email no banco, descomente:
+        // created_by_email: userEmail 
       };
+      
       const { data: inserted, error } = await supabase
         .from('clientes')
         .insert([payload])
         .select('*')
         .single();
+        
       if (error) throw error;
-      return inserted;
+      // Completar campos não persistidos no Supabase (como created_by_email) para uso local
+      const completed = { ...inserted, created_by_email: payload.created_by_email || null, created_by: payload.created_by || inserted.created_by };
+      // espelhar no cache local
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      localStorage.setItem('clientes_local', JSON.stringify([completed, ...stored]));
+      return completed;
     } catch (_) {
-      return super.create(data);
+      const created = await super.create(data);
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      localStorage.setItem('clientes_local', JSON.stringify([created, ...stored]));
+      return created;
     }
   }
 
@@ -235,6 +298,10 @@ class Cliente extends BaseEntity {
         nome: data?.nome,
         telefone: data?.telefone,
         email: data?.email,
+        endereco_completo: data?.endereco_completo,
+        cep: data?.cep,
+        tipo: data?.tipo,
+        observacoes: data?.observacoes,
         updated_at: new Date().toISOString()
       };
       const { data: updated, error } = await supabase
@@ -244,9 +311,21 @@ class Cliente extends BaseEntity {
         .select('*')
         .single();
       if (error) throw error;
+      // espelhar no cache local
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      const idx = stored.findIndex(c => c.id === id);
+      if (idx !== -1) stored[idx] = { ...stored[idx], ...updates, id };
+      else stored.unshift({ id, ...updates });
+      localStorage.setItem('clientes_local', JSON.stringify(stored));
       return updated;
     } catch (_) {
-      return super.update(id, data);
+      const updated = await super.update(id, data);
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      const idx = stored.findIndex(c => c.id === id);
+      if (idx !== -1) stored[idx] = { ...stored[idx], ...updated };
+      else stored.unshift(updated);
+      localStorage.setItem('clientes_local', JSON.stringify(stored));
+      return updated;
     }
   }
 
@@ -254,9 +333,15 @@ class Cliente extends BaseEntity {
     try {
       const { error } = await supabase.from('clientes').delete().eq('id', id);
       if (error) throw error;
+      // remover do cache local
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      localStorage.setItem('clientes_local', JSON.stringify(stored.filter(c => c.id !== id)));
       return { id };
     } catch (_) {
-      return super.delete(id);
+      const deleted = await super.delete(id);
+      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+      localStorage.setItem('clientes_local', JSON.stringify(stored.filter(c => c.id !== id)));
+      return deleted;
     }
   }
 }
@@ -326,8 +411,15 @@ class Projeto extends BaseEntity {
 
   static async create(data) {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const uid = sessionData?.session?.user?.id || null;
+      // 1. Tentar usar o ID passado explicitamente
+      let uid = data?.created_by || null;
+
+      // 2. Fallback para sessão Supabase
+      if (!uid) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        uid = sessionData?.session?.user?.id || null;
+      }
+
       const payload = {
         cliente_id: data?.cliente_id || null,
         nome: data?.nome || data?.nome_projeto || null,

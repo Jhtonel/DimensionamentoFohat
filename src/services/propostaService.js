@@ -104,6 +104,33 @@ export const propostaService = {
   },
 
   /**
+   * Calcula KPIs e tabelas diretamente no núcleo unificado
+   * @param {Object} payload - mesmo contrato do backend (/dimensionamento/excel-calculo)
+   * @returns {Promise<Object>} { success, resultado: { metrics, tabelas } }
+   */
+  async calcularNucleo(payload) {
+    try {
+      const response = await fetch(`${SERVER_URL}/dimensionamento/excel-calculo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(errText || `Erro ${response.status}`);
+      }
+      const json = await response.json();
+      if (!json?.success) {
+        throw new Error(json?.message || 'Falha ao calcular no núcleo');
+      }
+      return json;
+    } catch (e) {
+      console.error('❌ Erro em calcularNucleo:', e);
+      return { success: false, message: e.message };
+    }
+  },
+
+  /**
    * Gera os 5 gráficos da análise financeira no backend (sem salvar proposta)
    * @param {Object} payload - { consumo_mensal_kwh | consumo_mensal_reais, tarifa_energia, potencia_sistema, preco_venda, irradiacao_media | irradiancia_mensal_kwh_m2_dia }
    * @returns {Promise<Object>} { graficos_base64, metrics }

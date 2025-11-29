@@ -164,7 +164,7 @@ export default function Dashboard() {
           className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
         >
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-fohat-blue">
               Dashboard
             </h1>
             <p className="text-sm sm:text-base text-gray-600 mt-1 sm:mt-2">Visão geral do seu pipeline de vendas</p>
@@ -174,7 +174,7 @@ export default function Dashboard() {
               <div className="hidden sm:block">
                 <label className="text-xs text-gray-500 block mb-1">Usuário</label>
                 <Select value={selectedUserEmail} onValueChange={setUserFilter}>
-                  <SelectTrigger className="h-9 w-56">
+                  <SelectTrigger className="h-9 w-56 border-gray-200 focus:ring-fohat-blue">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
@@ -189,7 +189,7 @@ export default function Dashboard() {
               </div>
             )}
             <Link to={createPageUrl("Clientes")} className="flex-1 sm:flex-none">
-              <Button className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30 text-xs sm:text-sm">
+              <Button className="w-full bg-fohat-blue hover:bg-fohat-dark text-white shadow-lg shadow-blue-900/20 transition-colors duration-300 text-xs sm:text-sm">
                 <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 <span className="hidden xs:inline">Novo Cliente</span>
                 <span className="xs:hidden">Novo</span>
@@ -203,13 +203,13 @@ export default function Dashboard() {
             title="Total de Clientes"
             value={stats.totalClientes}
             icon={Users}
-            gradient="from-sky-500 to-blue-600"
+            gradient="from-fohat-blue to-blue-700"
           />
           <StatsCard
             title="Projetos Ativos"
             value={stats.totalProjetos}
             icon={FolderKanban}
-            gradient="from-orange-500 to-red-600"
+            gradient="from-fohat-orange to-orange-600"
           />
           <StatsCard
             title="Valor Total Fechado"
@@ -227,7 +227,7 @@ export default function Dashboard() {
             title="Propostas Enviadas"
             value={propostasEnviadas}
             icon={FolderKanban}
-            gradient="from-purple-500 to-indigo-600"
+            gradient="from-indigo-500 to-blue-600"
           />
           <StatsCard
             title="Valor em Negociação"
@@ -245,13 +245,13 @@ export default function Dashboard() {
             title="Valor no Pipeline (Aberto)"
             value={`R$ ${valorPipelineAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             icon={DollarSign}
-            gradient="from-sky-500 to-cyan-600"
+            gradient="from-cyan-500 to-blue-600"
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mt-4 sm:mt-6">
           {/* Gráfico de barras simples por estágio */}
-          <div className="glass-card border-0 rounded-xl p-4 overflow-hidden min-w-0 lg:col-span-2">
+          <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-4 overflow-hidden min-w-0 lg:col-span-2">
             <h3 className="font-semibold text-gray-800 text-base sm:text-lg">Projetos por estágio</h3>
             <div className="mt-3 h-48 flex items-end gap-2 md:gap-3 w-full min-w-0">
               {statusOrder.map((s) => {
@@ -265,7 +265,7 @@ export default function Dashboard() {
                         const opacity = 0.25 + (0.75 * ratio);
                         return (
                           <div
-                            className="w-full bg-gradient-to-t from-sky-600 to-sky-400 rounded-md shadow-sm"
+                            className="w-full bg-fohat-blue rounded-t-md shadow-sm transition-all duration-500"
                             style={{ height: `${h}%`, opacity }}
                           />
                         );
@@ -282,13 +282,13 @@ export default function Dashboard() {
           </div>
 
           {/* Donut simples de conversão */}
-          <div className="glass-card border-0 rounded-xl p-4 lg:col-span-1">
+          <div className="bg-white border border-gray-100 shadow-sm rounded-xl p-4 lg:col-span-1">
             <h3 className="font-semibold text-gray-800 text-base sm:text-lg">Conversão</h3>
             <div className="mt-3 flex items-center gap-6">
               <div className="relative w-28 h-28 sm:w-32 sm:h-32">
                 <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#22c55e ${stats.taxaConversao}%, #e5e7eb 0)` }} />
-                <div className="absolute inset-3 sm:inset-4 rounded-full bg-transparent flex items-center justify-center">
-                  <span className="text-sm sm:text-base font-semibold text-gray-800">{stats.taxaConversao}%</span>
+                <div className="absolute inset-3 sm:inset-4 rounded-full bg-white flex items-center justify-center shadow-inner">
+                  <span className="text-sm sm:text-base font-bold text-gray-800">{stats.taxaConversao}%</span>
                 </div>
               </div>
               <ul className="text-sm text-gray-600 space-y-1">

@@ -14,7 +14,9 @@ import {
   MapPin,
   Edit,
   Trash2,
-  FileText
+  FileText,
+  LayoutGrid,
+  List
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -46,6 +48,7 @@ export default function Projetos() {
   const [selectedUserEmail, setSelectedUserEmail] = useState(
     () => localStorage.getItem('admin_filter_user_email') || 'todos'
   );
+  const [viewMode, setViewMode] = useState("grid");
 
   useEffect(() => {
     loadData();
@@ -64,13 +67,28 @@ export default function Projetos() {
       if (clienteId) {
         arr = arr.filter(p => p.cliente_id === clienteId);
       }
-      if (user?.role === 'admin' && selectedUserEmail && selectedUserEmail !== 'todos') {
-        const email = selectedUserEmail.toLowerCase();
-        arr = arr.filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
-          .map(v => (v || '').toLowerCase())
-          .includes(email));
+      
+      // 1. Filtro Admin
+      if (user?.role === 'admin') {
+        if (selectedUserEmail && selectedUserEmail !== 'todos') {
+          const email = selectedUserEmail.toLowerCase();
+          arr = arr.filter(p => [p?.vendedor_email, p?.payload?.vendedor_email, p?.created_by_email, p?.cliente?.email]
+            .map(v => (v || '').toLowerCase())
+            .includes(email));
+        }
+        return arr;
       }
-      return arr;
+
+      // 2. Filtro Vendedor (vê apenas seus projetos ou projetos onde é vendedor)
+      if (user && user.uid) {
+        return arr.filter(p => 
+          (p.vendedor_email && p.vendedor_email.toLowerCase() === user.email.toLowerCase()) || 
+          p.created_by === user.uid ||
+          (p.payload?.vendedor_email && p.payload.vendedor_email.toLowerCase() === user.email.toLowerCase())
+        );
+      }
+
+      return []; // Segurança
     })();
     
     if (!searchTerm) {
@@ -161,17 +179,35 @@ export default function Projetos() {
           className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
         >
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-sky-600 to-orange-500 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold text-fohat-blue">
               Projetos
             </h1>
             <p className="text-gray-600 mt-2">Gerencie seus projetos fotovoltaicos</p>
           </div>
           <div className="flex items-end gap-3">
+            <div className="flex bg-white border border-gray-200 rounded-lg p-1 gap-1 shadow-sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-fohat-light text-fohat-blue" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-fohat-light text-fohat-blue" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </div>
             {user?.role === 'admin' && (
               <div className="hidden sm:block">
                 <label className="text-xs text-gray-500 block mb-1">Usuário</label>
                 <Select value={selectedUserEmail} onValueChange={setUserFilter}>
-                  <SelectTrigger className="h-9 w-56">
+                  <SelectTrigger className="h-9 w-56 border-gray-200 focus:ring-fohat-blue">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
@@ -186,7 +222,7 @@ export default function Projetos() {
               </div>
             )}
             <Link to={createPageUrl("NovoProjeto")}>
-              <Button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 shadow-lg shadow-sky-500/30">
+              <Button className="bg-fohat-blue hover:bg-fohat-dark text-white shadow-lg shadow-blue-900/20 transition-colors duration-300">
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Projeto
               </Button>
@@ -194,7 +230,7 @@ export default function Projetos() {
           </div>
         </motion.div>
 
-        <Card className="glass-card border-0 shadow-xl">
+        <Card className="bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-center justify-center min-h-[60px]">
             <div className="relative w-full flex items-center">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -202,20 +238,21 @@ export default function Projetos() {
                 placeholder="Buscar por nome do projeto ou cidade..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-white/50 border-sky-200 focus:border-sky-400"
+                className="pl-10 bg-gray-50 border-gray-200 focus:border-fohat-blue focus:ring-fohat-blue"
               />
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredProjetos.map((projeto) => (
-            <motion.div
-              key={projeto.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <Card className="glass-card border-0 shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group">
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredProjetos.map((projeto) => (
+              <motion.div
+                key={projeto.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
+              <Card className="bg-white border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
                 <CardContent className="p-6 relative">
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -229,8 +266,8 @@ export default function Projetos() {
 
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     {projeto.potencia_sistema_kwp && (
-                      <div className="flex items-center gap-2 p-3 bg-sky-50 rounded-lg">
-                        <Zap className="w-5 h-5 text-sky-600" />
+                      <div className="flex items-center gap-2 p-3 bg-fohat-light rounded-lg">
+                        <Zap className="w-5 h-5 text-fohat-blue" />
                         <div>
                           <p className="text-xs text-gray-600">Potência</p>
                           <p className="font-bold text-gray-900">{projeto.potencia_sistema_kwp.toFixed(2)} kWp</p>
@@ -254,13 +291,13 @@ export default function Projetos() {
                   <div className="space-y-2 mb-4">
                     {projeto.cidade && (
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-4 h-4 text-sky-500" />
+                        <MapPin className="w-4 h-4 text-fohat-orange" />
                         {projeto.cidade}, {projeto.estado}
                       </div>
                     )}
                     {projeto.created_date && (
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 text-sky-500" />
+                        <Calendar className="w-4 h-4 text-fohat-orange" />
                         Criado em {format(new Date(projeto.created_date), "dd/MM/yyyy")}
                       </div>
                     )}
@@ -268,7 +305,7 @@ export default function Projetos() {
 
                   <div className="flex gap-2">
                     <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`} className="flex-1">
-                      <Button variant="outline" className="w-full border-sky-200 text-sky-600 hover:bg-sky-50">
+                      <Button variant="outline" className="w-full border-fohat-light text-fohat-blue hover:bg-fohat-light">
                         <Edit className="w-4 h-4 mr-2" />
                         Editar
                       </Button>
@@ -294,9 +331,101 @@ export default function Projetos() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="glass-card border-0 shadow-xl rounded-xl overflow-hidden bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Projeto / Cliente</th>
+                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Status</th>
+                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Dados Técnicos</th>
+                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Local</th>
+                    <th className="text-right py-4 px-6 text-sm font-medium text-gray-500">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredProjetos.map((projeto) => (
+                    <tr key={projeto.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="space-y-1">
+                          <p className="font-medium text-gray-900">{projeto.nome_projeto}</p>
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span className="font-medium">{getClienteNome(projeto.cliente_id)}</span>
+                            {projeto.created_date && (
+                              <span className="text-gray-400">• {format(new Date(projeto.created_date), "dd/MM/yyyy")}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <Badge className={`${statusColors[projeto.status]} border whitespace-nowrap`}>
+                          {projeto.status?.replace(/_/g, ' ')}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="space-y-1">
+                          {projeto.potencia_sistema_kwp && (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                              <Zap className="w-3 h-3 text-fohat-blue" />
+                              {projeto.potencia_sistema_kwp.toFixed(2)} kWp
+                            </div>
+                          )}
+                          {projeto.preco_final && (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                              <DollarSign className="w-3 h-3 text-green-500" />
+                              R$ {projeto.preco_final.toLocaleString('pt-BR')}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        {projeto.cidade ? (
+                          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                            <MapPin className="w-3 h-3 text-fohat-orange" />
+                            {projeto.cidade}, {projeto.estado}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {projeto.url_proposta && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => window.open(projeto.url_proposta, '_blank')}
+                              className="text-green-600 hover:bg-green-50 h-8 w-8"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
+                            <Button variant="ghost" size="icon" className="text-fohat-blue hover:bg-fohat-light h-8 w-8">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(projeto.id)}
+                            className="text-gray-600 hover:text-red-600 h-8 w-8"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {filteredProjetos.length === 0 && !loading && (
           <Card className="glass-card border-0 shadow-xl">
