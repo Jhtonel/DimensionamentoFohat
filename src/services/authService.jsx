@@ -21,6 +21,7 @@ import {
 
 import { firebaseConfig } from '../config/firebase.js';
 import { supabase } from './supabaseClient.js';
+import { getBackendUrl } from "./backendUrl.js";
 
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
@@ -271,8 +272,7 @@ class AuthService {
     if (!email) return { role: 'vendedor', cargo: '', nome: '' };
     // Consultar dados no backend Python
     try {
-      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-      const serverUrl = `http://${hostname}:8000`;
+      const serverUrl = getBackendUrl();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
       const resp = await fetch(`${serverUrl}/auth/role?email=${encodeURIComponent(email)}&t=${Date.now()}`, {
