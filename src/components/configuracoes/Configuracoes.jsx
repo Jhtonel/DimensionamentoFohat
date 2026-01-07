@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "../../services/authService.jsx";
+import { getBackendUrl } from "../../services/backendUrl.js";
 
 const Configuracoes = () => {
   const { getAuthToken } = useAuth();
@@ -27,7 +28,7 @@ const Configuracoes = () => {
   const loadConfig = async () => {
     try {
       const token = await getAuthToken();
-      const response = await fetch('http://localhost:8000/api/configuracao', {
+      const response = await fetch(`${getBackendUrl()}/api/configuracao`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -62,7 +63,7 @@ const Configuracoes = () => {
 
     try {
       const token = await getAuthToken();
-      const response = await fetch('http://localhost:8000/api/configuracao', {
+      const response = await fetch(`${getBackendUrl()}/api/configuracao`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -14,7 +14,7 @@ import uuid
 import math
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend (deve ser antes do pyplot)
@@ -3610,6 +3610,26 @@ def _resolve_irr_vec_from_csv(cidade: str | None, irr_media_fallback: float = 5.
     except Exception:
         return [irr_media_fallback] * 12
 
+# ---------------------------
+# Frontend (Vite build) - SPA
+# ---------------------------
+# Importante: manter estas rotas no FINAL do arquivo (mas ANTES do app.run)
+# para não capturar endpoints específicos do backend.
+_DIST_DIR = (Path(__file__).parent / "dist").resolve()
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_spa(path: str):
+    if not _DIST_DIR.exists():
+        return "Frontend não buildado (pasta dist ausente).", 404
+
+    # Se existir arquivo estático no dist, servir ele; caso contrário, fallback para SPA
+    requested = (_DIST_DIR / path).resolve()
+    if path and requested.exists() and str(requested).startswith(str(_DIST_DIR)):
+        return send_from_directory(_DIST_DIR, path)
+
+    return send_from_directory(_DIST_DIR, "index.html")
+
 if __name__ == '__main__':
     # Inicializa o banco (SQLite por padrão; PostgreSQL via DATABASE_URL)
     try:
@@ -3617,4 +3637,7 @@ if __name__ == '__main__':
         print('✅ Banco de dados inicializado')
     except Exception as e:
         print(f'⚠️ Falha ao inicializar DB: {e}')
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    # Railway injeta a porta via variável de ambiente PORT
+    port = int(os.environ.get('PORT', '8000'))
+    debug = os.environ.get('FLASK_DEBUG', '').strip() in ('1', 'true', 'True')
+    app.run(host='0.0.0.0', port=port, debug=debug)

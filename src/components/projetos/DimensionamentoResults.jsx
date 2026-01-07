@@ -629,7 +629,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
                     <button
                       className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                       onClick={() => {
-                        const url = `http://localhost:8000/proposta/${propostaId}`;
+                        const url = propostaService.getPropostaURL(propostaId);
                         navigator.clipboard.writeText(url).then(() => {
                           alert('✅ Link copiado!\n\n' + url);
                         }).catch(() => {
@@ -645,7 +645,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
                     <button
                       className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                       onClick={() => {
-                        const url = `http://localhost:8000/proposta/${propostaId}`;
+                        const url = propostaService.getPropostaURL(propostaId);
                         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent('Confira esta proposta de energia solar: ' + url)}`;
                         window.open(whatsappUrl, '_blank');
                         setShowShareMenu(false);

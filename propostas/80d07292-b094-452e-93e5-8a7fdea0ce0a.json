@@ -68,5 +68,6 @@
     },
     "preco_venda": 89088.6,
     "tarifa_energia": 0.787
-  }
+  },
+  "status": "fechado"
 }

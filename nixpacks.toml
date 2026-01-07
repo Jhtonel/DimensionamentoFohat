@@ -1,0 +1,20 @@
+[phases.setup]
+# Precisamos de Node (build do Vite) + Python (Flask)
+nixPkgs = ["nodejs_20", "python311"]
+
+[phases.install]
+cmds = [
+  "python -m pip install --upgrade pip",
+  "pip install -r requirements.txt",
+  "npm ci"
+]
+
+[phases.build]
+cmds = [
+  "npm run build"
+]
+
+[start]
+cmd = "python3 servidor_proposta.py"
+
+

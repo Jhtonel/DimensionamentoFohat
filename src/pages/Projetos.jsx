@@ -34,6 +34,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/services/authService.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { systemConfig } from "@/config/firebase.js";
+import { getBackendUrl } from "@/services/backendUrl.js";
 
 const statusColors = {
   lead: "bg-gray-100 text-gray-700",
@@ -249,9 +250,7 @@ export default function Projetos() {
 
   const loadUsers = async () => {
     try {
-      const serverUrl = (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
-        ? systemConfig.apiUrl
-        : (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+      const serverUrl = getBackendUrl();
       const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
       let items = [];
       if (resp.ok) {
@@ -308,7 +307,7 @@ export default function Projetos() {
     
     // Carregar métricas de visualização
     try {
-      const response = await fetch(`http://localhost:8000/proposta/${projeto.id}/views`);
+      const response = await fetch(`${getBackendUrl()}/proposta/${projeto.id}/views`);
       if (response.ok) {
         const views = await response.json();
         setProjetoViews(views);
@@ -324,7 +323,7 @@ export default function Projetos() {
     setShowMetricsModal(true);
     
     try {
-      const response = await fetch(`http://localhost:8000/proposta/${projeto.id}/views`);
+      const response = await fetch(`${getBackendUrl()}/proposta/${projeto.id}/views`);
       if (response.ok) {
         const views = await response.json();
         setMetricsData({ ...views, projeto_nome: projeto.nome_projeto || projeto.cliente_nome });

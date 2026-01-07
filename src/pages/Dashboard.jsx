@@ -28,6 +28,7 @@ import StatsCard from "../components/Dashboard/StatsCard.jsx";
 import { useAuth } from "@/services/authService.jsx";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { systemConfig } from "@/config/firebase.js";
+import { getBackendUrl } from "@/services/backendUrl.js";
 import StageBarChart from "@/components/dashboard/Charts/StageBarChart.jsx";
 import ConversionDoughnut from "@/components/dashboard/Charts/ConversionDoughnut.jsx";
 import DateRangeSelect from "@/components/dashboard/Filters/DateRangeSelect.jsx";
@@ -64,9 +65,7 @@ export default function Dashboard() {
   
   const loadUsers = async () => {
     try {
-      const serverUrl = (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
-        ? systemConfig.apiUrl
-        : (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+      const serverUrl = getBackendUrl();
       const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
       let items = [];
       if (resp.ok) {

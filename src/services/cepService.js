@@ -3,10 +3,12 @@
  * (Evita problemas de CORS e rede ao chamar ViaCEP diretamente)
  */
 
+import { getBackendUrl } from "./backendUrl.js";
+
 class CepService {
   constructor() {
     // Usa o proxy do servidor Python
-    this.baseURL = 'http://localhost:8000/cep';
+    this.baseURL = `${getBackendUrl()}/cep`;
   }
 
   /**

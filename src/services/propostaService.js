@@ -3,6 +3,7 @@
  */
 
 import { systemConfig } from '../config/firebase.js';
+import { getBackendUrl } from './backendUrl.js';
 
 // Detectar automaticamente a URL do servidor baseada no host atual, priorizando config
 const getServerUrl = () => {
@@ -23,11 +24,11 @@ const getServerUrl = () => {
     return `http://localhost:${port}`;
   }
   
-  // Caso contrário, usar o mesmo hostname com porta 8000
-  return `http://${hostname}:${port}`;
+  // Em produção, o backend serve o frontend no mesmo origin
+  return window.location.origin;
 };
 
-const SERVER_URL = getServerUrl();
+const SERVER_URL = getBackendUrl() || getServerUrl();
 
 // Log da URL do servidor para debug
 console.log('🌐 SERVER_URL configurado como:', SERVER_URL);

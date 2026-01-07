@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Usuario } from "@/entities";
 import { systemConfig } from "@/config/firebase.js";
+import { getBackendUrl } from "@/services/backendUrl.js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -839,7 +840,7 @@ export default function AdminUsuarios() {
   const getServerUrl = () => {
     return (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
       ? systemConfig.apiUrl
-      : (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+      : getBackendUrl();
   };
 
   const loadPermissions = async () => {

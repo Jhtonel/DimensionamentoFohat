@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "../../services/authService.jsx";
+import { getBackendUrl } from "../../services/backendUrl.js";
 
 const ClientesManager = () => {
   const { user, getAuthToken } = useAuth();
@@ -22,7 +23,7 @@ const ClientesManager = () => {
   const loadClientes = async () => {
     try {
       const token = await getAuthToken();
-      const response = await fetch('http://localhost:8000/api/clientes', {
+      const response = await fetch(`${getBackendUrl()}/api/clientes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -53,8 +54,8 @@ const ClientesManager = () => {
     try {
       const token = await getAuthToken();
       const url = editingCliente 
-        ? `http://localhost:8000/api/clientes/${editingCliente.id}`
-        : 'http://localhost:8000/api/clientes';
+        ? `${getBackendUrl()}/api/clientes/${editingCliente.id}`
+        : `${getBackendUrl()}/api/clientes`;
       
       const method = editingCliente ? 'PUT' : 'POST';
       
@@ -88,7 +89,7 @@ const ClientesManager = () => {
 
     try {
       const token = await getAuthToken();
-      const response = await fetch(`http://localhost:8000/api/clientes/${clienteId}`, {
+      const response = await fetch(`${getBackendUrl()}/api/clientes/${clienteId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

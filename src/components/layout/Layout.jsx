@@ -51,11 +51,21 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <div className="h-screen flex overflow-hidden">
         {/* Sidebar */}
-        <aside className={`bg-white border-r border-gray-200 h-screen sticky top-0 ${open ? 'w-64' : 'w-16'} transition-all duration-300 flex flex-col`}>
-          <div className="flex items-center justify-between px-3 py-4 border-b">
-            <div className={`flex items-center gap-2 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'} transition-opacity`}>
-              <span className="h-8 w-8 rounded-lg bg-sky-500 inline-block" />
-              <span className="font-semibold text-gray-800">Solar CRM</span>
+        <aside className={`bg-white border-r border-gray-200 h-screen sticky top-0 ${open ? 'w-64' : 'w-16'} transition-all duration-300 flex flex-col overflow-x-hidden`}>
+          <div className="flex items-center justify-between px-3 py-4 border-b min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <img
+                src="/img/logo-bg-blue.svg"
+                alt="Fohat Energia"
+                className="h-8 w-8 shrink-0 object-contain"
+                loading="eager"
+                decoding="async"
+              />
+              {open && (
+                <span className="font-semibold text-gray-800 truncate">
+                  Fohat Energia CRM
+                </span>
+              )}
             </div>
             {open && (
               <button
@@ -67,7 +77,7 @@ const Layout = ({ children }) => {
               </button>
             )}
           </div>
-          <nav className="flex-1 py-3 overflow-y-auto">
+          <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden min-w-0">
             {navItems
               .filter(item => !item.roles || item.roles.includes(user?.role))
               .map(({ to, label, icon: Icon }) => (
@@ -75,7 +85,7 @@ const Layout = ({ children }) => {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 mx-2 my-1 px-3 py-2 rounded-md text-sm transition-colors ${
+                  `flex items-center gap-3 mx-2 my-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
                     isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
                   }`
                 }
@@ -94,11 +104,11 @@ const Layout = ({ children }) => {
                 {open && <span className="flex-1 text-left">Admin</span>}
               </button>
               {adminOpen && (
-                <div className={`pl-2 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'} transition-opacity`}>
+                <div className={`pl-2 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'} transition-opacity overflow-x-hidden min-w-0`}>
                   <NavLink
                     to="/configuracoes"
                     className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
+                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
                         isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
                       }`
                     }
@@ -109,7 +119,7 @@ const Layout = ({ children }) => {
                   <NavLink
                     to="/admin/usuarios"
                     className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
+                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
                         isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
                       }`
                     }
@@ -120,7 +130,7 @@ const Layout = ({ children }) => {
                   <NavLink
                     to="/admin/taxas"
                     className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
+                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
                         isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
                       }`
                     }
@@ -131,7 +141,7 @@ const Layout = ({ children }) => {
                   <NavLink
                     to="/admin/comissoes"
                     className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
+                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
                         isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
                       }`
                     }

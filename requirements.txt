@@ -1,9 +1,9 @@
 flask
 flask-cors
+gunicorn
 matplotlib
 numpy
 pandas
-weasyprint
 SQLAlchemy
 psycopg2-binary
 python-dotenv

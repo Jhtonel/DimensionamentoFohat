@@ -1,5 +1,6 @@
 // Simulação de dados em memória para desenvolvimento
 import { supabase } from '../services/supabaseClient.js';
+import { getBackendUrl } from '../services/backendUrl.js';
 let clientesData = [
   {
     id: '1',
@@ -191,17 +192,7 @@ class Cliente extends BaseEntity {
   static data = clientesData;
   
   static getServerUrl() {
-    try {
-      const { systemConfig } = require('../config/firebase.js');
-      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
-        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
-      }
-      if (systemConfig?.apiUrl) return systemConfig.apiUrl;
-    } catch (_) {}
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const port = '8000';
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${port}`;
-    return `http://${hostname}:${port}`;
+    return getBackendUrl();
   }
 
   static async list(orderBy = '-created_at') {
@@ -351,17 +342,7 @@ class Projeto extends BaseEntity {
   static data = projetosData;
 
   static getServerUrl() {
-    try {
-      const { systemConfig } = require('../config/firebase.js');
-      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
-        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
-      }
-      if (systemConfig?.apiUrl) return systemConfig.apiUrl;
-    } catch (_) {}
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const port = '8000';
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${port}`;
-    return `http://${hostname}:${port}`;
+    return getBackendUrl();
   }
 
   static async list(orderBy = '-created_at') {
@@ -529,15 +510,7 @@ class Configuracao extends BaseEntity {
   static _concessionariasCache = null;
 
   static getServerUrl() {
-    try {
-      const { systemConfig } = require('../config/firebase.js');
-      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
-        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
-      }
-      return systemConfig?.proposalServerUrl || `http://${window.location.hostname}:8000`;
-    } catch {
-      return `http://${window.location.hostname}:8000`;
-    }
+    return getBackendUrl();
   }
 
   // Método para buscar todas as concessionárias do backend (dados ANEEL)
@@ -696,18 +669,7 @@ export class Usuario extends BaseEntity {
   static roles = ['admin', 'gestor', 'vendedor', 'instalador'];
 
   static getServerUrl() {
-    // Mantemos a mesma heurística do Projeto
-    try {
-      const { systemConfig } = require('../config/firebase.js');
-      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
-        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
-      }
-      if (systemConfig?.apiUrl) return systemConfig.apiUrl;
-    } catch (_) {}
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const port = '8000';
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${port}`;
-    return `http://${hostname}:${port}`;
+    return getBackendUrl();
   }
 
   static async list(orderBy = '-created_at') {
