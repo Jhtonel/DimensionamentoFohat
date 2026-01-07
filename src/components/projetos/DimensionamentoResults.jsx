@@ -444,7 +444,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         const projetoId = urlParams.get('projeto_id');
         if (projetoId) {
           const clienteNome = (clientes.find(c => c.id === formData?.cliente_id)?.nome) || formData?.cliente_nome || null;
-          await Projeto.update(projetoId, {
+          // Não bloquear a geração/preview da proposta por falhas ou travas no Supabase.
+          // (quando o Supabase entra em loop de refresh_token, esse await pode "pendurar" e deixar a UI em "Gerando...")
+          Promise.race([
+            Projeto.update(projetoId, {
             ...formData,
             // Requisito: recém gerados devem aparecer em "Dimensionamento"
             status: 'dimensionamento',
@@ -453,7 +456,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             preco_final: dadosSeguros?.preco_final ?? undefined,
             proposta_id: propostaId,
             url_proposta: propostaService.getPropostaURL(propostaId)
-          });
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao atualizar projeto')), 3500)),
+          ]).catch(() => {});
         }
       } catch (e) {
         // Erro não crítico

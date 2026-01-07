@@ -417,8 +417,9 @@ class Projeto extends BaseEntity {
 
       // 2. Fallback para sessão Supabase
       if (!uid) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        uid = sessionData?.session?.user?.id || null;
+        // Evitar dependência de auth do Supabase (o projeto usa Firebase Auth).
+        // Além disso, quando o Supabase entra em loop de refresh_token, isso pode travar o fluxo.
+        uid = null;
       }
 
       const payload = {

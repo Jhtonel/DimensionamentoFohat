@@ -677,11 +677,20 @@ def generate_chart_file(chart_type, data, labels, title, colors=None, figsize=(2
 def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=(12, 8), y_currency: bool = True):
     """Gera gráfico profissional e retorna como base64"""
     try:
+        def _fmt_brl_num(v: float, decimals: int = 0) -> str:
+            try:
+                s = f"{float(v):,.{decimals}f}"
+            except Exception:
+                s = str(v)
+            # en-US -> pt-BR
+            s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+            return f"R$ {s}"
+
         # Configurar estilo profissional
         plt.style.use('default')
         
         # Ajustar tamanhos de fonte baseado no figsize - aumentados para harmonizar com proposta
-        base_font_size = 18  # Aumentado
+        base_font_size = 20  # Mais legível
         scale_factor = min(figsize[0] / 12, figsize[1] / 8)  # Fator de escala baseado no figsize
         
         plt.rcParams.update({
@@ -698,8 +707,8 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         
         fig, ax = plt.subplots(figsize=figsize, facecolor='none')  # Fundo transparente
         ax.set_facecolor('none')  # Fundo transparente
-        # Reduzir margens internas
-        fig.subplots_adjust(left=0.07, right=0.99, top=0.90, bottom=0.16)
+        # Reduzir margens internas (usar quase 100% da área)
+        fig.subplots_adjust(left=0.07, right=0.995, top=0.995, bottom=0.12)
         
         # Cores profissionais baseadas no design da proposta
         if colors is None:
@@ -743,39 +752,79 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
                 height = bar.get_height()
                 # Posicionar texto acima da barra
                 ax.text(bar.get_x() + bar.get_width()/2, height + max_val*0.02,
-                       f'R$ {value:,.0f}', ha='center', va='bottom', 
-                       fontsize=int(16 * scale_factor), fontweight='800', color='#1e293b',
+                       _fmt_brl_num(value, 0), ha='center', va='bottom', 
+                       fontsize=int(18 * scale_factor), fontweight='900', color='#0f172a',
                        bbox=dict(boxstyle='round,pad=0.4', facecolor='white', 
                                edgecolor='#e2e8f0', alpha=0.95, linewidth=1))
+            # headroom para não cortar os rótulos
+            try:
+                ax.set_ylim(0, (max_val * 1.18) if max_val > 0 else 1)
+            except Exception:
+                pass
             
             # Configurar eixo Y
             if y_currency:
-                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'R$ {x:,.0f}'))
+                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: _fmt_brl_num(x, 0)))
             else:
                 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
             
         elif chart_type == 'line':
             # Criar linha com estilo profissional (usar posições numéricas para evitar problemas com labels vazios)
             x = np.arange(len(labels))
-            line = ax.plot(x, data, marker='o', linewidth=3, markersize=8, 
+            line = ax.plot(x, data, marker='o', linewidth=4, markersize=9, 
                           color=color_list[0], markerfacecolor='white', 
                           markeredgecolor=color_list[0], markeredgewidth=2,
                           alpha=0.9)
             ax.set_xticks(x)
-            ax.set_xticklabels(labels)
+            # Para séries longas, reduzir ruído no eixo X (evita compressão e melhora legibilidade)
+            try:
+                non_empty = sum(1 for l in (labels or []) if str(l).strip())
+                if non_empty > 12:
+                    disp = []
+                    for i, l in enumerate(labels):
+                        # mostrar a cada 5 anos (ou manter vazios que já vieram do caller)
+                        if str(l).strip() == "":
+                            disp.append("")
+                        else:
+                            disp.append(l if ((i + 1) % 5 == 0 or i == 0 or i == len(labels) - 1) else "")
+                    ax.set_xticklabels(disp)
+                else:
+                    ax.set_xticklabels(labels)
+            except Exception:
+                ax.set_xticklabels(labels)
             
             # Adicionar valores nos pontos com estilo melhorado
-            for i, y in enumerate(data):
-                if not labels or (i < len(labels) and str(labels[i]).strip() != ""):
-                    ax.annotate(f'R$ {y:,.0f}', (x[i], y), textcoords="offset points", 
-                               xytext=(0,20), ha='center', fontsize=int(15 * scale_factor), fontweight='800',
-                           color='#1e293b',
-                           bbox=dict(boxstyle='round,pad=0.4', facecolor='white', 
-                                   edgecolor='#e2e8f0', alpha=0.95, linewidth=1))
+            # Evitar poluição visual: anotar apenas pontos "importantes"
+            # - Séries longas: último ponto
+            # - Séries curtas (<=6): todos
+            try:
+                n = len(data) if data is not None else 0
+                for i, y in enumerate(data):
+                    should_annotate = (n <= 6) or (i == n - 1)
+                    if should_annotate:
+                        ax.annotate(
+                            _fmt_brl_num(y, 0),
+                            (x[i], y),
+                            textcoords="offset points",
+                            xytext=(0, 18),
+                            ha='center',
+                            fontsize=int(16 * scale_factor),
+                            fontweight='900',
+                            color='#0f172a',
+                            bbox=dict(
+                                boxstyle='round,pad=0.35',
+                                facecolor='white',
+                                edgecolor='#e2e8f0',
+                                alpha=0.96,
+                                linewidth=1
+                            )
+                        )
+            except Exception:
+                pass
             
             # Configurar eixo Y
             if y_currency:
-                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'R$ {x:,.0f}'))
+                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: _fmt_brl_num(x, 0)))
             else:
                 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
             
@@ -812,27 +861,22 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             
             # Configurar eixo Y
             if y_currency:
-                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'R$ {x:,.0f}'))
+                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: _fmt_brl_num(x, 0)))
             else:
                 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
         
-        # Configurar título com estilo profissional
-        try:
-            if isinstance(title, str) and title.strip():
-                ax.set_title(title, fontsize=int(22 * scale_factor), fontweight='800', pad=30, color='#1e293b')
-        except Exception:
-            pass
-        
-        # Configurar rótulos dos eixos
-        ax.set_xlabel('Período', fontsize=int(18 * scale_factor), fontweight='700', color='#1e293b')
-        ax.set_ylabel('Valor (R$)' if y_currency else 'kWh', fontsize=int(18 * scale_factor), fontweight='700', color='#1e293b')
+        # Remover títulos e labels internos para o template controlar o contexto (usa 100% da área útil)
+        ax.set_title('')
+        ax.set_xlabel('')
+        ax.set_ylabel('')
         
         # Configurar ticks
-        ax.tick_params(axis='x', rotation=45, colors='#374151', labelsize=int(16 * scale_factor))
-        ax.tick_params(axis='y', colors='#374151', labelsize=int(16 * scale_factor))
+        rot = 0 if (isinstance(labels, list) and len(labels) <= 3) else 45
+        ax.tick_params(axis='x', rotation=rot, colors='#334155', labelsize=int(17 * scale_factor))
+        ax.tick_params(axis='y', colors='#334155', labelsize=int(17 * scale_factor))
         
         # Ajustar layout para evitar sobreposição
-        plt.tight_layout()
+        plt.tight_layout(pad=0.2)
         
         # Converter para base64 com alta qualidade e fundo transparente
         buffer = io.BytesIO()
@@ -944,12 +988,24 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         except Exception:
             pass
         try:
-            # 5) Slide 09 – custo acumulado sem solar (25 anos)
+            # 5) Slide 09 – Comparativo: custo sem energia solar (25 anos) vs investimento (preço de venda)
             cas = tabelas.get("custo_acumulado_sem_solar_r") or []
-            if cas:
-                labs = [f"Ano {i+1}" for i in range(len(cas))]
-                graf5 = generate_chart_base64('line', [float(v) for v in cas], labs, "", ['#dc2626'], figsize=(16, 10), y_currency=True)
-                if graf5: graficos["grafico5"] = graf5
+
+            gasto_total_25 = float(cas[-1]) if cas else 0.0
+            investimento = float(preco_venda or 0.0)
+
+            if gasto_total_25 > 0 or investimento > 0:
+                graf5 = generate_chart_base64(
+                    'bar',
+                    [gasto_total_25, investimento],
+                    ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
+                    "",
+                    ['#DC2626', '#1E3A8A'],
+                    figsize=(16, 10),
+                    y_currency=True
+                )
+                if graf5:
+                    graficos["grafico5"] = graf5
         except Exception:
             pass
 
@@ -1981,18 +2037,29 @@ def analise_gerar_graficos():
                 fca = tabelas.get("fluxo_caixa_acumulado_r") or []
                 if fca:
                     labs = [f"Ano {i+1}" for i in range(len(fca))]
-                    graf4 = generate_chart_base64('line', [float(v) for v in fca], labs, "Fluxo de Caixa Acumulado", ['#059669'], figsize=(16, 10), y_currency=True)
+                    graf4 = generate_chart_base64('line', [float(v) for v in fca], labs, "", ['#059669'], figsize=(16, 10), y_currency=True)
                     if graf4: graficos_base64["grafico4"] = graf4
             except Exception as _e:
                 print(f"⚠️ Falha grafico4: {_e}")
 
-            # Slide 09 – Linha: acumulado sem solar (25 anos)
+            # Slide 09 – Comparativo: custo sem energia solar (25 anos) vs investimento (preço de venda)
             try:
                 cas = tabelas.get("custo_acumulado_sem_solar_r") or []
-                if cas:
-                    labs = [f"Ano {i+1}" for i in range(len(cas))]
-                    graf5 = generate_chart_base64('line', [float(v) for v in cas], labs, "Evolução dos Gastos - Próximos 25 Anos", ['#dc2626'], figsize=(16, 10), y_currency=True)
-                    if graf5: graficos_base64["grafico5"] = graf5
+                gasto_total_25 = float(cas[-1]) if cas else 0.0
+                investimento = float(preco_venda or 0.0)
+
+                if gasto_total_25 > 0 or investimento > 0:
+                    graf5 = generate_chart_base64(
+                        'bar',
+                        [gasto_total_25, investimento],
+                        ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
+                        "Comparativo Financeiro (25 anos)",
+                        ['#DC2626', '#1E3A8A'],
+                        figsize=(16, 10),
+                        y_currency=True
+                    )
+                    if graf5:
+                        graficos_base64["grafico5"] = graf5
             except Exception as _e:
                 print(f"⚠️ Falha grafico5: {_e}")
         except Exception as eg:
@@ -2645,31 +2712,33 @@ def visualizar_proposta(proposta_id):
         print("📊 === DEBUG GRÁFICO SLIDE-09 (visualizar) ===")
         print(f"conta_atual_anual: {conta_atual_anual}")
         
-        # Gerar gráfico comparativo para slide-09
+        # Gerar gráfico comparativo para slide-09 (Sem solar 25 anos x Investimento)
         if conta_atual_anual > 0:
             print("✅ Condição conta_atual_anual > 0 satisfeita para slide-09")
-            # Dados para comparação: gastos sem solar vs economia com solar
-            anos = ['Ano 1', 'Ano 5', 'Ano 10', 'Ano 15', 'Ano 20', 'Ano 25']
-            gastos_sem_solar = [conta_atual_anual, conta_ano_5, conta_ano_10, conta_ano_15, conta_ano_20, conta_ano_25]
-            economia_com_solar = [0, 0, 0, 0, 0, 0]  # Economia acumulada
-            
-            print(f"gastos_sem_solar: {gastos_sem_solar}")
-            
-            # Calcular economia acumulada
-            economia_mensal = proposta_data.get('economia_mensal_estimada', 75)
-            for i in range(len(anos)):
-                economia_com_solar[i] = economia_mensal * 12 * (i + 1)
-            
-            print(f"economia_com_solar: {economia_com_solar}")
-            
-            # Gerar gráfico de linha comparativo usando base64
+
+            gasto_total_25 = parse_float(proposta_data.get('gasto_total_25_anos', 0), 0.0)
+            if gasto_total_25 <= 0:
+                # fallback simples
+                gasto_total_25 = float(conta_atual_anual) * 25.0
+
+            investimento = parse_float(
+                proposta_data.get('preco_venda',
+                                  proposta_data.get('preco_final',
+                                                    proposta_data.get('custo_total_projeto', 0))),
+                0.0
+            )
+
+            print(f"gasto_total_25: {gasto_total_25}")
+            print(f"investimento: {investimento}")
+
             chart_base64_slide09 = generate_chart_base64(
-                'line',
-                gastos_sem_solar,
-                anos,
-                "Evolução dos Gastos - Próximos 25 Anos",
-                ['#d62728'],  # Vermelho para gastos sem solar
-                figsize=(18, 10)  # Proporção mais equilibrada
+                'bar',
+                [gasto_total_25, investimento],
+                ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
+                "Comparativo Financeiro (25 anos)",
+                ['#DC2626', '#1E3A8A'],
+                figsize=(18, 10),
+                y_currency=True
             )
             
             if chart_base64_slide09:

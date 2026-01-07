@@ -33,6 +33,17 @@ const SERVER_URL = getServerUrl();
 console.log('🌐 SERVER_URL configurado como:', SERVER_URL);
 console.log('🌐 Hostname atual:', window.location.hostname);
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { ...options, signal: options.signal || controller.signal });
+    return resp;
+  } finally {
+    clearTimeout(t);
+  }
+};
+
 export const propostaService = {
   /**
    * Salva uma proposta no servidor
@@ -45,13 +56,13 @@ export const propostaService = {
       console.log('🌐 URL do servidor:', `${SERVER_URL}/salvar-proposta`);
       console.log('🌐 SERVER_URL configurado como:', SERVER_URL);
       
-      const response = await fetch(`${SERVER_URL}/salvar-proposta`, {
+      const response = await fetchWithTimeout(`${SERVER_URL}/salvar-proposta`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(propostaData)
-      });
+      }, 20000);
 
       console.log('📡 Resposta do servidor:', response.status, response.statusText);
       console.log('📡 Headers da resposta:', Object.fromEntries(response.headers.entries()));
@@ -96,7 +107,7 @@ export const propostaService = {
       // Se for erro de rede/timeout, retornar orientação de iniciar backend
       const networkHints = ['Failed to fetch', 'NetworkError', 'TypeError: fetch', 'aborted'];
       if (networkHints.some(h => String(error).includes(h))) {
-        throw new Error('Servidor indisponível (porta 8000). Inicie o backend e tente novamente.');
+        throw new Error('Servidor indisponível (porta 8000). Verifique se o backend está rodando e tente novamente.');
       }
       // Fallback genérico preservando a mensagem original
       throw new Error(error?.message || 'Não foi possível salvar a proposta.');
@@ -137,11 +148,11 @@ export const propostaService = {
    */
   async gerarGraficos(payload) {
     try {
-      const response = await fetch(`${SERVER_URL}/analise/gerar-graficos`, {
+      const response = await fetchWithTimeout(`${SERVER_URL}/analise/gerar-graficos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, 25000);
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
         throw new Error(`Erro ao gerar gráficos: ${response.status} ${errText || ''}`);
@@ -163,11 +174,11 @@ export const propostaService = {
    */
   async analiseGerarGraficos(payload) {
     try {
-      const response = await fetch(`${SERVER_URL}/analise/gerar-graficos`, {
+      const response = await fetchWithTimeout(`${SERVER_URL}/analise/gerar-graficos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, 25000);
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
         throw new Error(errText || `Erro ${response.status}`);
@@ -184,11 +195,11 @@ export const propostaService = {
    */
   async anexarGraficos(propostaId, body) {
     try {
-      const res = await fetch(`${SERVER_URL}/propostas/${propostaId}/anexar-graficos`, {
+      const res = await fetchWithTimeout(`${SERVER_URL}/propostas/${propostaId}/anexar-graficos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
+      }, 20000);
       if (!res.ok) {
         const err = await res.text().catch(() => '');
         throw new Error(err || `Erro ${res.status}`);
@@ -210,10 +221,14 @@ export const propostaService = {
       console.log('🔄 Gerando HTML da proposta:', propostaId);
       
       const url = `${SERVER_URL}/gerar-proposta-html/${propostaId}?t=${Date.now()}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: opts.signal
-      });
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: 'GET',
+          signal: opts.signal,
+        },
+        20000
+      );
 
       if (!response.ok) {
         // Ajuda a diagnosticar 404 por ID incorreto

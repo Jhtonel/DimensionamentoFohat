@@ -8,6 +8,15 @@ const DEFAULT_ANON =
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_ANON
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+// Este projeto usa Firebase Auth; Supabase aqui é principalmente para dados.
+// Para evitar loops de refresh_token (que travam a UI com requisições repetidas),
+// desativamos persistência/refresh automático de sessão.
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+})
 
 

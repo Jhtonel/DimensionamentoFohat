@@ -13,6 +13,7 @@
     /* principais */
     --brand-primary:#1E3A8A; /* Azul primário (confirmado) */
     --brand-secondary:#ECFDF5; /* Light secundária (confirmado) */
+    --brand-accent:#F59E0B; /* Amarelo/laranja para destaques */
 
     /* Neutras */
     --n-50:#F9FAFB; --n-100:#F3F4F6; --n-200:#E5E7EB; --n-300:#D1D5DB;
@@ -26,8 +27,8 @@
 
     /* Azul */
     --b-50:#EFF6FF; --b-100:#DBEAFE; --b-200:#BFDBFE; --b-300:#93C5FD;
-    --b-400:#7FB39; /* mantido como recebido no print (caso de correção, troque aqui) */
-    --b-500:#3B82F6; --b-600:#3F3F4F6; /* idem observação */
+    --b-400:#60A5FA; /* corrigido (Tailwind blue-400) */
+    --b-500:#3B82F6; --b-600:#2563EB; /* corrigido (Tailwind blue-600) */
     --b-700:#1D4ED8; --b-800:#1E40AF; --b-900:#1E3A8A;
 
     /* Amarelos / complementares */
@@ -44,6 +45,34 @@
     --pos-50:#ECFDF5; --pos-100:#D1FAE5; --pos-200:#A7F3D0; --pos-300:#6EE7B7;
     --pos-400:#34D399; --pos-500:#10B981; --pos-600:#059669; --pos-700:#047857;
     --pos-800:#065F46; --pos-900:#064E3B;
+
+    /* Aliases semânticos (o template usa --red/--green/--blue/--purple em vários pontos) */
+    --blue-50:var(--b-50);  --blue-100:var(--b-100); --blue-200:var(--b-200); --blue-300:var(--b-300);
+    --blue-400:var(--b-400);--blue-500:var(--b-500); --blue-600:var(--b-600); --blue-700:var(--b-700);
+    --blue-800:var(--b-800);--blue-900:var(--b-900);
+
+    --green-50:var(--pos-50);  --green-100:var(--pos-100); --green-200:var(--pos-200); --green-300:var(--pos-300);
+    --green-400:var(--pos-400);--green-500:var(--pos-500); --green-600:var(--pos-600); --green-700:var(--pos-700);
+    --green-800:var(--pos-800);--green-900:var(--pos-900);
+
+    --red-50:var(--neg-50);  --red-100:var(--neg-100); --red-200:var(--neg-200); --red-300:var(--neg-300);
+    --red-400:var(--neg-400);--red-500:var(--neg-500); --red-600:var(--neg-600); --red-700:var(--neg-700);
+    --red-800:var(--neg-800);--red-900:var(--neg-900);
+
+    /* Roxo (usado em alguns gradientes/estilos) */
+    --purple-500:#A855F7;
+    --purple-600:#9333EA;
+
+    /* Tokens de UI (visual moderno) */
+    --surface:#FFFFFF;
+    --surface-2:var(--n-50);
+    --surface-3:var(--b-50);
+    --text:var(--n-900);
+    --text-muted:var(--n-600);
+    --border-soft:color-mix(in srgb, var(--n-200) 80%, transparent);
+    --shadow-sm:0 1px 2px rgba(16,24,40,.06), 0 1px 1px rgba(16,24,40,.04);
+    --shadow-md:0 10px 20px rgba(16,24,40,.10), 0 6px 10px rgba(16,24,40,.06);
+    --shadow-lg:0 24px 50px rgba(16,24,40,.16), 0 10px 18px rgba(16,24,40,.10);
 
     /* tipografia/spacing base */
     --maxw:1200px;
@@ -78,7 +107,7 @@
 
   /* Reset mínimo */
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;font-family:Poppins;color:var(--n-800);background:#fff}
+  html,body{height:100%;margin:0;font-family:Poppins;color:var(--text);background:var(--surface)}
   h1,h2,h3,h4{margin:0 0 12px 0;color:var(--n-900)}
   p{margin:0 0 12px 0;line-height:1.5}
   ul{margin:0 0 12px 1.2rem}
@@ -99,6 +128,7 @@
     overflow:hidden;
     border-bottom:1px solid var(--n-200);
     margin:0 auto; /* Centralizar */
+    background:linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
   }
 
   /* áreas internas com grid de layout */
@@ -124,6 +154,10 @@
   .bg-neutral{background:var(--n-50)}
   .text-primary{color:var(--brand-primary)}
   .chip{display:inline-block;padding:8px 14px;border-radius:999px;background:var(--n-100);color:var(--n-700);font-weight:600}
+  .chip{
+    box-shadow:var(--shadow-sm);
+    border:1px solid var(--border-soft);
+  }
 
   /* tipografia fiel e escalas comuns */
   .title-xxl{font-size:64px;line-height:1.05;font-weight:800;letter-spacing:-0.02em}
@@ -135,24 +169,36 @@
 
   /* blocos comuns (cards, tabelas) */
   .card{
-    background:#fff;
-    border:1px solid var(--n-200);
+    background:var(--surface);
+    border:1px solid var(--border-soft);
     border-radius:var(--radius-lg);
     padding:24px;
+    box-shadow:var(--shadow-sm);
   }
   .card.soft{background:var(--n-50)}
-  .card.primary{background:var(--brand-primary);color:#fff;border-color:transparent}
-  .card.secondary{background:var(--brand-secondary);border-color:transparent}
+  .card.primary{background:linear-gradient(135deg, var(--brand-primary) 0%, var(--b-800) 100%);color:#fff;border-color:transparent;box-shadow:var(--shadow-md)}
+  .card.secondary{background:linear-gradient(135deg, var(--brand-secondary) 0%, var(--t-50) 100%);border-color:transparent}
 
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
   .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 
   table{
-    width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border-radius:14px;border:1px solid var(--n-200);background:#fff
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    overflow:hidden;
+    border-radius:14px;
+    border:1px solid var(--border-soft);
+    background:var(--surface);
+    box-shadow:var(--shadow-sm);
   }
   thead th{
-    background:var(--n-50);text-align:left;font-weight:700;padding:14px 16px;border-bottom:1px solid var(--n-200)
+    background:linear-gradient(180deg, var(--n-50) 0%, var(--n-100) 100%);
+    text-align:left;
+    font-weight:700;
+    padding:14px 16px;
+    border-bottom:1px solid var(--border-soft);
   }
   tbody td{padding:14px 16px;border-bottom:1px solid var(--n-100)}
   tbody tr:last-child td{border-bottom:0}
@@ -171,6 +217,15 @@
   .slide-footer{
     position:absolute;right:24px;bottom:20px;font-size:14px;color:var(--n-600)
   }
+
+  /* Micro melhorias modernas (sem mexer na estrutura) */
+  .title-xxl,.title-xl,.title-lg{
+    letter-spacing:-0.02em;
+  }
+  .subtitle,.lead{
+    color:var(--text-muted);
+  }
+  a{color:inherit;text-decoration:none}
 
   /* barras decorativas opcionais (sem suposição de uso) */
   .bar{
@@ -202,12 +257,12 @@
     width:100%;
     height:4px;
     background:var(--brand-primary);
-    margin:0 0 24px 0;
+    margin:0 0 18px 0;
     border-radius:2px;
     grid-column:1 / -1;
     grid-row:1;
     align-self:start;
-    margin-top:24px;
+    margin-top:14px;
   }
 
   /* Informações do vendedor */
@@ -264,23 +319,25 @@
   }
 
   .slide-number{
-    font-size:16px;
-    color:var(--n-600);
+    font-size:14px;
+    color:var(--n-500);
     font-weight:500;
     grid-column:12 / span 1;
     text-align:right;
     grid-row:1;
     align-self:start;
+    padding:0 16px;
   }
 
   .client-name{
-    font-size:16px;
-    color:var(--n-600);
+    font-size:14px;
+    color:var(--n-500);
     font-weight:500;
     grid-column:1 / span 6;
     text-align:left;
     grid-row:1;
     align-self:start;
+    padding:0 16px;
   }
 
   .como-funciona{
@@ -323,7 +380,6 @@
     height:100%;
     padding:2px 0;
     max-width:100%;
-    overflow:hidden;
   }
 
   .valor-atual{
@@ -555,7 +611,6 @@
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden; /* respeitar margens laterais como slide-05 */
   }
 
   .aumento-conta-texto{
@@ -573,7 +628,8 @@
     padding:16px;
     background:var(--n-50);
     border-radius:12px;
-    border:2px solid var(--brand-primary);
+    border:1px solid var(--border-soft);
+    box-shadow:var(--shadow-sm);
   }
 
   .dado-item{
@@ -591,7 +647,7 @@
   .dado-item .label{
     font-size:14px;
     font-weight:600;
-    color:var(--n-700);
+    color:var(--n-800);
   }
 
   .dado-item .valor{
@@ -605,7 +661,8 @@
     padding:20px;
     background:var(--red-50);
     border-radius:12px;
-    border:2px solid var(--red-200);
+    border:1px solid color-mix(in srgb, var(--red-300) 65%, transparent);
+    box-shadow:var(--shadow-sm);
   }
 
   .valor-futuro{
@@ -628,11 +685,22 @@
     gap:12px;
     margin-top:16px;
     padding:20px;
-    background:var(--n-50);
+    background:linear-gradient(180deg, var(--n-50) 0%, var(--surface) 100%);
     border-radius:12px;
     min-height:250px;
     height:auto;
     overflow:visible; /* evita cortar labels e mantém dentro da coluna */
+    border:1px solid var(--border-soft);
+    box-shadow:var(--shadow-sm);
+  }
+
+  /* Placeholder de gráficos (melhor contraste) */
+  .grafico-linha-container img,
+  .cenario-atual-grafico img,
+  .grafico-consumo-geracao img,
+  .grafico-payback img,
+  .grafico-comparativo img{
+    filter:contrast(1.05);
   }
 
   .grafico-linha-container .eixo-y{
@@ -1260,7 +1328,7 @@
     font-size:14px;
     font-weight:700;
     letter-spacing:0.5px;
-    color:var(--brand-primary)
+    color:#fff;
   }
 
   .garantia-info{
@@ -1282,17 +1350,20 @@
     display:flex;
     flex-direction:column;
     height:100%;
-    padding:16px 0;
+    /* centraliza conteúdo com o mesmo espaçamento nas laterais */
+    padding:18px 48px;
     align-self:stretch;
     background:linear-gradient(135deg, var(--blue-50) 0%, var(--green-50) 100%);
     border-radius:16px;
     margin:8px 0;
+    border:1px solid var(--border-soft);
+    box-shadow:var(--shadow-sm);
   }
 
   .cronograma-intro{
     text-align:center;
     margin-bottom:24px;
-    padding:0 32px;
+    padding:0;
   }
 
   .intro-texto{
@@ -1309,11 +1380,11 @@
     width:100%;
     flex-direction:column;
     justify-content:center;
-    align-items:center;
-    padding:0 32px;
+    align-items:stretch;
+    padding:0;
     gap:20px;
     background:transparent;
-    margin:0 16px;
+    margin:0;
   }
 
   .timeline-dates{
@@ -1321,7 +1392,8 @@
     align-items:center;
     justify-content:space-between;
     margin-bottom:16px;
-    padding:0 16px;
+    padding:0;
+    width:100%;
   }
 
   .date-label{
@@ -1402,6 +1474,7 @@
     align-items: center;
     gap:10px;
     padding:0;
+    width:100%;
   }
 
 
@@ -1410,8 +1483,6 @@
     flex-direction:column;
     align-items:center;
     text-align:center;
-    min-width:160px;
-    max-width:160px;
     min-height:100px;
     max-height:100px;
     padding:12px 10px;
@@ -1422,8 +1493,11 @@
     justify-content:center;
     box-shadow:0 2px 8px rgba(0,0,0,0.1);
     box-sizing:border-box;
-    justify-self:center;
     width:100%;
+    min-width:0;
+    max-width:none;
+    border:1px solid var(--border-soft);
+    box-shadow:var(--shadow-sm);
   }
 
   .timeline-item.dia-marcado{
@@ -1441,7 +1515,7 @@
   .etapa-titulo{
     font-size:11px;
     font-weight:600;
-    color:var(--brand-primary);
+    color:var(--n-800);
     line-height:1.3;
     margin:0;
     display:flex;
@@ -1460,7 +1534,7 @@
   }
 
   .timeline-item.final .etapa-titulo{
-    color:var(--brand-primary);
+    color:#fff;
     font-weight:700;
     font-size:11px;
     text-shadow:0 1px 2px rgba(0,0,0,0.1);
@@ -2416,9 +2490,9 @@
 
         <!-- Gráfico de Comparativo -->
         <div class="grafico-comparativo">
-          <h4 class="grafico-titulo">Evolução dos Gastos - Próximos 25 Anos</h4>
+          <h4 class="grafico-titulo">Comparativo Financeiro (25 anos)</h4>
           <div class="grafico-container">
-            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Evolução dos Gastos" style="display: block;">
+            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento" style="display: block;">
           </div>
 
         </div>
