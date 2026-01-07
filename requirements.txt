@@ -3,7 +3,6 @@ flask-cors
 gunicorn
 matplotlib
 numpy
-pandas
 SQLAlchemy
 psycopg2-binary
 python-dotenv

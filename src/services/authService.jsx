@@ -38,13 +38,26 @@ class AuthService {
       if (firebaseUser) {
         // Primeiro cria o usuário mapeado
         const mappedUser = this.mapFirebaseUser(firebaseUser);
+
+        const envAdminEmails = (() => {
+          try {
+            const raw = (import.meta?.env?.VITE_ADMIN_EMAILS || "").trim();
+            if (!raw) return new Set();
+            return new Set(raw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean));
+          } catch {
+            return new Set();
+          }
+        })();
         
         // Carregar role e cargo a partir do backend ANTES de notificar
         try {
           const userData = await this.fetchUserDataByEmail(mappedUser.email);
+          const emailLower = (mappedUser.email || '').toLowerCase();
+          const resolvedRole =
+            (envAdminEmails.has(emailLower) ? 'admin' : (userData?.role || 'vendedor'));
           this.currentUser = { 
             ...mappedUser, 
-            role: userData?.role || 'vendedor',
+            role: resolvedRole,
             cargo: userData?.cargo || '',
             nome: userData?.nome || mappedUser.nome
           };

@@ -1,47 +1,47 @@
 {
   "admin": {
     "clientes": {
-      "visualizar": "todos",
       "criar": true,
       "editar": "todos",
       "excluir": "todos",
-      "exportar": true
-    },
-    "propostas": {
-      "visualizar": "todos",
-      "criar": true,
-      "editar": "todos",
-      "excluir": "todos",
-      "aprovar": true,
-      "compartilhar": true,
-      "ver_metricas": "todos"
-    },
-    "projetos": {
-      "visualizar": "todos",
-      "criar": true,
-      "editar": "todos",
-      "excluir": "todos",
-      "alterar_status": "todos"
+      "exportar": true,
+      "visualizar": "todos"
     },
     "dashboard": {
-      "ver_dashboard": true,
-      "ver_metricas_equipe": true,
-      "ver_metricas_empresa": true,
+      "definir_metas": true,
       "exportar_relatorios": true,
-      "definir_metas": true
+      "ver_dashboard": true,
+      "ver_metricas_empresa": true,
+      "ver_metricas_equipe": true
     },
     "financeiro": {
-      "ver_valores": true,
       "ver_comissoes": "todos",
       "ver_custos": true,
-      "ver_margem": true
+      "ver_margem": true,
+      "ver_valores": true
+    },
+    "projetos": {
+      "alterar_status": "todos",
+      "criar": true,
+      "editar": "todos",
+      "excluir": "todos",
+      "visualizar": "todos"
+    },
+    "propostas": {
+      "aprovar": true,
+      "compartilhar": true,
+      "criar": true,
+      "editar": "todos",
+      "excluir": "todos",
+      "ver_metricas": "todos",
+      "visualizar": "todos"
     },
     "sistema": {
+      "backup": true,
       "configuracoes": true,
-      "gerenciar_usuarios": true,
       "gerenciar_permissoes": true,
-      "ver_logs": true,
-      "backup": true
+      "gerenciar_usuarios": true,
+      "ver_logs": true
     }
   },
   "gestor": {

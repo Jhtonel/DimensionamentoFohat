@@ -9,7 +9,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 load_dotenv()
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./app.db')
+# Railway pode expor diferentes nomes de variável para Postgres.
+DATABASE_URL = (
+    os.getenv('DATABASE_URL')
+    or os.getenv('POSTGRES_URL')
+    or os.getenv('POSTGRESQL_URL')
+    or os.getenv('RAILWAY_DATABASE_URL')
+    or 'sqlite:///./app.db'
+)
 
 def _build_connect_args(url: str) -> dict:
     # SQLite needs check_same_thread flag
@@ -19,13 +26,21 @@ def _build_connect_args(url: str) -> dict:
     # Postgres (incl. Supabase) with SSL
     if url.startswith('postgresql'):
         # Allow overriding via env
-        sslmode = os.getenv('PGSSLMODE', 'verify-full')
-        # Prefer explicit env var path; fallback to ./certs/prod-ca-2021.crt
+        # Supabase exige CA + verify-full; Railway normalmente funciona com 'require' (ou até sem SSL).
+        is_supabase = ('supabase.co' in url) or ('pooler.supabase.com' in url)
+        default_sslmode = 'verify-full' if is_supabase else 'require'
+        sslmode = os.getenv('PGSSLMODE', default_sslmode)
+
+        args = {"sslmode": sslmode}
+
+        # Prefer explicit env var path; fallback to ./certs/prod-ca-2021.crt (apenas se existir)
         default_ca = Path(__file__).parent / 'certs' / 'prod-ca-2021.crt'
         ca_path = os.getenv('PGSSLROOTCERT') or os.getenv('SUPABASE_CA_CERT') or str(default_ca)
-        args = {"sslmode": sslmode}
-        if Path(ca_path).exists():
+        if is_supabase and Path(ca_path).exists():
             args["sslrootcert"] = ca_path
+        # Para Railway/hosts não-Supabase, não forçamos CA (evita falhas).
+        if (not is_supabase) and os.getenv('PGSSLROOTCERT') and Path(os.getenv('PGSSLROOTCERT')).exists():
+            args["sslrootcert"] = os.getenv('PGSSLROOTCERT')
         return args
 
     return {}
@@ -97,6 +112,20 @@ class UserDB(Base):
     email = Column(String(255), index=True)
     nome = Column(String(255))
     role = Column(String(32))
+    cargo = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class RoleDB(Base):
+    """
+    Mapeamento de roles por e-mail (fonte de verdade do acesso no backend).
+    """
+    __tablename__ = 'roles'
+
+    email = Column(String(255), primary_key=True)
+    role = Column(String(32), nullable=False, default='vendedor')
+    nome = Column(String(255), nullable=True)
+    cargo = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -109,6 +138,11 @@ class ClienteDB(Base):
     telefone = Column(String(64))
     email = Column(String(255))
     created_by = Column(String(128))
+    created_by_email = Column(String(255), nullable=True)
+    endereco_completo = Column(Text, nullable=True)
+    cep = Column(String(32), nullable=True)
+    tipo = Column(String(64), nullable=True)
+    observacoes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

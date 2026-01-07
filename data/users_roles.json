@@ -5,12 +5,12 @@
     "cargo": "Admin"
   },
   "jhtonel@gmail.com": {
-    "role": "gestor",
+    "role": "admin",
     "nome": "jhtonel",
     "cargo": "Diretor Comercial"
   },
   "nicolasberbel1@gmail.com": {
-    "role": "vendedor",
+    "role": "admin",
     "nome": "nicolasberbel1",
     "cargo": "Diretor Financeiro"
   }

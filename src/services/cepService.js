@@ -89,15 +89,20 @@ class CepService {
    * @returns {string} Endereço completo formatado
    */
   montarEnderecoCompleto(dadosCEP) {
-    const partes = [];
-    
-    if (dadosCEP.logradouro) partes.push(dadosCEP.logradouro);
-    if (dadosCEP.bairro) partes.push(dadosCEP.bairro);
-    if (dadosCEP.localidade) partes.push(dadosCEP.localidade);
-    if (dadosCEP.uf) partes.push(dadosCEP.uf);
-    if (dadosCEP.cep) partes.push(dadosCEP.cep);
-    
-    return partes.join(', ');
+    // Formato pensado para aparecer bem na proposta (linha única, sem poluição):
+    // "Rua X - Bairro Y, Cidade/UF"
+    // (CEP fica no campo CEP, não no endereço completo)
+    const logradouro = String(dadosCEP?.logradouro || "").trim();
+    const bairro = String(dadosCEP?.bairro || "").trim();
+    const cidade = String(dadosCEP?.localidade || "").trim();
+    const uf = String(dadosCEP?.uf || "").trim();
+
+    let out = "";
+    if (logradouro) out += logradouro;
+    if (bairro) out += (out ? " - " : "") + bairro;
+    if (cidade) out += (out ? ", " : "") + cidade;
+    if (uf) out += (cidade ? `/${uf}` : (out ? ` - ${uf}` : uf));
+    return out.trim();
   }
 }
 

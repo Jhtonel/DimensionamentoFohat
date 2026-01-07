@@ -29,9 +29,9 @@ import { useAuth } from "@/services/authService.jsx";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { systemConfig } from "@/config/firebase.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
-import StageBarChart from "@/components/dashboard/Charts/StageBarChart.jsx";
-import ConversionDoughnut from "@/components/dashboard/Charts/ConversionDoughnut.jsx";
-import DateRangeSelect from "@/components/dashboard/Filters/DateRangeSelect.jsx";
+import StageBarChart from "@/components/Dashboard/Charts/StageBarChart.jsx";
+import ConversionDoughnut from "@/components/Dashboard/Charts/ConversionDoughnut.jsx";
+import DateRangeSelect from "@/components/Dashboard/Filters/DateRangeSelect.jsx";
 import { getDateRangePreset, isWithinRange } from "@/utils";
 
 export default function Dashboard() {

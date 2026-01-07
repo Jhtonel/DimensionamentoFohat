@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from "framer-motion";
 import { X, Save } from "lucide-react";
+import cepService from "@/services/cepService.js";
 export default function ClienteForm({ cliente, onSave, onCancel }) {
   const [formData, setFormData] = useState(cliente || {
     nome: "",
@@ -17,6 +18,38 @@ export default function ClienteForm({ cliente, onSave, onCancel }) {
     tipo: "residencial",
     observacoes: ""
   });
+  const [loadingCep, setLoadingCep] = useState(false);
+  const [cepHint, setCepHint] = useState("");
+
+  const cepValido = useMemo(() => {
+    try {
+      return formData?.cep ? cepService.validarCEP(formData.cep) : false;
+    } catch {
+      return false;
+    }
+  }, [formData?.cep]);
+
+  const handleBuscarCEP = async () => {
+    setCepHint("");
+    if (!formData?.cep || !cepService.validarCEP(formData.cep)) {
+      setCepHint("Digite um CEP válido (8 dígitos).");
+      return;
+    }
+    setLoadingCep(true);
+    try {
+      const dados = await cepService.buscarCEP(formData.cep);
+      setFormData(prev => ({
+        ...prev,
+        cep: cepService.formatarCEP(dados.cep),
+        endereco_completo: cepService.montarEnderecoCompleto(dados),
+      }));
+      setCepHint("CEP encontrado e endereço preenchido.");
+    } catch (e) {
+      setCepHint(e?.message ? `Erro ao buscar CEP: ${e.message}` : "Erro ao buscar CEP.");
+    } finally {
+      setLoadingCep(false);
+    }
+  };
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(formData);
@@ -92,13 +125,34 @@ export default function ClienteForm({ cliente, onSave, onCancel }) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cep">CEP</Label>
-                <Input
-                  id="cep"
-                  value={formData.cep}
-                  onChange={(e) => handleChange("cep", e.target.value)}
-                  placeholder="00000-000"
-                  className="bg-white/50 border-sky-200"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="cep"
+                    value={formData.cep}
+                    onChange={(e) => handleChange("cep", e.target.value)}
+                    onBlur={() => {
+                      // UX: se o usuário digitou um CEP completo, já tenta buscar ao sair do campo
+                      if (cepService.validarCEP(formData.cep)) handleBuscarCEP();
+                    }}
+                    placeholder="00000-000"
+                    className="bg-white/50 border-sky-200"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBuscarCEP}
+                    disabled={loadingCep || !cepValido}
+                    className="shrink-0"
+                    title={!cepValido ? "Digite um CEP válido" : "Buscar CEP"}
+                  >
+                    {loadingCep ? "Buscando..." : "Buscar CEP"}
+                  </Button>
+                </div>
+                {cepHint ? (
+                  <p className={`text-xs ${cepHint.startsWith("Erro") ? "text-red-600" : "text-gray-600"}`}>
+                    {cepHint}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="endereco_completo">Endereço Completo</Label>
@@ -106,7 +160,7 @@ export default function ClienteForm({ cliente, onSave, onCancel }) {
                   id="endereco_completo"
                   value={formData.endereco_completo}
                   onChange={(e) => handleChange("endereco_completo", e.target.value)}
-                  placeholder="Rua, número, bairro, cidade, estado"
+                  placeholder="Rua - Bairro, Cidade/UF"
                   className="bg-white/50 border-sky-200"
                 />
               </div>

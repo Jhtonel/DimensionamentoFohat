@@ -21,11 +21,12 @@ matplotlib.use('Agg')  # Use non-interactive backend (deve ser antes do pyplot)
 import matplotlib.pyplot as plt
 import io
 import numpy as np
-import pandas as pd
 import re
 import time
+import csv
 #
-from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB
+from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB, RoleDB, ConfigDB, DATABASE_URL
+from sqlalchemy import text
 # WeasyPrint comentado - requer: brew install cairo pango gdk-pixbuf libffi
 # from weasyprint import HTML, CSS
 # from weasyprint.text.fonts import FontConfiguration
@@ -70,6 +71,17 @@ except Exception as e:
 
 app = Flask(__name__)
 CORS(app)
+
+# Flag simples: em produção (Railway) vamos preferir Postgres quando DATABASE_URL for postgresql://
+USE_DB = str(DATABASE_URL or "").startswith("postgresql")
+
+# Garantir que as tabelas existam também quando rodando via gunicorn (import mode),
+# especialmente em produção com Postgres.
+try:
+    init_db()
+    print("✅ DB schema pronto (init_db)")
+except Exception as _init_err:
+    print(f"⚠️ Falha ao preparar schema do DB (init_db): {_init_err}")
 
 @app.after_request
 def add_security_headers(response):
@@ -219,6 +231,34 @@ def _save_roles(mapping: dict) -> None:
             json.dump(mapping, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"⚠️ Falha ao salvar roles: {e}")
+
+def _parse_env_emails(var_name: str) -> set[str]:
+    """
+    Lê uma lista de e-mails de uma env var (separada por vírgula, ponto-e-vírgula ou espaços).
+    Ex.: ADMIN_EMAILS="admin@fohat.com, outro@fohat.com"
+    """
+    raw = (os.environ.get(var_name) or "").strip()
+    if not raw:
+        return set()
+    parts = re.split(r"[,\s;]+", raw)
+    return {p.strip().lower() for p in parts if p and p.strip()}
+
+def _is_prod() -> bool:
+    # Railway seta RAILWAY_ENVIRONMENT_NAME/RAILWAY_ENVIRONMENT
+    env = (os.environ.get("RAILWAY_ENVIRONMENT_NAME") or os.environ.get("RAILWAY_ENVIRONMENT") or "").strip().lower()
+    return env in ("production", "prod")
+
+def _require_role_admin_secret() -> bool:
+    """
+    Protege endpoints de escrita de roles.
+    - Se ROLE_ADMIN_SECRET estiver definido, exige header X-Admin-Secret com o mesmo valor.
+    - Se não estiver definido, retorna True (mantém compatibilidade local).
+    """
+    secret = (os.environ.get("ROLE_ADMIN_SECRET") or "").strip()
+    if not secret:
+        return True
+    provided = (request.headers.get("X-Admin-Secret") or "").strip()
+    return provided == secret
 
 def _slug(s: str) -> str:
     return ''.join(ch.lower() if ch.isalnum() else '_' for ch in (s or '')).strip('_')
@@ -2825,7 +2865,7 @@ def health():
 def db_health():
     try:
         db = SessionLocal()
-        db.execute('SELECT 1')
+        db.execute(text('SELECT 1'))
         db.close()
         return jsonify({'ok': True})
     except Exception as e:
@@ -2836,8 +2876,146 @@ def db_health():
 def importar_locais():
     """Importa dados locais (data/*.json, propostas/*.json) para o DB."""
     try:
+        # Proteção: em produção, exigir segredo de admin para evitar que qualquer pessoa importe dados.
+        if not _require_role_admin_secret():
+            return jsonify({'success': False, 'error': 'Não autorizado'}), 403
+
         db = SessionLocal()
         import_count = 0
+
+        # -----------------------------
+        # Roles (data/users_roles.json)
+        # -----------------------------
+        try:
+            if ROLES_FILE.exists():
+                with open(ROLES_FILE, "r", encoding="utf-8") as f:
+                    roles = json.load(f) or {}
+                if isinstance(roles, dict):
+                    for email, raw in roles.items():
+                        email_l = (email or "").strip().lower()
+                        if not email_l:
+                            continue
+                        role = None
+                        nome = None
+                        cargo = None
+                        if isinstance(raw, dict):
+                            role = (raw.get("role") or "").strip().lower() or "vendedor"
+                            nome = (raw.get("nome") or "").strip() or None
+                            cargo = (raw.get("cargo") or "").strip() or None
+                        else:
+                            role = (str(raw).strip().lower() or "vendedor")
+                        try:
+                            existing = db.get(RoleDB, email_l)
+                            if existing:
+                                existing.role = role
+                                existing.nome = nome
+                                existing.cargo = cargo
+                            else:
+                                db.add(RoleDB(email=email_l, role=role, nome=nome, cargo=cargo))
+                            import_count += 1
+                        except Exception as e:
+                            print(f"⚠️ Falha ao importar role {email_l}: {e}")
+        except Exception as e:
+            print(f"⚠️ Falha ao importar roles do arquivo: {e}")
+
+        # -----------------------------
+        # Usuários (data/users.json)
+        # -----------------------------
+        try:
+            users_file = DATA_DIR / "users.json"
+            if users_file.exists():
+                with open(users_file, "r", encoding="utf-8") as f:
+                    users = json.load(f) or {}
+                if isinstance(users, dict):
+                    for uid, u in users.items():
+                        if not isinstance(u, dict):
+                            continue
+                        uid_v = (u.get("uid") or uid or "").strip()
+                        if not uid_v:
+                            continue
+                        email = (u.get("email") or "").strip().lower()
+                        nome = (u.get("nome") or "").strip() or (email.split("@")[0] if email else "")
+                        role = (u.get("role") or "").strip().lower() or "vendedor"
+                        # compat: "comum" -> "vendedor"
+                        if role == "comum":
+                            role = "vendedor"
+                        try:
+                            existing = db.get(UserDB, uid_v)
+                            if existing:
+                                existing.email = email
+                                existing.nome = nome
+                                existing.role = role
+                            else:
+                                db.add(UserDB(uid=uid_v, email=email, nome=nome, role=role))
+                            import_count += 1
+                        except Exception as e:
+                            print(f"⚠️ Falha ao importar user {uid_v}: {e}")
+        except Exception as e:
+            print(f"⚠️ Falha ao importar users do arquivo: {e}")
+
+        # -----------------------------
+        # Configuração (data/configuracao.json)
+        # -----------------------------
+        try:
+            cfg_file = DATA_DIR / "configuracao.json"
+            if cfg_file.exists():
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    cfg = json.load(f) or {}
+                cfg_id = "default"
+                existing = db.get(ConfigDB, cfg_id)
+                if existing:
+                    existing.data = cfg
+                else:
+                    db.add(ConfigDB(id=cfg_id, data=cfg))
+                import_count += 1
+        except Exception as e:
+            print(f"⚠️ Falha ao importar configuracao.json: {e}")
+
+        # -----------------------------
+        # Clientes (data/clientes.json)
+        # -----------------------------
+        try:
+            clientes_file = DATA_DIR / "clientes.json"
+            if clientes_file.exists():
+                with open(clientes_file, "r", encoding="utf-8") as f:
+                    clientes = json.load(f) or {}
+                if isinstance(clientes, dict):
+                    for cid, c in clientes.items():
+                        if not isinstance(c, dict):
+                            continue
+                        cid_v = (c.get("id") or cid or "").strip()
+                        if not cid_v:
+                            continue
+                        try:
+                            existing = db.get(ClienteDB, cid_v)
+                            if existing:
+                                existing.nome = c.get("nome")
+                                existing.telefone = c.get("telefone")
+                                existing.email = c.get("email")
+                                existing.created_by = c.get("created_by")
+                                existing.created_by_email = c.get("created_by_email")
+                                existing.endereco_completo = c.get("endereco_completo")
+                                existing.cep = c.get("cep")
+                                existing.tipo = c.get("tipo")
+                                existing.observacoes = c.get("observacoes")
+                            else:
+                                db.add(ClienteDB(
+                                    id=cid_v,
+                                    nome=c.get("nome"),
+                                    telefone=c.get("telefone"),
+                                    email=c.get("email"),
+                                    created_by=c.get("created_by"),
+                                    created_by_email=c.get("created_by_email"),
+                                    endereco_completo=c.get("endereco_completo"),
+                                    cep=c.get("cep"),
+                                    tipo=c.get("tipo"),
+                                    observacoes=c.get("observacoes"),
+                                ))
+                            import_count += 1
+                        except Exception as e:
+                            print(f"⚠️ Falha ao importar cliente {cid_v}: {e}")
+        except Exception as e:
+            print(f"⚠️ Falha ao importar clientes.json: {e}")
 
         # Importar propostas da pasta 'propostas'
         for file in PROPOSTAS_DIR.glob('*.json'):
@@ -2887,9 +3065,95 @@ def importar_locais():
             except Exception as e:
                 print(f"⚠️ Falha ao importar {file.name}: {e}")
 
+        # Importar propostas do arquivo data/propostas.json (legado)
+        try:
+            propostas_file = DATA_DIR / "propostas.json"
+            if propostas_file.exists():
+                with open(propostas_file, "r", encoding="utf-8") as f:
+                    propostas = json.load(f) or {}
+                if isinstance(propostas, dict):
+                    for pid, pdata in propostas.items():
+                        if not isinstance(pdata, dict):
+                            continue
+                        prop_id = (pdata.get("id") or pid or "").strip()
+                        if not prop_id:
+                            continue
+                        exists = db.get(PropostaDB, prop_id)
+                        if exists:
+                            continue
+                        try:
+                            row = PropostaDB(
+                                id=prop_id,
+                                created_by=pdata.get('created_by'),
+                                created_by_email=pdata.get('created_by_email'),
+                                cliente_id=pdata.get('cliente_id'),
+                                cliente_nome=pdata.get('cliente_nome'),
+                                cliente_endereco=pdata.get('cliente_endereco'),
+                                cliente_telefone=pdata.get('cliente_telefone'),
+                                cidade=pdata.get('cidade'),
+                                potencia_sistema=pdata.get('potencia_sistema'),
+                                preco_final=pdata.get('preco_final') or pdata.get('preco_venda'),
+                                conta_atual_anual=pdata.get('conta_atual_anual'),
+                                anos_payback=pdata.get('anos_payback'),
+                                gasto_acumulado_payback=pdata.get('gasto_acumulado_payback'),
+                                consumo_mensal_kwh=float(pdata.get('consumo_mensal_kwh', 0) or 0),
+                                tarifa_energia=pdata.get('tarifa_energia'),
+                                economia_mensal_estimada=pdata.get('economia_mensal_estimada'),
+                                quantidade_placas=pdata.get('quantidade_placas'),
+                                potencia_placa_w=int(pdata.get('potencia_placa_w', 0) or 0),
+                                area_necessaria=pdata.get('area_necessaria'),
+                                irradiacao_media=pdata.get('irradiacao_media'),
+                                geracao_media_mensal=pdata.get('geracao_media_mensal'),
+                                creditos_anuais=pdata.get('creditos_anuais'),
+                                economia_total_25_anos=pdata.get('economia_total_25_anos'),
+                                payback_meses=pdata.get('payback_meses'),
+                                custo_total_projeto=pdata.get('custo_total_projeto') or pdata.get('custo_total'),
+                                custo_equipamentos=pdata.get('custo_equipamentos'),
+                                custo_instalacao=pdata.get('custo_instalacao'),
+                                custo_homologacao=pdata.get('custo_homologacao'),
+                                custo_outros=pdata.get('custo_outros'),
+                                margem_lucro=pdata.get('margem_lucro') or pdata.get('margem_desejada'),
+                                payload=pdata,
+                            )
+                            db.add(row)
+                            import_count += 1
+                        except Exception as e:
+                            print(f"⚠️ Falha ao importar proposta do arquivo data/propostas.json ({prop_id}): {e}")
+        except Exception as e:
+            print(f"⚠️ Falha ao importar data/propostas.json: {e}")
+
         db.commit()
         db.close()
         return jsonify({'success': True, 'imported': import_count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/db/wipe-clientes-projetos', methods=['POST'])
+def db_wipe_clientes_projetos():
+    """
+    APAGA TUDO de clientes e projetos/propostas no banco (Postgres).
+    Proteções:
+      - exige ROLE_ADMIN_SECRET (header X-Admin-Secret) se configurado
+      - exige ALLOW_DB_WIPE=1 para evitar acidentes em produção
+    """
+    try:
+        if not _require_role_admin_secret():
+            return jsonify({'success': False, 'error': 'Não autorizado'}), 403
+        allow = (os.environ.get("ALLOW_DB_WIPE") or "").strip() in ("1", "true", "True")
+        if not allow:
+            return jsonify({'success': False, 'error': 'Wipe desabilitado (ALLOW_DB_WIPE != 1)'}), 403
+        if not USE_DB:
+            return jsonify({'success': False, 'error': 'USE_DB=false (não é Postgres).'}), 400
+
+        db = SessionLocal()
+        # TRUNCATE é mais rápido e limpa FKs (enderecos dependem de clientes).
+        # RESTART IDENTITY mantém consistência caso existam IDs incrementais (enderecos).
+        db.execute(text("TRUNCATE TABLE enderecos RESTART IDENTITY CASCADE;"))
+        db.execute(text("TRUNCATE TABLE clientes RESTART IDENTITY CASCADE;"))
+        db.execute(text("TRUNCATE TABLE propostas RESTART IDENTITY CASCADE;"))
+        db.commit()
+        db.close()
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -3060,9 +3324,36 @@ def get_user_role():
     """
     try:
         email = (request.args.get('email') or '').strip().lower()
+        # Override seguro por env (ideal em produção): ADMIN_EMAILS
+        admin_emails = _parse_env_emails("ADMIN_EMAILS")
+        if email and email in admin_emails:
+            mapping = _load_roles()
+            mapping[email] = mapping.get(email) if isinstance(mapping.get(email), dict) else {}
+            if not isinstance(mapping[email], dict):
+                mapping[email] = {}
+            mapping[email]["role"] = "admin"
+            mapping[email].setdefault("cargo", "Administrador")
+            _save_roles(mapping)
+            raw = mapping[email]
+            return jsonify({'role': 'admin', 'nome': raw.get('nome'), 'cargo': raw.get('cargo')})
+
+        # Preferir DB (Postgres) em produção
+        if USE_DB and email:
+            try:
+                db = SessionLocal()
+                r = db.get(RoleDB, email)
+                db.close()
+                if r:
+                    return jsonify({'role': r.role or 'vendedor', 'nome': r.nome, 'cargo': r.cargo})
+            except Exception as _db_err:
+                print(f"⚠️ Falha ao ler role do DB: {_db_err}")
+
         mapping = _load_roles()
-        # Bootstrap: se ainda não há nenhum mapeamento, o primeiro e-mail consultado vira admin
-        if email and len(mapping.keys()) == 0:
+        # Bootstrap local (DEV): se não há nenhum admin configurado, o primeiro e-mail consultado vira admin.
+        # Em produção, isso pode ser perigoso; desative com DISABLE_ROLE_BOOTSTRAP=1.
+        disable_bootstrap = (os.environ.get("DISABLE_ROLE_BOOTSTRAP") or "").strip() in ("1", "true", "True")
+        has_any_admin = any((v.get('role') if isinstance(v, dict) else v) == 'admin' for v in mapping.values())
+        if email and (not has_any_admin) and (not disable_bootstrap) and (not _is_prod()):
             mapping[email] = {'role': 'admin', 'cargo': 'Administrador'}
             _save_roles(mapping)
             print(f"🔐 Bootstrap de roles: '{email}' definido como admin.")
@@ -3080,19 +3371,23 @@ def list_roles():
     Retorna o mapeamento completo de roles (e-mail -> role, nome, cargo).
     """
     try:
+        if not _require_role_admin_secret():
+            return jsonify({'success': False, 'message': 'Não autorizado'}), 403
+        if USE_DB:
+            db = SessionLocal()
+            rows = db.query(RoleDB).all()
+            db.close()
+            items = [{'email': r.email, 'role': r.role, 'nome': r.nome, 'cargo': r.cargo} for r in rows]
+            return jsonify({'success': True, 'items': items, 'source': 'db'})
+
         mapping = _load_roles()
         items = []
         for k, v in mapping.items():
             if isinstance(v, dict):
-                items.append({
-                    'email': k, 
-                    'role': v.get('role'), 
-                    'nome': v.get('nome'),
-                    'cargo': v.get('cargo')
-                })
+                items.append({'email': k, 'role': v.get('role'), 'nome': v.get('nome'), 'cargo': v.get('cargo')})
             else:
                 items.append({'email': k, 'role': v})
-        return jsonify({'success': True, 'items': items})
+        return jsonify({'success': True, 'items': items, 'source': 'file'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -3103,6 +3398,8 @@ def upsert_role():
     Body: { email: string, role: string, nome?: string, cargo?: string }
     """
     try:
+        if not _require_role_admin_secret():
+            return jsonify({'success': False, 'message': 'Não autorizado'}), 403
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()
         role = (data.get('role') or '').strip().lower()
@@ -3110,6 +3407,19 @@ def upsert_role():
         cargo = (data.get('cargo') or '').strip() or None
         if not email or role not in ('admin', 'gestor', 'vendedor', 'instalador'):
             return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
+        if USE_DB:
+            db = SessionLocal()
+            existing = db.get(RoleDB, email)
+            if existing:
+                existing.role = role
+                existing.nome = nome
+                existing.cargo = cargo
+            else:
+                db.add(RoleDB(email=email, role=role, nome=nome, cargo=cargo))
+            db.commit()
+            db.close()
+            return jsonify({'success': True, 'source': 'db'})
+
         mapping = _load_roles()
         current = mapping.get(email)
         if isinstance(current, dict):
@@ -3127,7 +3437,7 @@ def upsert_role():
                 obj['cargo'] = cargo
             mapping[email] = obj
         _save_roles(mapping)
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'source': 'file'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -3138,15 +3448,26 @@ def delete_role():
     Body: { email: string }
     """
     try:
+        if not _require_role_admin_secret():
+            return jsonify({'success': False, 'message': 'Não autorizado'}), 403
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()
         if not email:
             return jsonify({'success': False, 'message': 'Email obrigatório'}), 400
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(RoleDB, email)
+            if row:
+                db.delete(row)
+                db.commit()
+            db.close()
+            return jsonify({'success': True, 'source': 'db'})
+
         mapping = _load_roles()
         if email in mapping:
             del mapping[email]
             _save_roles(mapping)
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'source': 'file'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -3201,15 +3522,33 @@ def atualizar_status_projeto():
         allowed = ('dimensionamento', 'orcamento_enviado', 'negociacao', 'fechado', 'instalacao', 'concluido', 'perdido')
         if not prop_id or new_status not in allowed:
             return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
+
+        # DB (persistente) — atualiza status dentro do payload
+        if USE_DB:
+            try:
+                db = SessionLocal()
+                row = db.get(PropostaDB, prop_id)
+                if row:
+                    payload = row.payload or {}
+                    payload['status'] = new_status
+                    row.payload = payload
+                    db.commit()
+                db.close()
+            except Exception as _e:
+                print(f"⚠️ Falha ao atualizar status no DB: {_e}")
+
         prop_file = PROPOSTAS_DIR / f"{prop_id}.json"
         if not prop_file.exists():
+            # Se não existe no filesystem, mas existe no DB, ainda consideramos sucesso.
+            if USE_DB:
+                return jsonify({'success': True, 'source': 'db'})
             return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
         with open(prop_file, 'r', encoding='utf-8') as f:
             content = json.load(f)
         content['status'] = new_status
         with open(prop_file, 'w', encoding='utf-8') as f:
             json.dump(content, f, ensure_ascii=False, indent=2)
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'source': 'file'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -3239,9 +3578,30 @@ def _save_clientes(data: dict) -> None:
 def listar_clientes():
     """Lista todos os clientes."""
     try:
+        if USE_DB:
+            db = SessionLocal()
+            rows = db.query(ClienteDB).order_by(ClienteDB.created_at.desc()).all()
+            db.close()
+            clientes = []
+            for r in rows:
+                clientes.append({
+                    "id": r.id,
+                    "nome": r.nome,
+                    "telefone": r.telefone,
+                    "email": r.email,
+                    "endereco_completo": r.endereco_completo,
+                    "cep": r.cep,
+                    "tipo": r.tipo,
+                    "observacoes": r.observacoes,
+                    "created_by": r.created_by,
+                    "created_by_email": r.created_by_email,
+                    "created_at": (r.created_at.isoformat() if r.created_at else None),
+                    "updated_at": (r.updated_at.isoformat() if r.updated_at else None),
+                })
+            return jsonify(clientes)
+
         clientes_dict = _load_clientes()
         clientes = list(clientes_dict.values())
-        # Ordenar por data de criação (mais recente primeiro)
         clientes.sort(key=lambda c: c.get("created_at", ""), reverse=True)
         return jsonify(clientes)
     except Exception as e:
@@ -3269,10 +3629,27 @@ def criar_cliente():
             "created_at": now,
             "updated_at": now
         }
-        
-        clientes = _load_clientes()
-        clientes[cliente_id] = cliente
-        _save_clientes(clientes)
+
+        if USE_DB:
+            db = SessionLocal()
+            db.add(ClienteDB(
+                id=cliente_id,
+                nome=cliente.get("nome"),
+                telefone=cliente.get("telefone"),
+                email=cliente.get("email"),
+                created_by=cliente.get("created_by"),
+                created_by_email=cliente.get("created_by_email"),
+                endereco_completo=cliente.get("endereco_completo"),
+                cep=cliente.get("cep"),
+                tipo=cliente.get("tipo"),
+                observacoes=cliente.get("observacoes"),
+            ))
+            db.commit()
+            db.close()
+        else:
+            clientes = _load_clientes()
+            clientes[cliente_id] = cliente
+            _save_clientes(clientes)
         
         print(f"✅ Cliente criado: {cliente['nome']} ({cliente_id})")
         return jsonify({"success": True, "cliente": cliente})
@@ -3284,11 +3661,41 @@ def atualizar_cliente(cliente_id):
     """Atualiza um cliente existente."""
     try:
         data = request.get_json() or {}
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            row.nome = data.get("nome", row.nome)
+            row.telefone = data.get("telefone", row.telefone)
+            row.email = data.get("email", row.email)
+            row.endereco_completo = data.get("endereco_completo", row.endereco_completo)
+            row.cep = data.get("cep", row.cep)
+            row.tipo = data.get("tipo", row.tipo)
+            row.observacoes = data.get("observacoes", row.observacoes)
+            db.commit()
+            cliente = {
+                "id": row.id,
+                "nome": row.nome,
+                "telefone": row.telefone,
+                "email": row.email,
+                "endereco_completo": row.endereco_completo,
+                "cep": row.cep,
+                "tipo": row.tipo,
+                "observacoes": row.observacoes,
+                "created_by": row.created_by,
+                "created_by_email": row.created_by_email,
+                "created_at": (row.created_at.isoformat() if row.created_at else None),
+                "updated_at": (row.updated_at.isoformat() if row.updated_at else None),
+            }
+            db.close()
+            return jsonify({"success": True, "cliente": cliente})
+
         clientes = _load_clientes()
-        
         if cliente_id not in clientes:
             return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
-        
+
         cliente = clientes[cliente_id]
         cliente.update({
             "nome": data.get("nome", cliente.get("nome")),
@@ -3300,10 +3707,9 @@ def atualizar_cliente(cliente_id):
             "observacoes": data.get("observacoes", cliente.get("observacoes")),
             "updated_at": datetime.now().isoformat()
         })
-        
+
         clientes[cliente_id] = cliente
         _save_clientes(clientes)
-        
         return jsonify({"success": True, "cliente": cliente})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -3312,6 +3718,22 @@ def atualizar_cliente(cliente_id):
 def deletar_cliente(cliente_id):
     """Exclui um cliente e todas as propostas vinculadas (cascata)."""
     try:
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            # (best-effort) apagar propostas vinculadas no DB
+            try:
+                db.query(PropostaDB).filter(PropostaDB.cliente_id == cliente_id).delete(synchronize_session=False)
+            except Exception as _e:
+                print(f"⚠️ Falha ao remover propostas do DB (cliente_id={cliente_id}): {_e}")
+            db.delete(row)
+            db.commit()
+            db.close()
+            return jsonify({"success": True, "propostas_excluidas": None})
+
         clientes = _load_clientes()
         
         if cliente_id not in clientes:
@@ -3510,6 +3932,56 @@ def listar_projetos():
     Retorna uma coleção normalizada de projetos (não depende do Supabase).
     """
     try:
+        if USE_DB:
+            db = SessionLocal()
+            rows = db.query(PropostaDB).order_by(PropostaDB.created_at.desc()).all()
+            db.close()
+            projetos = []
+            for r in rows:
+                data = r.payload or {}
+                projetos.append({
+                    "id": r.id,
+                    "nome_projeto": data.get("nome_projeto") or f"Projeto - {r.cliente_nome or 'Cliente'}",
+                    "cliente_id": r.cliente_id,
+                    "cliente": {
+                        "nome": r.cliente_nome,
+                        "telefone": r.cliente_telefone,
+                        "email": (data.get("cliente_email") or data.get("email_cliente")),
+                    },
+                    "cliente_nome": r.cliente_nome,
+                    "preco_final": r.preco_final or r.custo_total_projeto or 0,
+                    "cidade": r.cidade,
+                    "estado": data.get("estado"),
+                    "endereco_completo": r.cliente_endereco or data.get("endereco_completo"),
+                    "status": data.get("status") or "dimensionamento",
+                    "prioridade": data.get("prioridade") or "Normal",
+                    "created_date": (r.created_at.isoformat() if r.created_at else None),
+                    "url_proposta": f"/proposta/{r.id}",
+                    "potencia_sistema": r.potencia_sistema or 0,
+                    "potencia_sistema_kwp": r.potencia_sistema or 0,
+                    "economia_mensal_estimada": r.economia_mensal_estimada or 0,
+                    "anos_payback": r.anos_payback or 0,
+                    "payback_meses": r.payback_meses or 0,
+                    "consumo_mensal_kwh": r.consumo_mensal_kwh or 0,
+                    "tarifa_energia": r.tarifa_energia or 0,
+                    "quantidade_placas": r.quantidade_placas or 0,
+                    "potencia_placa_w": r.potencia_placa_w or 0,
+                    "geracao_media_mensal": r.geracao_media_mensal or 0,
+                    "area_necessaria": r.area_necessaria or 0,
+                    "irradiacao_media": r.irradiacao_media or 5.15,
+                    "economia_total_25_anos": r.economia_total_25_anos or 0,
+                    "tipo_telhado": data.get("tipo_telhado"),
+                    "concessionaria": data.get("concessionaria"),
+                    "conta_atual_anual": r.conta_atual_anual or 0,
+                    "custo_total_projeto": r.custo_total_projeto or 0,
+                    "gasto_acumulado_payback": r.gasto_acumulado_payback or 0,
+                    "preco_venda": (data.get("preco_venda") or r.preco_final or 0),
+                    "created_by": r.created_by,
+                    "created_by_email": r.created_by_email,
+                    "vendedor_email": data.get("vendedor_email"),
+                })
+            return jsonify(projetos)
+
         projetos = []
         for file in PROPOSTAS_DIR.glob("*.json"):
             try:
@@ -3575,7 +4047,7 @@ def listar_projetos():
 # -----------------------------------------------------------------------------
 _IRR_CSV_CACHE = None
 
-def _load_irradiancia_csv() -> pd.DataFrame | None:
+def _load_irradiancia_csv():
     global _IRR_CSV_CACHE
     if _IRR_CSV_CACHE is not None:
         return _IRR_CSV_CACHE
@@ -3583,9 +4055,11 @@ def _load_irradiancia_csv() -> pd.DataFrame | None:
         csv_path = Path(__file__).parent / "src" / "data" / "irradiancia.csv"
         if not csv_path.exists():
             return None
-        df = pd.read_csv(csv_path, sep=';')
-        _IRR_CSV_CACHE = df
-        return df
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = [r for r in reader]
+        _IRR_CSV_CACHE = rows
+        return rows
     except Exception:
         return None
 
@@ -3598,15 +4072,32 @@ def _resolve_irr_vec_from_csv(cidade: str | None, irr_media_fallback: float = 5.
     cols = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
     try:
         if cidade:
-            # match por substring (case-insensitive)
-            m = df[df['NAME'].str.contains(str(cidade), case=False, na=False)]
-            if m is not None and len(m) > 0:
-                row = m.iloc[0]
-                vals = [float(row[c]) / 1000.0 for c in cols]
-                return vals
-        # fallback: média nacional
-        vals = [float(df[c].mean()) / 1000.0 for c in cols]
-        return vals
+            needle = str(cidade).lower()
+            for row in df:
+                name = str(row.get("NAME", "")).lower()
+                if needle and needle in name:
+                    return [float(row.get(c, 0) or 0) / 1000.0 for c in cols]
+
+        # fallback: média nacional (sem pandas)
+        sums = {c: 0.0 for c in cols}
+        count = 0
+        for row in df:
+            ok = True
+            vals_row = {}
+            for c in cols:
+                try:
+                    vals_row[c] = float(row.get(c, 0) or 0)
+                except Exception:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            for c in cols:
+                sums[c] += vals_row[c]
+            count += 1
+        if count <= 0:
+            return [irr_media_fallback] * 12
+        return [(sums[c] / count) / 1000.0 for c in cols]
     except Exception:
         return [irr_media_fallback] * 12
 
