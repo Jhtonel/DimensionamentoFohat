@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Cliente, Projeto } from "@/entities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Plus, 
@@ -15,11 +15,24 @@ import {
   Trash2,
   Edit,
   LayoutGrid,
-  List
+  List,
+  X,
+  Calendar,
+  FileText,
+  ExternalLink,
+  DollarSign,
+  Zap,
+  Eye,
+  Sun,
+  TrendingUp,
+  Clock,
+  User,
+  Home
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { format } from "date-fns";
 
 import ClienteForm from "../components/clientes/ClienteForm.jsx";
 import { useAuth } from "@/services/authService.jsx";
@@ -40,6 +53,11 @@ export default function Clientes() {
     () => localStorage.getItem('admin_filter_user_email') || 'todos'
   );
   const [viewMode, setViewMode] = useState("grid");
+  const [selectedCliente, setSelectedCliente] = useState(null); // Para o modal de detalhes
+  const [showMetricsModal, setShowMetricsModal] = useState(false);
+  const [metricsData, setMetricsData] = useState(null);
+  const [selectedProjeto, setSelectedProjeto] = useState(null); // Para o modal de detalhes do projeto
+  const [projetoViews, setProjetoViews] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -246,6 +264,38 @@ export default function Clientes() {
     }
   };
 
+  const handleViewMetrics = async (projeto) => {
+    setMetricsData(null);
+    setShowMetricsModal(true);
+    
+    try {
+      const response = await fetch(`http://localhost:8000/proposta/${projeto.id}/views`);
+      if (response.ok) {
+        const views = await response.json();
+        setMetricsData({ ...views, projeto_nome: projeto.nome_projeto || projeto.cliente_nome });
+      }
+    } catch (error) {
+      console.log('Erro ao carregar métricas:', error);
+      setMetricsData({ error: true });
+    }
+  };
+
+  const handleViewProjetoDetails = async (projeto) => {
+    setSelectedProjeto(projeto);
+    setProjetoViews(null);
+    
+    // Carregar métricas de visualização
+    try {
+      const response = await fetch(`http://localhost:8000/proposta/${projeto.id}/views`);
+      if (response.ok) {
+        const views = await response.json();
+        setProjetoViews(views);
+      }
+    } catch (error) {
+      console.log('Erro ao carregar métricas de visualização:', error);
+    }
+  };
+
   const getProjetosCount = (clienteId) => {
     const cliente = clientes.find(c => c.id === clienteId);
     if (!cliente) return 0;
@@ -291,6 +341,229 @@ export default function Clientes() {
 
       return false;
     }).length;
+  };
+
+  // Retorna a lista de projetos vinculados ao cliente
+  const getProjetosDoCliente = (clienteId) => {
+    const cliente = clientes.find(c => c.id === clienteId);
+    if (!cliente) return [];
+
+    return projetos.filter(p => {
+      if (p.cliente_id) {
+        return String(p.cliente_id) === String(clienteId);
+      }
+      const normalize = (s) => String(s || '').toLowerCase().trim();
+      const cNome = normalize(cliente.nome);
+      const pNome = normalize(p.cliente?.nome || p.cliente_nome || p.payload?.cliente_nome);
+      if (!pNome || !cNome) return false;
+      if (cNome !== pNome && !cNome.includes(pNome) && !pNome.includes(cNome)) return false;
+      if (cNome === pNome) return true;
+      const normalizePhone = (phone) => String(phone || '').replace(/\D/g, '');
+      const pPhone = normalizePhone(p.cliente?.telefone || p.payload?.cliente_telefone || p.cliente_telefone);
+      const cPhone = normalizePhone(cliente.telefone);
+      if (pPhone && cPhone && pPhone === cPhone && pPhone.length > 8) return true;
+      return false;
+    });
+  };
+
+  // Modal de detalhes do cliente
+  const ClienteDetailsModal = ({ cliente, onClose }) => {
+    if (!cliente) return null;
+    const projetosCliente = getProjetosDoCliente(cliente.id);
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="bg-gradient-to-r from-fohat-blue to-blue-700 p-6 text-white">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold">{cliente.nome?.charAt(0).toUpperCase()}</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{cliente.nome}</h2>
+                  <p className="text-blue-100 text-sm uppercase tracking-wide">{cliente.tipo || 'Cliente'}</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-white hover:bg-white/20 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            {/* Dados do Cliente */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {cliente.telefone && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Phone className="w-5 h-5 text-fohat-blue" />
+                  <div>
+                    <p className="text-xs text-gray-500">Telefone</p>
+                    <p className="font-medium">{cliente.telefone}</p>
+                  </div>
+                </div>
+              )}
+              {cliente.email && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Mail className="w-5 h-5 text-fohat-blue" />
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="font-medium">{cliente.email}</p>
+                  </div>
+                </div>
+              )}
+              {cliente.endereco_completo && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg md:col-span-2">
+                  <MapPin className="w-5 h-5 text-fohat-orange" />
+                  <div>
+                    <p className="text-xs text-gray-500">Endereço</p>
+                    <p className="font-medium">{cliente.endereco_completo}</p>
+                  </div>
+                </div>
+              )}
+              {cliente.observacoes && (
+                <div className="p-3 bg-gray-50 rounded-lg md:col-span-2">
+                  <p className="text-xs text-gray-500 mb-1">Observações</p>
+                  <p className="text-sm text-gray-700">{cliente.observacoes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Lista de Projetos */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <FolderKanban className="w-5 h-5 text-fohat-blue" />
+                  Projetos ({projetosCliente.length})
+                </h3>
+                <Link to={`${createPageUrl("NovoProjeto")}?cliente_id=${cliente.id}`}>
+                  <Button size="sm" className="bg-fohat-blue hover:bg-fohat-dark text-white">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Novo Projeto
+                  </Button>
+                </Link>
+              </div>
+
+              {projetosCliente.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <FolderKanban className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">Nenhum projeto encontrado</p>
+                  <p className="text-sm text-gray-400">Clique em "Novo Projeto" para criar</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {projetosCliente.map((projeto) => (
+                    <div
+                      key={projeto.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-fohat-blue hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-gray-900">{projeto.nome_projeto}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {projeto.status?.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                            {projeto.cidade && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {projeto.cidade}
+                              </span>
+                            )}
+                            {projeto.preco_final > 0 && (
+                              <span className="flex items-center gap-1 text-green-600 font-medium">
+                                <DollarSign className="w-3 h-3" />
+                                R$ {Number(projeto.preco_final).toLocaleString('pt-BR')}
+                              </span>
+                            )}
+                            {projeto.created_date && (
+                              <span className="flex items-center gap-1 text-gray-400">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(projeto.created_date), "dd/MM/yyyy")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {projeto.url_proposta && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => window.open(projeto.url_proposta, '_blank')}
+                              className="text-green-600 hover:bg-green-50 h-8 w-8"
+                              title="Ver Proposta"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewProjetoDetails(projeto)}
+                            className="text-blue-600 hover:bg-blue-50 h-8 w-8"
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-fohat-blue hover:bg-fohat-light h-8 w-8"
+                              title="Editar Projeto"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="border-t p-4 bg-gray-50 flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Fechar
+            </Button>
+            <Button
+              onClick={() => {
+                handleEdit(cliente);
+                onClose();
+              }}
+              className="bg-fohat-blue hover:bg-fohat-dark text-white"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Editar Cliente
+            </Button>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
   };
 
   return (
@@ -441,11 +714,13 @@ export default function Clientes() {
                   </div>
 
                   <div className="flex gap-2 mt-auto pt-4 border-t border-gray-100">
-                    <Link to={`${createPageUrl("Projetos")}?cliente_id=${cliente.id}`} className="flex-1">
-                      <Button variant="outline" className="w-full border-fohat-light text-fohat-blue hover:bg-fohat-light">
-                        Ver Projetos
-                      </Button>
-                    </Link>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 border-fohat-light text-fohat-blue hover:bg-fohat-light"
+                      onClick={() => setSelectedCliente(cliente)}
+                    >
+                      Ver Mais
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -532,11 +807,14 @@ export default function Clientes() {
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link to={`${createPageUrl("Projetos")}?cliente_id=${cliente.id}`}>
-                            <Button variant="ghost" size="sm" className="text-fohat-blue hover:bg-fohat-light h-8 px-2">
-                              Ver Projetos
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-fohat-blue hover:bg-fohat-light h-8 px-2"
+                            onClick={() => setSelectedCliente(cliente)}
+                          >
+                            Ver Mais
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -571,6 +849,409 @@ export default function Clientes() {
           </Card>
         )}
       </div>
+
+      {/* Modal de Detalhes do Cliente */}
+      <AnimatePresence>
+        {selectedCliente && (
+          <ClienteDetailsModal
+            cliente={selectedCliente}
+            onClose={() => setSelectedCliente(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Métricas de Visualização */}
+      <AnimatePresence>
+        {showMetricsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+            onClick={() => setShowMetricsModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-5 text-white relative">
+                <button 
+                  onClick={() => setShowMetricsModal(false)}
+                  className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-lg">
+                    <Eye className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold">Métricas de Visualização</h2>
+                    <p className="text-white/80 text-sm truncate max-w-[250px]">{metricsData?.projeto_nome || 'Proposta'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="p-5">
+                {metricsData && !metricsData.error ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-blue-50 rounded-xl p-4 text-center">
+                        <p className="text-4xl font-bold text-blue-600">{metricsData.total_views || 0}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Visualizações</p>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-4 text-center">
+                        <p className="text-4xl font-bold text-green-600">{metricsData.unique_views || 0}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Visitantes Únicos</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <p className="text-sm font-medium text-gray-700">
+                          {metricsData.first_view 
+                            ? new Date(metricsData.first_view).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : '-'}
+                        </p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Primeira Visualização</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <p className="text-sm font-medium text-gray-700">
+                          {metricsData.last_view 
+                            ? new Date(metricsData.last_view).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : '-'}
+                        </p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Última Visualização</p>
+                      </div>
+                    </div>
+
+                    {/* Histórico recente */}
+                    {metricsData.views_history && metricsData.views_history.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Últimas Visualizações</p>
+                        <div className="bg-gray-50 rounded-xl p-3 max-h-40 overflow-y-auto">
+                          {metricsData.views_history.slice(-5).reverse().map((view, i) => (
+                            <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0 text-xs">
+                              <span className="text-gray-600">
+                                {new Date(view.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="text-gray-400 truncate max-w-[120px]" title={view.user_agent}>
+                                {view.user_agent?.includes('Mobile') ? '📱' : '💻'} {view.ip}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : metricsData?.error ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Erro ao carregar métricas</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-500 mt-2">Carregando métricas...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-100 p-4 flex justify-end">
+                <Button variant="outline" onClick={() => setShowMetricsModal(false)}>
+                  Fechar
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Detalhes do Projeto */}
+      <AnimatePresence>
+        {selectedProjeto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+            onClick={() => setSelectedProjeto(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header com gradiente */}
+              <div className="bg-gradient-to-r from-fohat-blue to-blue-700 p-6 text-white relative">
+                <button 
+                  onClick={() => setSelectedProjeto(null)}
+                  className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <h2 className="text-2xl font-bold pr-8">{selectedProjeto.nome_projeto}</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <Badge className="bg-white/20 border-0 text-white">
+                    {selectedProjeto.status?.replace(/_/g, ' ')}
+                  </Badge>
+                  {selectedProjeto.created_date && (
+                    <span className="text-white/80 text-sm flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      {format(new Date(selectedProjeto.created_date), "dd/MM/yyyy")}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                {/* Dados do Cliente */}
+                {selectedCliente && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <User className="w-5 h-5 text-fohat-blue" />
+                      Dados do Cliente
+                    </h3>
+                    <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Nome</p>
+                        <p className="font-medium text-gray-800">{selectedCliente.nome}</p>
+                      </div>
+                      {selectedCliente.telefone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-fohat-blue" />
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase tracking-wide">Telefone</p>
+                            <p className="font-medium text-gray-800">{selectedCliente.telefone}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedCliente.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-fohat-blue" />
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase tracking-wide">Email</p>
+                            <p className="font-medium text-gray-800">{selectedCliente.email}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedCliente.endereco_completo && (
+                        <div className="flex items-center gap-2 md:col-span-2">
+                          <Home className="w-4 h-4 text-fohat-orange" />
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase tracking-wide">Endereço</p>
+                            <p className="font-medium text-gray-800">{selectedCliente.endereco_completo}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dados Técnicos */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    Dados Técnicos
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 rounded-xl p-4 text-center">
+                      <Sun className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                      <p className="text-xs text-gray-500 uppercase">Potência</p>
+                      <p className="text-xl font-bold text-gray-800">
+                        {(selectedProjeto.potencia_sistema_kwp || selectedProjeto.potencia_sistema || 0).toFixed(2)} kWp
+                      </p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-4 text-center">
+                      <DollarSign className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                      <p className="text-xs text-gray-500 uppercase">Valor</p>
+                      <p className="text-xl font-bold text-gray-800">
+                        R$ {(selectedProjeto.preco_final || selectedProjeto.preco_venda || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-4 text-center">
+                      <TrendingUp className="w-6 h-6 text-amber-600 mx-auto mb-2" />
+                      <p className="text-xs text-gray-500 uppercase">Economia Mensal</p>
+                      <p className="text-xl font-bold text-gray-800">
+                        R$ {(selectedProjeto.economia_mensal_estimada || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4 text-center">
+                      <Clock className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+                      <p className="text-xs text-gray-500 uppercase">Payback</p>
+                      <p className="text-xl font-bold text-gray-800">
+                        {(selectedProjeto.anos_payback || 0).toFixed(1)} anos
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Localização */}
+                {(selectedProjeto.cidade || selectedProjeto.endereco_completo) && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-fohat-orange" />
+                      Localização
+                    </h3>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="font-medium text-gray-800">
+                        {selectedProjeto.endereco_completo || `${selectedProjeto.cidade || ''}, ${selectedProjeto.estado || ''}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detalhes do Projeto */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3">Detalhes do Projeto</h3>
+                  <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Consumo Mensal</p>
+                      <p className="font-medium text-gray-800">{(selectedProjeto.consumo_mensal_kwh || 0).toFixed(0)} kWh</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Concessionária</p>
+                      <p className="font-medium text-gray-800">{selectedProjeto.concessionaria || 'Não informada'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Conta Atual Anual</p>
+                      <p className="font-medium text-gray-800">R$ {(selectedProjeto.conta_atual_anual || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Área Necessária</p>
+                      <p className="font-medium text-gray-800">{(selectedProjeto.area_necessaria || 0).toFixed(2)} m²</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Métricas de Visualização */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-blue-500" />
+                    Métricas de Visualização
+                  </h3>
+                  {projetoViews ? (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-blue-50 rounded-xl p-4 text-center">
+                          <p className="text-3xl font-bold text-blue-600">{projetoViews.total_views || 0}</p>
+                          <p className="text-xs text-gray-500 uppercase mt-1">Visualizações Totais</p>
+                        </div>
+                        <div className="bg-green-50 rounded-xl p-4 text-center">
+                          <p className="text-3xl font-bold text-green-600">{projetoViews.unique_views || 0}</p>
+                          <p className="text-xs text-gray-500 uppercase mt-1">Visitantes Únicos</p>
+                        </div>
+                        <div className="bg-purple-50 rounded-xl p-4 text-center">
+                          <p className="text-sm font-medium text-purple-600">
+                            {projetoViews.first_view 
+                              ? new Date(projetoViews.first_view).toLocaleDateString('pt-BR')
+                              : '-'}
+                          </p>
+                          <p className="text-xs text-gray-500 uppercase mt-1">Primeira Visualização</p>
+                        </div>
+                        <div className="bg-amber-50 rounded-xl p-4 text-center">
+                          <p className="text-sm font-medium text-amber-600">
+                            {projetoViews.last_view 
+                              ? new Date(projetoViews.last_view).toLocaleDateString('pt-BR')
+                              : '-'}
+                          </p>
+                          <p className="text-xs text-gray-500 uppercase mt-1">Última Visualização</p>
+                        </div>
+                      </div>
+
+                      {/* Logs de Visualização */}
+                      {projetoViews.views_history && projetoViews.views_history.length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-2">Histórico de Acessos</p>
+                          <div className="bg-gray-50 rounded-xl overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Data/Hora</th>
+                                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">IP</th>
+                                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Dispositivo</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {projetoViews.views_history.slice().reverse().map((view, i) => {
+                                  // Detectar tipo de dispositivo pelo user agent
+                                  const ua = (view.user_agent || '').toLowerCase();
+                                  let device = { icon: '💻', name: 'Desktop' };
+                                  if (ua.includes('iphone')) device = { icon: '📱', name: 'iPhone' };
+                                  else if (ua.includes('ipad')) device = { icon: '📱', name: 'iPad' };
+                                  else if (ua.includes('android') && ua.includes('mobile')) device = { icon: '📱', name: 'Android' };
+                                  else if (ua.includes('android')) device = { icon: '📱', name: 'Android Tablet' };
+                                  else if (ua.includes('macintosh') || ua.includes('mac os')) device = { icon: '🖥️', name: 'Mac' };
+                                  else if (ua.includes('windows')) device = { icon: '🖥️', name: 'Windows' };
+                                  else if (ua.includes('linux')) device = { icon: '🖥️', name: 'Linux' };
+                                  else if (ua.includes('curl')) device = { icon: '🤖', name: 'Bot/API' };
+                                  
+                                  return (
+                                    <tr key={i} className="border-t border-gray-100">
+                                      <td className="py-2 px-3 text-gray-600">
+                                        {new Date(view.timestamp).toLocaleDateString('pt-BR', { 
+                                          day: '2-digit', 
+                                          month: '2-digit', 
+                                          year: '2-digit',
+                                          hour: '2-digit', 
+                                          minute: '2-digit' 
+                                        })}
+                                      </td>
+                                      <td className="py-2 px-3 text-gray-500 font-mono text-xs">{view.ip}</td>
+                                      <td className="py-2 px-3">
+                                        <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded text-xs">
+                                          <span>{device.icon}</span>
+                                          <span className="text-gray-700">{device.name}</span>
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-4 text-center text-gray-500">
+                      <p>Carregando métricas...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer com ações */}
+              <div className="border-t border-gray-100 p-4 flex justify-end gap-3">
+                {selectedProjeto.url_proposta && (
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(selectedProjeto.url_proposta, '_blank')}
+                    className="border-green-200 text-green-600 hover:bg-green-50"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Ver Proposta
+                  </Button>
+                )}
+                <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${selectedProjeto.id}`}>
+                  <Button className="bg-fohat-blue hover:bg-fohat-dark text-white">
+                    <Edit className="w-4 h-4 mr-2" />
+                    Editar Projeto
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

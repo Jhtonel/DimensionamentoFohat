@@ -5,10 +5,18 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { propostaService } from '../../services/propostaService';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
 import { Projeto, Configuracao } from '../../entities';
 
-export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete }) {
+export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null }) {
+  // Dados do vendedor baseados no usuário logado
+  // O cargo vem do cadastro do usuário (Admin > Usuários)
+  const vendedorDados = {
+    nome: user?.name || user?.displayName || user?.email?.split('@')[0] || 'Consultor',
+    cargo: user?.cargo || 'Consultor de Energia Solar',
+    email: user?.email || '',
+    telefone: user?.phone || user?.telefone || ''
+  };
   const [propostaSalva, setPropostaSalva] = useState(false);
   const [propostaId, setPropostaId] = useState(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -16,7 +24,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   const [showPreview, setShowPreview] = useState(false);
   const [propostaData, setPropostaData] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const pdfRef = useRef(null);
+  const shareMenuRef = useRef(null);
   const iframeContainerRef = useRef(null);
   const autoTimerRef = useRef(null);
 
@@ -38,6 +48,17 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Fechar menu de compartilhar ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target)) {
+        setShowShareMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Função para obter dados seguros com fallbacks
@@ -62,82 +83,24 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       return enderecoRaw || 'Endereço não informado';
     }
   }, []);
+  // Calcula conta anual atual do cliente
   const calcularContaAtualAnual = useCallback(() => {
     const consumoReais = Number(formData?.consumo_mensal_reais) || 0;
-    console.log('💰 DEBUG calcularContaAtualAnual - consumoReais:', consumoReais);
+    if (consumoReais > 0) return consumoReais * 12;
     
-    if (consumoReais > 0) {
-      const resultado = consumoReais * 12;
-      console.log('💰 DEBUG calcularContaAtualAnual - resultado (reais):', resultado);
-      return resultado;
-    }
-    
-    // Se não tem consumo em reais, calcular baseado em kWh e tarifa
     const consumoKwh = Number(formData?.consumo_mensal_kwh) || 0;
     const tarifa = Number(formData?.tarifa_energia) || 0.75;
-    console.log('💰 DEBUG calcularContaAtualAnual - consumoKwh:', consumoKwh, 'tarifa:', tarifa);
+    if (consumoKwh > 0) return consumoKwh * tarifa * 12;
     
-    if (consumoKwh > 0) {
-      const resultado = consumoKwh * tarifa * 12;
-      console.log('💰 DEBUG calcularContaAtualAnual - resultado (kwh):', resultado);
-      return resultado;
-    }
-    
-    console.log('💰 DEBUG calcularContaAtualAnual - resultado final: 0');
     return 0;
   }, [formData]);
 
-  // Cálculo removido: gasto acumulado até o payback agora é calculado apenas no backend.
-  const calcularGastoAcumuladoPayback = useCallback(() => {
-    return 0;
-  }, []);
-
+  // Obtém dados seguros com fallbacks apropriados
   const getDadosSeguros = useCallback(() => {
-    // Verificar se todos os dados necessários estão disponíveis (relaxado)
-    if (!formData || !projecoesFinanceiras || !kitSelecionado) {
-      console.warn('Dados do projeto incompletos - prosseguindo com defaults');
-    }
-
-    if (!projecoesFinanceiras || !projecoesFinanceiras.payback_meses) {
-      console.warn('Payback não calculado - usando 0 para continuar');
-    }
-
-    if (!kitSelecionado.precoTotal) {
-      console.warn('Preço do kit não disponível - usando 0');
-    }
-
-    if (!formData.cliente_id) {
-      console.warn('Cliente não selecionado - prosseguindo com placeholders. Selecione um cliente para personalizar.');
-      // Opcional: usar o primeiro cliente, se existir
-      // const clienteDefault = (clientes && clientes.length > 0) ? clientes[0].id : null;
-      // Não interromper o fluxo; os campos do cliente terão valores padrão mais adiante
-    }
-
-    // Verificar se os dados financeiros estão disponíveis
     const contaAtualAnual = calcularContaAtualAnual();
-    if (contaAtualAnual <= 0) {
-      console.warn('Conta anual não calculada - usando 0');
-    }
-
-    const gastoAcumuladoPayback = calcularGastoAcumuladoPayback();
-    if (gastoAcumuladoPayback <= 0) {
-      console.warn('Gasto acumulado não calculado - usando 0');
-    }
     const dadosBase = resultados || {};
     const kit = kitSelecionado || {};
     const projecoes = projecoesFinanceiras || {};
-
-        console.log('🔍 DEBUG getDadosSeguros - dadosBase:', dadosBase);
-        console.log('🔍 DEBUG getDadosSeguros - kit:', kit);
-        console.log('🔍 DEBUG getDadosSeguros - projecoes:', projecoes);
-        console.log('🔍 DEBUG getDadosSeguros - formData:', formData);
-        console.log('💰 DEBUG valores de entrada financeiros:', {
-          consumo_mensal_reais: formData?.consumo_mensal_reais,
-          payback_meses: projecoes?.payback_meses,
-          economia_mensal_estimada: projecoes?.economia_mensal_estimada,
-          economia_total_25_anos: projecoes?.economia_total_25_anos,
-          custo_total_projeto: projecoes?.custo_total_projeto
-        });
 
     // Calcular quantidade de placas e potência da placa
     let quantidade_placas = 0;
@@ -207,12 +170,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       tarifa_energia: (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
         ? Number(formData.tarifa_energia)
         : 0,
-      // Dados financeiros ficarão a cargo do backend (metrics)
     };
 
-        console.log('🔍 DEBUG getDadosSeguros - resultado final:', dadosSeguros);
-        console.log('💰 DEBUG valores financeiros virão do backend via metrics.');
-        return dadosSeguros;
+    return dadosSeguros;
   }, [resultados, formData, projecoesFinanceiras, kitSelecionado, calcularContaAtualAnual]);
 
   const dadosSeguros = getDadosSeguros();
@@ -220,15 +180,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // useEffect para auto-geração da proposta
   useEffect(() => {
     if (autoGenerateProposta && formData && !showPreview && !propostaSalva && !isGeneratingPDF) {
-      console.log('🚀 Auto-geração da proposta ativada!');
-      console.log('🔍 Verificando dados disponíveis:', {
-        formData: !!formData,
-        kitSelecionado: !!kitSelecionado,
-        projecoesFinanceiras: !!projecoesFinanceiras,
-        dadosSeguros: dadosSeguros
-      });
-      
-      // Aguardar um pouco para garantir que os dados estejam disponíveis
       if (autoTimerRef.current) {
         clearTimeout(autoTimerRef.current);
       }
@@ -242,7 +193,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // useEffect para notificar quando a auto-geração for concluída
   useEffect(() => {
     if (showPreview && autoGenerateProposta && onAutoGenerateComplete) {
-      console.log('✅ Auto-geração concluída, notificando componente pai');
       onAutoGenerateComplete();
     }
   }, [showPreview, autoGenerateProposta, onAutoGenerateComplete]);
@@ -268,13 +218,11 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   useEffect(() => {
     // Não executar se o template já foi processado pelo servidor Python
     if (templateContent && !templateContent.includes('{{')) {
-      console.log('🔄 Template já processado pelo servidor, pulando carregamento local');
       return;
     }
     
     const loadTemplate = async () => {
       try {
-        console.log('🔄 Carregando template local (fallback)');
         const response = await fetch('/template.html');
         let templateHtml = await response.text();
         
@@ -303,10 +251,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         templateHtml = templateHtml.replace(/{{cliente_telefone}}/g, clienteSelecionado?.telefone || 'Telefone não informado');
         templateHtml = templateHtml.replace(/{{potencia_sistema_kwp}}/g, dadosSeguros.potencia_sistema_kwp?.toFixed(2) || '0.00');
         templateHtml = templateHtml.replace(/{{preco_final}}/g, dadosSeguros.preco_final?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00');
-        templateHtml = templateHtml.replace(/{{vendedor_nome}}/g, configs.vendedor_nome || 'Representante Comercial');
-        templateHtml = templateHtml.replace(/{{vendedor_cargo}}/g, configs.vendedor_cargo || 'Especialista em Energia Solar');
-        templateHtml = templateHtml.replace(/{{vendedor_telefone}}/g, configs.vendedor_telefone || '(11) 99999-9999');
-        templateHtml = templateHtml.replace(/{{vendedor_email}}/g, configs.vendedor_email || 'contato@empresa.com');
+        templateHtml = templateHtml.replace(/{{vendedor_nome}}/g, vendedorDados.nome);
+        templateHtml = templateHtml.replace(/{{vendedor_cargo}}/g, vendedorDados.cargo);
+        templateHtml = templateHtml.replace(/{{vendedor_telefone}}/g, vendedorDados.telefone);
+        templateHtml = templateHtml.replace(/{{vendedor_email}}/g, vendedorDados.email);
         templateHtml = templateHtml.replace(/{{data_proposta}}/g, new Date().toLocaleDateString('pt-BR'));
         
         setTemplateContent(templateHtml);
@@ -320,14 +268,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   }, [formData, clientes, dadosSeguros, configs, templateContent]);
 
   const salvarProposta = async () => {
-    if (isGeneratingPDF || propostaSalva) {
-      console.log('⏸️ Salvamento ignorado (em andamento ou já salvo).');
-      return;
-    }
+    if (isGeneratingPDF || propostaSalva) return;
     setIsGeneratingPDF(true);
 
     try {
-      console.log('🔄 Salvando proposta no servidor...');
 
       // Garantir tarifa válida (fallback pela concessionária)
       let tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
@@ -364,11 +308,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       }
 
       // Preparar dados da proposta para o servidor
+      const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
       const propostaData = {
-        cliente_nome: clientes.find(c => c.id === formData?.cliente_id)?.nome || 'Cliente',
+        // Identificação do criador (para filtros por usuário)
+        created_by: user?.uid || null,
+        created_by_email: user?.email || null,
+        cliente_id: formData?.cliente_id || null,
+        cliente_nome: clienteInfo?.nome || 'Cliente',
         // Endereço deve vir da aba Dados Básicos (formData.endereco_completo)
-        cliente_endereco: formData?.endereco_completo || clientes.find(c => c.id === formData?.cliente_id)?.endereco_completo || 'Endereço não informado',
-        cliente_telefone: clientes.find(c => c.id === formData?.cliente_id)?.telefone || 'Telefone não informado',
+        cliente_endereco: formData?.endereco_completo || clienteInfo?.endereco_completo || 'Endereço não informado',
+        cliente_telefone: clienteInfo?.telefone || 'Telefone não informado',
         potencia_sistema: (Number(formData?.potencia_kw) || 0) > 0
           ? Number(formData.potencia_kw)
           : dadosSeguros.potencia_sistema_kwp,
@@ -377,10 +326,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         preco_final: Number(formData?.preco_venda || dadosSeguros?.preco_final || 0),
         concessionaria: formData?.concessionaria || '',
         cidade: formData?.cidade || 'Projeto',
-        vendedor_nome: configs.vendedor_nome || 'Representante Comercial',
-        vendedor_cargo: configs.vendedor_cargo || 'Especialista em Energia Solar',
-        vendedor_telefone: configs.vendedor_telefone || '(11) 99999-9999',
-        vendedor_email: configs.vendedor_email || 'contato@empresa.com',
+        vendedor_nome: vendedorDados.nome,
+        vendedor_cargo: vendedorDados.cargo,
+        vendedor_telefone: vendedorDados.telefone,
+        vendedor_email: vendedorDados.email,
         // Dados financeiros
         conta_atual_anual: 0, // será definido pelas métricas do backend
         anos_payback: 0,
@@ -477,18 +426,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         // Persistir as métricas no payload
         propostaData.metrics = m;
       } catch (e) {
-        console.warn('⚠️ Não foi possível gerar gráficos antes de salvar:', e?.message || e);
+        // Erro não crítico ao gerar gráficos
       }
-
-      console.log('📊 Dados da proposta para o servidor:', propostaData);
-      console.log('💰 Valores financeiros específicos sendo enviados:', {
-        conta_atual_anual: propostaData.conta_atual_anual,
-        anos_payback: propostaData.anos_payback,
-        gasto_acumulado_payback: propostaData.gasto_acumulado_payback,
-        potencia_sistema: propostaData.potencia_sistema,
-        preco_final: propostaData.preco_final
-      });
-      console.log('🔍 DEBUG dadosSeguros completo:', dadosSeguros);
 
       // Salvar no servidor e gerar HTML usando o mesmo ID
       const htmlResult = await propostaService.salvarEGerarHTML(propostaData);
@@ -498,7 +437,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       }
 
       const propostaId = htmlResult.proposta_id;
-      console.log('✅ Proposta salva e HTML gerado com ID:', propostaId);
 
       // Atualizar projeto: status e vínculo ao cliente
       try {
@@ -516,10 +454,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             proposta_id: propostaId,
             url_proposta: propostaService.getPropostaURL(propostaId)
           });
-          console.log('🔗 Projeto atualizado e vinculado ao cliente/proposta:', projetoId);
         }
       } catch (e) {
-        console.warn('⚠️ Falha ao atualizar projeto após geração da proposta:', e);
+        // Erro não crítico
       }
 
       // Salvar dados para preview
@@ -533,16 +470,12 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         const htmlData = await propostaService.gerarPropostaHTML(propostaId);
         if (htmlData && htmlData.html_content) {
           setTemplateContent(htmlData.html_content);
-          console.log('✅ Template atualizado com HTML processado para geração de PDF');
         }
       } catch (errHtml) {
-        console.error('⚠️ Falha ao buscar HTML para PDF:', errHtml);
+        // Erro não crítico
       }
-
-      console.log('✅ Proposta gerada com sucesso! Exibindo preview...');
       
     } catch (error) {
-      console.error('❌ Erro ao salvar proposta:', error);
       alert('Erro ao salvar proposta: ' + error.message);
     } finally {
       setIsGeneratingPDF(false);
@@ -554,13 +487,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     try {
       // Usar o HTML já processado pelo servidor Python (que substitui todas as 109 variáveis)
       // Em vez de fazer substituições locais limitadas
-      console.log('🔄 Usando HTML já processado pelo servidor Python');
-      
       // O templateContent já foi definido pelo servidor Python com todas as variáveis substituídas
-      // Não precisamos fazer substituições locais aqui
       
     } catch (error) {
-      console.error('❌ Erro ao carregar template para preview:', error);
+      // Erro ao carregar template
     }
   };
 
@@ -593,16 +523,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Processar cada slide
       const slides = tempDiv.querySelectorAll('.page');
-      console.log(`📄 Encontrados ${slides.length} slides para processar`);
 
       for (let i = 0; i < slides.length; i++) {
         const slide = slides[i];
-        console.log(`🔄 Processando slide ${i + 1}/${slides.length}...`);
 
         // Aguardar imagens carregarem
         const images = slide.querySelectorAll('img');
         if (images.length > 0) {
-          console.log(`🖼️ Aguardando ${images.length} imagens carregarem...`);
           await Promise.all(Array.from(images).map(img => {
             return new Promise(resolve => {
               if (img.complete) {
@@ -644,7 +571,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         }
         
         pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
-        console.log(`✅ Slide ${i + 1} adicionado ao PDF`);
       }
 
       // Remover elemento temporário
@@ -654,10 +580,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       const fileName = `Proposta_Solar_${propostaData?.potencia_sistema || '0.00'}kWp_${propostaData?.cidade || 'Projeto'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
       pdf.save(fileName);
       
-      console.log(`✅ PDF gerado e baixado: ${fileName}`);
-      
     } catch (error) {
-      console.error('❌ Erro ao gerar PDF:', error);
       alert('Erro ao gerar PDF: ' + error.message);
     } finally {
       setIsGeneratingPDF(false);
@@ -687,9 +610,60 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
               <Button onClick={gerarPDF} disabled={isGeneratingPDF} className="bg-green-600 hover:bg-green-700 text-white">
                 {isGeneratingPDF ? 'Gerando PDF...' : 'Download PDF'}
               </Button>
-              <Button variant="outline" onClick={() => setShowPreview(false)}>
-                Voltar
-              </Button>
+              <div className="relative" ref={shareMenuRef}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Compartilhar
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+                {showShareMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      onClick={() => {
+                        const url = `http://localhost:8000/proposta/${propostaId}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          alert('✅ Link copiado!\n\n' + url);
+                        }).catch(() => {
+                          // Fallback: usar prompt para copiar manualmente
+                          prompt('Copie o link abaixo:', url);
+                        });
+                        setShowShareMenu(false);
+                      }}
+                    >
+                      <Link className="w-4 h-4" />
+                      Copiar Link
+                    </button>
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      onClick={() => {
+                        const url = `http://localhost:8000/proposta/${propostaId}`;
+                        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent('Confira esta proposta de energia solar: ' + url)}`;
+                        window.open(whatsappUrl, '_blank');
+                        setShowShareMenu(false);
+                      }}
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      Enviar por WhatsApp
+                    </button>
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      onClick={async () => {
+                        setShowShareMenu(false);
+                        await gerarPDF();
+                      }}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Compartilhar PDF
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

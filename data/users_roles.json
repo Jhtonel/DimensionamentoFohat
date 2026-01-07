@@ -1,7 +1,17 @@
 {
-  "admin@teste.com": "admin",
-  "jhtonel@gmail.com": "admin",
+  "admin@teste.com": {
+    "role": "admin",
+    "nome": "admin",
+    "cargo": "Admin"
+  },
+  "jhtonel@gmail.com": {
+    "role": "gestor",
+    "nome": "jhtonel",
+    "cargo": "Diretor Comercial"
+  },
   "nicolasberbel1@gmail.com": {
-    "role": "admin"
+    "role": "vendedor",
+    "nome": "nicolasberbel1",
+    "cargo": "Diretor Financeiro"
   }
 }

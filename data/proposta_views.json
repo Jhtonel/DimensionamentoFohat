@@ -1,0 +1,94 @@
+{
+  "131c6d79-3f48-4ef9-aa31-2bf2272fdd04": {
+    "total_views": 1,
+    "unique_ips": [
+      "127.0.0.1"
+    ],
+    "first_view": "2025-12-20T19:36:32.796028",
+    "last_view": "2025-12-20T19:36:32.796028",
+    "views_history": [
+      {
+        "timestamp": "2025-12-20T19:36:32.796028",
+        "ip": "127.0.0.1",
+        "user_agent": "curl/8.7.1",
+        "referrer": ""
+      }
+    ]
+  },
+  "93413e2d-f9ed-4f18-b2c0-acfddabd19c8": {
+    "total_views": 2,
+    "unique_ips": [
+      "127.0.0.1"
+    ],
+    "first_view": "2025-12-20T19:37:51.000236",
+    "last_view": "2025-12-20T19:43:19.605656",
+    "views_history": [
+      {
+        "timestamp": "2025-12-20T19:37:51.000236",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": ""
+      },
+      {
+        "timestamp": "2025-12-20T19:43:19.605656",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": "http://localhost:3003/"
+      }
+    ]
+  },
+  "bc689e61-457c-4ede-9c43-c566207511ce": {
+    "total_views": 1,
+    "unique_ips": [
+      "127.0.0.1"
+    ],
+    "first_view": "2025-12-20T20:41:01.986859",
+    "last_view": "2025-12-20T20:41:01.986859",
+    "views_history": [
+      {
+        "timestamp": "2025-12-20T20:41:01.986859",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": "http://localhost:3003/"
+      }
+    ]
+  },
+  "30a1c809-4665-41e8-a698-d2c964b66674": {
+    "total_views": 2,
+    "unique_ips": [
+      "127.0.0.1"
+    ],
+    "first_view": "2025-12-20T20:44:09.498634",
+    "last_view": "2025-12-20T20:47:17.662294",
+    "views_history": [
+      {
+        "timestamp": "2025-12-20T20:44:09.498634",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": "http://localhost:3003/"
+      },
+      {
+        "timestamp": "2025-12-20T20:47:17.662294",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": ""
+      }
+    ]
+  },
+  "1abc32ee-a810-4ae1-9472-390c8056e986": {
+    "total_views": 1,
+    "unique_ips": [
+      "127.0.0.1"
+    ],
+    "first_view": "2026-01-07T03:03:17.483722",
+    "last_view": "2026-01-07T03:03:17.483722",
+    "views_history": [
+      {
+        "timestamp": "2026-01-07T03:03:17.483722",
+        "ip": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.",
+        "referrer": "http://localhost:3003/"
+      }
+    ]
+  }
+}

@@ -1,11 +1,12 @@
 /**
- * Serviço para busca de CEP usando API ViaCEP
- * Documentação: https://viacep.com.br/
+ * Serviço para busca de CEP usando proxy no servidor Python
+ * (Evita problemas de CORS e rede ao chamar ViaCEP diretamente)
  */
 
 class CepService {
   constructor() {
-    this.baseURL = 'https://viacep.com.br/ws';
+    // Usa o proxy do servidor Python
+    this.baseURL = 'http://localhost:8000/cep';
   }
 
   /**
@@ -23,7 +24,7 @@ class CepService {
         throw new Error('CEP deve ter 8 dígitos');
       }
 
-      const url = `${this.baseURL}/${cepLimpo}/json/`;
+      const url = `${this.baseURL}/${cepLimpo}`;
       
       const response = await fetch(url, {
         method: 'GET',
@@ -32,15 +33,11 @@ class CepService {
         }
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-
       const data = await response.json();
 
-      // Verifica se o CEP foi encontrado
-      if (data.erro) {
-        throw new Error('CEP não encontrado');
+      // Verifica se houve erro
+      if (!response.ok || data.erro) {
+        throw new Error(data.message || 'CEP não encontrado');
       }
 
       return {

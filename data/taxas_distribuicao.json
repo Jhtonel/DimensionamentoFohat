@@ -1,0 +1,173 @@
+{
+  "cedrap": {
+    "nome": "Cedrap",
+    "monofasica": 32.73,
+    "bifasica": 54.55,
+    "trifasica": 109.10,
+    "tarifa_kwh": 1.091,
+    "fonte": "ANEEL - REH 3549/2025",
+    "vigencia": "30/11/2025"
+  },
+  "ceris": {
+    "nome": "Ceris",
+    "monofasica": 29.40,
+    "bifasica": 49.00,
+    "trifasica": 98.00,
+    "tarifa_kwh": 0.980,
+    "fonte": "ANEEL - REH 3502/2025",
+    "vigencia": "30/07/2025"
+  },
+  "cermc": {
+    "nome": "CERMC",
+    "monofasica": 29.07,
+    "bifasica": 48.45,
+    "trifasica": 96.90,
+    "tarifa_kwh": 0.969,
+    "fonte": "ANEEL - REH 3552/2025",
+    "vigencia": "30/11/2025"
+  },
+  "cetril": {
+    "nome": "Cetril",
+    "monofasica": 27.30,
+    "bifasica": 45.50,
+    "trifasica": 91.00,
+    "tarifa_kwh": 0.910,
+    "fonte": "ANEEL - REH 3553/2025",
+    "vigencia": "30/11/2025"
+  },
+  "cedri": {
+    "nome": "Cedri",
+    "monofasica": 26.58,
+    "bifasica": 44.30,
+    "trifasica": 88.60,
+    "tarifa_kwh": 0.886,
+    "fonte": "ANEEL - REH 3531/2025",
+    "vigencia": "30/09/2025"
+  },
+  "cerim": {
+    "nome": "Cerim",
+    "monofasica": 26.46,
+    "bifasica": 44.10,
+    "trifasica": 88.20,
+    "tarifa_kwh": 0.882,
+    "fonte": "ANEEL - REH 3551/2025",
+    "vigencia": "30/11/2025"
+  },
+  "cervam": {
+    "nome": "CERVAM",
+    "monofasica": 25.92,
+    "bifasica": 43.20,
+    "trifasica": 86.40,
+    "tarifa_kwh": 0.864,
+    "fonte": "ANEEL - REH 3527/2025",
+    "vigencia": "30/09/2025"
+  },
+  "neoenergia_elektro": {
+    "nome": "Neoenergia Elektro",
+    "monofasica": 23.88,
+    "bifasica": 39.80,
+    "trifasica": 79.60,
+    "tarifa_kwh": 0.796,
+    "fonte": "ANEEL - REH 3510/2025",
+    "vigencia": "27/08/2025"
+  },
+  "ceripa": {
+    "nome": "Ceripa",
+    "monofasica": 23.85,
+    "bifasica": 39.75,
+    "trifasica": 79.50,
+    "tarifa_kwh": 0.795,
+    "fonte": "ANEEL - REH 3449/2025",
+    "vigencia": "29/04/2025"
+  },
+  "cerpro": {
+    "nome": "Cerpro",
+    "monofasica": 23.82,
+    "bifasica": 39.70,
+    "trifasica": 79.40,
+    "tarifa_kwh": 0.794,
+    "fonte": "ANEEL - REH 3457/2025",
+    "vigencia": "29/05/2025"
+  },
+  "edp_sp": {
+    "nome": "EDP SP",
+    "monofasica": 23.61,
+    "bifasica": 39.35,
+    "trifasica": 78.70,
+    "tarifa_kwh": 0.787,
+    "fonte": "ANEEL - REH 3541/2025",
+    "vigencia": "23/10/2025"
+  },
+  "cernhe": {
+    "nome": "Cernhe",
+    "monofasica": 22.98,
+    "bifasica": 38.30,
+    "trifasica": 76.60,
+    "tarifa_kwh": 0.766,
+    "fonte": "ANEEL - REH 3503/2025",
+    "vigencia": "30/07/2025"
+  },
+  "energisa_sul_sudeste": {
+    "nome": "Energisa Sul Sudeste",
+    "monofasica": 22.38,
+    "bifasica": 37.30,
+    "trifasica": 74.60,
+    "tarifa_kwh": 0.746,
+    "fonte": "ANEEL - REH 3480/2025",
+    "vigencia": "12/07/2025"
+  },
+  "cpfl_piratininga": {
+    "nome": "CPFL Piratininga",
+    "monofasica": 22.20,
+    "bifasica": 37.00,
+    "trifasica": 74.00,
+    "tarifa_kwh": 0.740,
+    "fonte": "ANEEL - REH 3543/2025",
+    "vigencia": "23/10/2025"
+  },
+  "cerrp": {
+    "nome": "CERRP",
+    "monofasica": 22.05,
+    "bifasica": 36.75,
+    "trifasica": 73.50,
+    "tarifa_kwh": 0.735,
+    "fonte": "ANEEL - REH 3458/2025",
+    "vigencia": "29/05/2025"
+  },
+  "enel_sp": {
+    "nome": "Enel SP",
+    "monofasica": 21.75,
+    "bifasica": 36.25,
+    "trifasica": 72.50,
+    "tarifa_kwh": 0.725,
+    "fonte": "ANEEL - REH 3477/2025",
+    "vigencia": "04/07/2025"
+  },
+  "cemirim": {
+    "nome": "Cemirim",
+    "monofasica": 20.88,
+    "bifasica": 34.80,
+    "trifasica": 69.60,
+    "tarifa_kwh": 0.696,
+    "fonte": "ANEEL - REH 3455/2025",
+    "vigencia": "29/05/2025"
+  },
+  "cpfl_santa_cruz": {
+    "nome": "CPFL Santa Cruz",
+    "monofasica": 20.67,
+    "bifasica": 34.45,
+    "trifasica": 68.90,
+    "tarifa_kwh": 0.689,
+    "fonte": "ANEEL - REH 3460/2025",
+    "vigencia": "22/05/2025"
+  },
+  "cpfl_paulista": {
+    "nome": "CPFL Paulista",
+    "monofasica": 20.28,
+    "bifasica": 33.80,
+    "trifasica": 67.60,
+    "tarifa_kwh": 0.676,
+    "fonte": "ANEEL - REH 3452/2025",
+    "vigencia": "30/04/2025"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "admin": {
+    "clientes": {
+      "visualizar": "todos",
+      "criar": true,
+      "editar": "todos",
+      "excluir": "todos",
+      "exportar": true
+    },
+    "propostas": {
+      "visualizar": "todos",
+      "criar": true,
+      "editar": "todos",
+      "excluir": "todos",
+      "aprovar": true,
+      "compartilhar": true,
+      "ver_metricas": "todos"
+    },
+    "projetos": {
+      "visualizar": "todos",
+      "criar": true,
+      "editar": "todos",
+      "excluir": "todos",
+      "alterar_status": "todos"
+    },
+    "dashboard": {
+      "ver_dashboard": true,
+      "ver_metricas_equipe": true,
+      "ver_metricas_empresa": true,
+      "exportar_relatorios": true,
+      "definir_metas": true
+    },
+    "financeiro": {
+      "ver_valores": true,
+      "ver_comissoes": "todos",
+      "ver_custos": true,
+      "ver_margem": true
+    },
+    "sistema": {
+      "configuracoes": true,
+      "gerenciar_usuarios": true,
+      "gerenciar_permissoes": true,
+      "ver_logs": true,
+      "backup": true
+    }
+  },
+  "gestor": {
+    "clientes": {
+      "criar": true,
+      "editar": "equipe",
+      "excluir": "proprios",
+      "exportar": true,
+      "visualizar": "equipe"
+    },
+    "dashboard": {
+      "definir_metas": true,
+      "exportar_relatorios": true,
+      "ver_dashboard": true,
+      "ver_metricas_empresa": false,
+      "ver_metricas_equipe": true
+    },
+    "financeiro": {
+      "ver_comissoes": "equipe",
+      "ver_custos": true,
+      "ver_margem": false,
+      "ver_valores": true
+    },
+    "projetos": {
+      "alterar_status": "equipe",
+      "criar": true,
+      "editar": "equipe",
+      "excluir": "proprios",
+      "visualizar": "equipe"
+    },
+    "propostas": {
+      "aprovar": true,
+      "compartilhar": true,
+      "criar": true,
+      "editar": "equipe",
+      "excluir": "proprios",
+      "ver_metricas": "equipe",
+      "visualizar": "equipe"
+    },
+    "sistema": {
+      "backup": false,
+      "configuracoes": false,
+      "gerenciar_permissoes": false,
+      "gerenciar_usuarios": false,
+      "ver_logs": false
+    }
+  }
+}

@@ -65,13 +65,36 @@ export default function AdminTaxas() {
     }
   };
 
+  const carregarPadrao = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${base}/config/taxas-distribuicao/popular-padrao`, { method: "POST" });
+      const j = await r.json();
+      if (j.success) {
+        setItems(j.items || {});
+        alert(j.message || "Concessionárias carregadas com sucesso!");
+      }
+      else alert(j.message || "Erro ao carregar concessionárias.");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao conectar com o servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="h-full w-full p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Admin • Taxas de Distribuição</h1>
-        <Button onClick={atualizarANEEL} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
-          {loading ? "Atualizando..." : "Atualizar pela ANEEL"}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={carregarPadrao} disabled={loading} className="bg-green-600 hover:bg-green-700">
+            {loading ? "Carregando..." : "Carregar Concessionárias"}
+          </Button>
+          <Button onClick={atualizarANEEL} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
+            {loading ? "Atualizando..." : "Atualizar pela ANEEL"}
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -83,32 +106,52 @@ export default function AdminTaxas() {
 
           <div className="space-y-3">
             {Object.entries(items).map(([slug, row]) => (
-              <div key={slug} className="p-3 border rounded-md">
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+              <div key={slug} className="p-4 border rounded-lg bg-gray-50 hover:bg-white transition-colors">
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
                   <div className="md:col-span-2">
-                    <Label>Concessionária</Label>
-                    <Input value={row?.nome || ""} onChange={e => setItems(prev => ({ ...prev, [slug]: { ...row, nome: e.target.value } }))} />
+                    <Label className="text-xs text-gray-500">Concessionária</Label>
+                    <Input value={row?.nome || ""} className="font-medium" onChange={e => setItems(prev => ({ ...prev, [slug]: { ...row, nome: e.target.value } }))} />
                   </div>
                   <div>
-                    <Label>Monofásica (R$/mês)</Label>
+                    <Label className="text-xs text-gray-500">Tarifa (R$/kWh)</Label>
+                    <Input type="number" step="0.001" value={row?.tarifa_kwh ?? 0} className="bg-blue-50"
+                      onChange={e => {
+                        const tarifa = parseFloat(e.target.value || 0);
+                        setItems(prev => ({ 
+                          ...prev, 
+                          [slug]: { 
+                            ...row, 
+                            tarifa_kwh: tarifa,
+                            monofasica: Math.round(tarifa * 30 * 100) / 100,
+                            bifasica: Math.round(tarifa * 50 * 100) / 100,
+                            trifasica: Math.round(tarifa * 100 * 100) / 100
+                          } 
+                        }));
+                      }} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Monofásica (R$)</Label>
                     <Input type="number" step="0.01" value={row?.monofasica ?? 0}
                       onChange={e => setItems(prev => ({ ...prev, [slug]: { ...row, monofasica: parseFloat(e.target.value || 0) } }))} />
                   </div>
                   <div>
-                    <Label>Bifásica (R$/mês)</Label>
+                    <Label className="text-xs text-gray-500">Bifásica (R$)</Label>
                     <Input type="number" step="0.01" value={row?.bifasica ?? 0}
                       onChange={e => setItems(prev => ({ ...prev, [slug]: { ...row, bifasica: parseFloat(e.target.value || 0) } }))} />
                   </div>
                   <div>
-                    <Label>Trifásica (R$/mês)</Label>
+                    <Label className="text-xs text-gray-500">Trifásica (R$)</Label>
                     <Input type="number" step="0.01" value={row?.trifasica ?? 0}
                       onChange={e => setItems(prev => ({ ...prev, [slug]: { ...row, trifasica: parseFloat(e.target.value || 0) } }))} />
                   </div>
                   <div>
-                    <Button onClick={() => salvar(slug)} className="w-full bg-green-600 hover:bg-green-700">Salvar</Button>
+                    <Button onClick={() => salvar(slug)} className="w-full bg-fohat-blue hover:bg-fohat-dark">Salvar</Button>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-2">Fonte: {row?.fonte || "Admin"}</div>
+                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                  <span>📋 {row?.fonte || "Admin"}</span>
+                  {row?.vigencia && <span>📅 Vigência: {row.vigencia}</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -117,3 +160,5 @@ export default function AdminTaxas() {
     </div>
   );
 }
+
+

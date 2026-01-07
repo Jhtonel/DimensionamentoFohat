@@ -47,6 +47,10 @@ class PropostaDB(Base):
     id = Column(String, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Rastreamento do criador (para filtros por usuário)
+    created_by = Column(String(128), nullable=True, index=True)
+    created_by_email = Column(String(255), nullable=True)
+
     # Campos principais
     cliente_id = Column(String(64), nullable=True)
     cliente_nome = Column(String(255))

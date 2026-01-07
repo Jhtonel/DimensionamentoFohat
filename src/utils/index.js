@@ -1,4 +1,7 @@
 // Utilitários para navegação e URLs
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
 export function createPageUrl(pageName) {
   const routes = {
     'Dashboard': '/',
@@ -13,7 +16,9 @@ export function createPageUrl(pageName) {
 
 // Utilitário para classes CSS
 export function cn(...inputs) {
-  return inputs.filter(Boolean).join(' ');
+  // Implementação moderna (shadcn): combina clsx + tailwind-merge
+  // Isso evita classes duplicadas e melhora consistência visual.
+  return twMerge(clsx(inputs));
 }
 
 // Utilitário para formatação de moeda
@@ -28,3 +33,7 @@ export function formatCurrency(value) {
 export function formatDate(date) {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(date));
 }
+
+// Re-exports (helpers modernos)
+export { formatDateBR, getDateRangePreset, isWithinRange } from "./date.js";
+export { normalizeNumberBR, formatCurrencyBRL } from "./number.js";

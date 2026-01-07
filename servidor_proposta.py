@@ -93,6 +93,80 @@ PDFS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 ROLES_FILE = DATA_DIR / "users_roles.json"
+VIEWS_FILE = DATA_DIR / "proposta_views.json"
+
+# -----------------------------------------------------------------------------
+# Rastreamento de Visualizações
+# -----------------------------------------------------------------------------
+def _load_views() -> dict:
+    """Carrega métricas de visualização das propostas."""
+    try:
+        if VIEWS_FILE.exists():
+            with open(VIEWS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+    except Exception as e:
+        print(f"⚠️ Falha ao carregar views: {e}")
+    return {}
+
+def _save_views(views: dict) -> None:
+    """Salva métricas de visualização das propostas."""
+    try:
+        with open(VIEWS_FILE, "w", encoding="utf-8") as f:
+            json.dump(views, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Falha ao salvar views: {e}")
+
+def _registrar_visualizacao(proposta_id: str, request_obj) -> dict:
+    """Registra uma visualização de proposta e retorna métricas atualizadas."""
+    views = _load_views()
+    
+    if proposta_id not in views:
+        views[proposta_id] = {
+            "total_views": 0,
+            "unique_ips": [],
+            "first_view": None,
+            "last_view": None,
+            "views_history": []
+        }
+    
+    now = datetime.now().isoformat()
+    ip = request_obj.remote_addr or "unknown"
+    user_agent = request_obj.headers.get('User-Agent', 'unknown')
+    referrer = request_obj.headers.get('Referer', '')
+    
+    # Incrementar contador total
+    views[proposta_id]["total_views"] += 1
+    
+    # Registrar IP único
+    if ip not in views[proposta_id]["unique_ips"]:
+        views[proposta_id]["unique_ips"].append(ip)
+    
+    # Atualizar timestamps
+    if not views[proposta_id]["first_view"]:
+        views[proposta_id]["first_view"] = now
+    views[proposta_id]["last_view"] = now
+    
+    # Adicionar ao histórico (limitar a 100 registros)
+    view_record = {
+        "timestamp": now,
+        "ip": ip,
+        "user_agent": user_agent[:100] if user_agent else "",
+        "referrer": referrer[:200] if referrer else ""
+    }
+    views[proposta_id]["views_history"].append(view_record)
+    if len(views[proposta_id]["views_history"]) > 100:
+        views[proposta_id]["views_history"] = views[proposta_id]["views_history"][-100:]
+    
+    _save_views(views)
+    
+    return {
+        "total_views": views[proposta_id]["total_views"],
+        "unique_views": len(views[proposta_id]["unique_ips"]),
+        "first_view": views[proposta_id]["first_view"],
+        "last_view": views[proposta_id]["last_view"]
+    }
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -123,7 +197,10 @@ def parse_float(value, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
+
+# Arquivos de dados
 TAXAS_FILE = DATA_DIR / "taxas_distribuicao.json"
+CONCESSIONARIAS_FILE = DATA_DIR / "concessionarias.json"
 
 def _load_roles() -> dict:
     try:
@@ -158,6 +235,34 @@ def _load_taxas() -> dict:
 def _save_taxas(mapping: dict) -> None:
     with open(TAXAS_FILE, "w", encoding="utf-8") as f:
         json.dump(mapping, f, ensure_ascii=False, indent=2)
+
+def _load_concessionarias() -> dict:
+    """Carrega dados unificados das concessionárias (fonte ANEEL)."""
+    if CONCESSIONARIAS_FILE.exists():
+        try:
+            with open(CONCESSIONARIAS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("concessionarias", {})
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar concessionarias.json: {e}")
+    return {}
+
+def _get_tarifa_by_concessionaria(nome_concessionaria: str) -> float:
+    """Busca a tarifa de uma concessionária pelo nome."""
+    concessionarias = _load_concessionarias()
+    nome_lower = nome_concessionaria.lower().strip()
+    
+    # Busca por slug exato
+    slug = ''.join(ch.lower() if ch.isalnum() else '_' for ch in nome_lower).strip('_')
+    if slug in concessionarias:
+        return concessionarias[slug].get("tarifa_kwh", 0)
+    
+    # Busca por nome
+    for key, data in concessionarias.items():
+        if data.get("nome", "").lower() == nome_lower:
+            return data.get("tarifa_kwh", 0)
+    
+    return 0
 
 def _calcular_disponibilidade(te_rskwh: float, tusd_rskwh: float, tipo: str) -> float:
     # Custo de disponibilidade (Grupo B, RN 1000): mono 30 kWh; bi 50; tri 100
@@ -1298,12 +1403,237 @@ def process_template_html(proposta_data):
         traceback.print_exc()
         raise
 
+# =========================================================================
+# ENDPOINTS PARA GERENCIAMENTO DE PERMISSÕES POR ROLE
+# =========================================================================
+
+ROLE_PERMISSIONS_FILE = DATA_DIR / "role_permissions.json"
+
+def _load_role_permissions():
+    """Carrega permissões de roles do arquivo JSON."""
+    if ROLE_PERMISSIONS_FILE.exists():
+        try:
+            with open(ROLE_PERMISSIONS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar permissões: {e}")
+    return {}
+
+def _save_role_permissions(permissions):
+    """Salva permissões de roles no arquivo JSON."""
+    with open(ROLE_PERMISSIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(permissions, f, ensure_ascii=False, indent=2)
+
+@app.route('/config/role-permissions', methods=['GET'])
+def get_role_permissions():
+    """Retorna todas as permissões de roles configuradas."""
+    try:
+        permissions = _load_role_permissions()
+        return jsonify({"success": True, "permissions": permissions})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/role-permissions', methods=['POST'])
+def save_role_permission():
+    """Salva as permissões de uma role específica."""
+    try:
+        data = request.get_json() or {}
+        role = data.get('role')
+        permissions = data.get('permissions')
+        
+        if not role or role not in ['admin', 'gestor', 'vendedor', 'instalador']:
+            return jsonify({"success": False, "message": "Role inválida"}), 400
+        
+        if not permissions or not isinstance(permissions, dict):
+            return jsonify({"success": False, "message": "Permissões inválidas"}), 400
+        
+        all_permissions = _load_role_permissions()
+        all_permissions[role] = permissions
+        _save_role_permissions(all_permissions)
+        
+        print(f"✅ Permissões da role '{role}' salvas com sucesso")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/role-permissions/<role>', methods=['GET'])
+def get_single_role_permissions(role):
+    """Retorna as permissões de uma role específica."""
+    try:
+        if role not in ['admin', 'gestor', 'vendedor', 'instalador']:
+            return jsonify({"success": False, "message": "Role inválida"}), 400
+        
+        all_permissions = _load_role_permissions()
+        permissions = all_permissions.get(role, {})
+        return jsonify({"success": True, "role": role, "permissions": permissions})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# =========================================================================
+# ENDPOINTS PARA GERENCIAMENTO DE EQUIPES
+# =========================================================================
+
+EQUIPES_FILE = DATA_DIR / "equipes.json"
+
+def _load_equipes():
+    """Carrega configuração de equipes do arquivo JSON."""
+    if EQUIPES_FILE.exists():
+        try:
+            with open(EQUIPES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar equipes: {e}")
+    return {}
+
+def _save_equipes(equipes):
+    """Salva configuração de equipes no arquivo JSON."""
+    with open(EQUIPES_FILE, "w", encoding="utf-8") as f:
+        json.dump(equipes, f, ensure_ascii=False, indent=2)
+
+@app.route('/config/equipes', methods=['GET'])
+def get_equipes():
+    """Retorna configuração de equipes (gestor -> [membros])."""
+    try:
+        equipes = _load_equipes()
+        return jsonify({"success": True, "equipes": equipes})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/equipes', methods=['POST'])
+def save_equipes():
+    """Salva configuração de equipes."""
+    try:
+        data = request.get_json() or {}
+        equipes = data.get('equipes', {})
+        
+        if not isinstance(equipes, dict):
+            return jsonify({"success": False, "message": "Formato inválido"}), 400
+        
+        _save_equipes(equipes)
+        print(f"✅ Equipes salvas com sucesso: {len(equipes)} gestores configurados")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/equipes/<gestor_email>', methods=['GET'])
+def get_equipe_gestor(gestor_email):
+    """Retorna membros da equipe de um gestor específico."""
+    try:
+        equipes = _load_equipes()
+        membros = equipes.get(gestor_email.lower(), [])
+        return jsonify({"success": True, "gestor": gestor_email, "membros": membros})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/equipes/<gestor_email>/membros', methods=['POST'])
+def add_membro_equipe(gestor_email):
+    """Adiciona um membro à equipe de um gestor."""
+    try:
+        data = request.get_json() or {}
+        membro_email = data.get('membro_email', '').strip().lower()
+        
+        if not membro_email:
+            return jsonify({"success": False, "message": "Email do membro é obrigatório"}), 400
+        
+        equipes = _load_equipes()
+        gestor_key = gestor_email.lower()
+        
+        if gestor_key not in equipes:
+            equipes[gestor_key] = []
+        
+        if membro_email not in equipes[gestor_key]:
+            equipes[gestor_key].append(membro_email)
+            _save_equipes(equipes)
+        
+        return jsonify({"success": True, "membros": equipes[gestor_key]})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/equipes/<gestor_email>/membros/<membro_email>', methods=['DELETE'])
+def remove_membro_equipe(gestor_email, membro_email):
+    """Remove um membro da equipe de um gestor."""
+    try:
+        equipes = _load_equipes()
+        gestor_key = gestor_email.lower()
+        membro_key = membro_email.lower()
+        
+        if gestor_key in equipes and membro_key in equipes[gestor_key]:
+            equipes[gestor_key].remove(membro_key)
+            _save_equipes(equipes)
+        
+        return jsonify({"success": True, "membros": equipes.get(gestor_key, [])})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# =========================================================================
+# ENDPOINTS DE CONCESSIONÁRIAS
+# =========================================================================
+
+@app.route('/config/concessionarias', methods=['GET'])
+def get_concessionarias():
+    """
+    Lista todas as concessionárias com dados oficiais da ANEEL.
+    Endpoint principal para dados de tarifas e disponibilidade.
+    """
+    try:
+        concessionarias = _load_concessionarias()
+        # Formatar para lista ordenada por ranking
+        lista = []
+        for slug, data in concessionarias.items():
+            item = {
+                "id": slug,
+                "nome": data.get("nome"),
+                "uf": data.get("uf"),
+                "ranking": data.get("ranking"),
+                "tarifa_kwh": data.get("tarifa_kwh"),
+                "tarifa_branca_ponta": data.get("tarifa_branca_ponta"),
+                "tarifa_branca_intermediaria": data.get("tarifa_branca_intermediaria"),
+                "tarifa_branca_fora_ponta": data.get("tarifa_branca_fora_ponta"),
+                "custo_disponibilidade": data.get("custo_disponibilidade", {}),
+                "resolucao": data.get("resolucao"),
+                "vigencia": data.get("vigencia")
+            }
+            lista.append(item)
+        lista.sort(key=lambda x: x.get("ranking") or 999)
+        return jsonify({"success": True, "concessionarias": lista})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/concessionarias/<slug>', methods=['GET'])
+def get_concessionaria(slug):
+    """Retorna dados de uma concessionária específica."""
+    try:
+        concessionarias = _load_concessionarias()
+        if slug in concessionarias:
+            return jsonify({"success": True, "concessionaria": concessionarias[slug]})
+        return jsonify({"success": False, "message": "Concessionária não encontrada"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/config/taxas-distribuicao', methods=['GET'])
 def get_taxas_distribuicao():
     """
     Lista o mapa de taxas de distribuição mensais por concessionária.
+    Mantido para compatibilidade - usa dados do concessionarias.json.
     """
     try:
+        # Priorizar dados do arquivo unificado de concessionárias
+        concessionarias = _load_concessionarias()
+        if concessionarias:
+            taxas = {}
+            for slug, data in concessionarias.items():
+                custo = data.get("custo_disponibilidade", {})
+                taxas[slug] = {
+                    "nome": data.get("nome"),
+                    "tarifa_kwh": data.get("tarifa_kwh"),
+                    "monofasica": custo.get("monofasica", 0),
+                    "bifasica": custo.get("bifasica", 0),
+                    "trifasica": custo.get("trifasica", 0),
+                    "fonte": f"ANEEL - REH {data.get('resolucao', '')}",
+                    "vigencia": data.get("vigencia")
+                }
+            return jsonify({"success": True, "items": taxas})
+        # Fallback para arquivo antigo
         return jsonify({"success": True, "items": _load_taxas()})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1340,6 +1670,161 @@ def atualizar_taxas_aneel():
     try:
         taxa_map = _atualizar_taxas_distribuicao()
         return jsonify({"success": True, "items": taxa_map})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/taxas-distribuicao/popular-padrao', methods=['POST'])
+def popular_taxas_padrao():
+    """
+    Popula as taxas de distribuição com as concessionárias padrão de São Paulo.
+    Valores baseados na RN ANEEL 1.000/2021 (Grupo B).
+    """
+    try:
+        # Concessionárias de SP com valores médios de custo de disponibilidade (2024/2025)
+        concessionarias_padrao = {
+            "enel_sp": {
+                "nome": "Enel Distribuição São Paulo",
+                "monofasica": 49.50,
+                "bifasica": 82.50,
+                "trifasica": 165.00,
+                "fonte": "ANEEL 2024"
+            },
+            "cpfl_piratininga": {
+                "nome": "CPFL Piratininga",
+                "monofasica": 48.30,
+                "bifasica": 80.50,
+                "trifasica": 161.00,
+                "fonte": "ANEEL 2024"
+            },
+            "cpfl_paulista": {
+                "nome": "CPFL Paulista",
+                "monofasica": 47.40,
+                "bifasica": 79.00,
+                "trifasica": 158.00,
+                "fonte": "ANEEL 2024"
+            },
+            "cpfl_santa_cruz": {
+                "nome": "CPFL Santa Cruz",
+                "monofasica": 46.80,
+                "bifasica": 78.00,
+                "trifasica": 156.00,
+                "fonte": "ANEEL 2024"
+            },
+            "elektro": {
+                "nome": "Elektro (Neoenergia)",
+                "monofasica": 45.90,
+                "bifasica": 76.50,
+                "trifasica": 153.00,
+                "fonte": "ANEEL 2024"
+            },
+            "edp_sp": {
+                "nome": "EDP São Paulo",
+                "monofasica": 51.00,
+                "bifasica": 85.00,
+                "trifasica": 170.00,
+                "fonte": "ANEEL 2024"
+            },
+            "light": {
+                "nome": "Light (RJ)",
+                "monofasica": 55.20,
+                "bifasica": 92.00,
+                "trifasica": 184.00,
+                "fonte": "ANEEL 2024"
+            },
+            "cemig": {
+                "nome": "CEMIG (MG)",
+                "monofasica": 44.10,
+                "bifasica": 73.50,
+                "trifasica": 147.00,
+                "fonte": "ANEEL 2024"
+            },
+            "copel": {
+                "nome": "COPEL (PR)",
+                "monofasica": 42.60,
+                "bifasica": 71.00,
+                "trifasica": 142.00,
+                "fonte": "ANEEL 2024"
+            },
+            "celesc": {
+                "nome": "CELESC (SC)",
+                "monofasica": 43.80,
+                "bifasica": 73.00,
+                "trifasica": 146.00,
+                "fonte": "ANEEL 2024"
+            },
+            "rge_sul": {
+                "nome": "RGE Sul (RS)",
+                "monofasica": 45.30,
+                "bifasica": 75.50,
+                "trifasica": 151.00,
+                "fonte": "ANEEL 2024"
+            },
+            "equatorial_goias": {
+                "nome": "Equatorial Goiás",
+                "monofasica": 41.40,
+                "bifasica": 69.00,
+                "trifasica": 138.00,
+                "fonte": "ANEEL 2024"
+            },
+            "energisa_mt": {
+                "nome": "Energisa MT",
+                "monofasica": 43.50,
+                "bifasica": 72.50,
+                "trifasica": 145.00,
+                "fonte": "ANEEL 2024"
+            },
+            "energisa_ms": {
+                "nome": "Energisa MS",
+                "monofasica": 44.40,
+                "bifasica": 74.00,
+                "trifasica": 148.00,
+                "fonte": "ANEEL 2024"
+            },
+            "coelba": {
+                "nome": "COELBA (BA)",
+                "monofasica": 46.50,
+                "bifasica": 77.50,
+                "trifasica": 155.00,
+                "fonte": "ANEEL 2024"
+            },
+            "celpe": {
+                "nome": "CELPE (PE)",
+                "monofasica": 47.70,
+                "bifasica": 79.50,
+                "trifasica": 159.00,
+                "fonte": "ANEEL 2024"
+            },
+            "cosern": {
+                "nome": "COSERN (RN)",
+                "monofasica": 45.60,
+                "bifasica": 76.00,
+                "trifasica": 152.00,
+                "fonte": "ANEEL 2024"
+            },
+            "enel_ce": {
+                "nome": "Enel Ceará",
+                "monofasica": 48.60,
+                "bifasica": 81.00,
+                "trifasica": 162.00,
+                "fonte": "ANEEL 2024"
+            }
+        }
+        
+        # Carregar taxas existentes e mesclar (não sobrescrever se já existir)
+        cur = _load_taxas()
+        added = 0
+        for slug, dados in concessionarias_padrao.items():
+            if slug not in cur:
+                cur[slug] = dados
+                added += 1
+        
+        _save_taxas(cur)
+        
+        return jsonify({
+            "success": True, 
+            "items": cur,
+            "message": f"{added} concessionárias adicionadas. Total: {len(cur)}"
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -1619,6 +2104,10 @@ def salvar_proposta():
         proposta_data = {
             'id': proposta_id,
             'data_criacao': datetime.now().isoformat(),
+            # Rastreamento do criador (para filtros por usuário)
+            'created_by': data.get('created_by'),
+            'created_by_email': data.get('created_by_email'),
+            'cliente_id': data.get('cliente_id'),
             'cliente_nome': data.get('cliente_nome', 'Cliente'),
             'cliente_endereco': data.get('cliente_endereco', 'Endereço não informado'),
             'cliente_telefone': data.get('cliente_telefone', 'Telefone não informado'),
@@ -1626,6 +2115,9 @@ def salvar_proposta():
             'preco_final': data.get('preco_final', 0),
             'preco_venda': data.get('preco_venda', data.get('preco_final', 0)),  # Preço de venda para cálculo do payback
             'cidade': data.get('cidade', 'Projeto'),
+            'concessionaria': concessionaria_payload,
+            'tipo_telhado': data.get('tipo_telhado', ''),
+            'estado': data.get('estado', ''),
             'vendedor_nome': data.get('vendedor_nome', 'Representante Comercial'),
             'vendedor_cargo': data.get('vendedor_cargo', 'Especialista em Energia Solar'),
             'vendedor_telefone': data.get('vendedor_telefone', '(11) 99999-9999'),
@@ -1718,6 +2210,9 @@ def salvar_proposta():
             db = SessionLocal()
             row = PropostaDB(
                 id=proposta_id,
+                created_by=proposta_data.get('created_by'),
+                created_by_email=proposta_data.get('created_by_email'),
+                cliente_id=proposta_data.get('cliente_id'),
                 cliente_nome=proposta_data.get('cliente_nome'),
                 cliente_endereco=proposta_data.get('cliente_endereco'),
                 cliente_telefone=proposta_data.get('cliente_telefone'),
@@ -1838,6 +2333,11 @@ def gerar_pdf(proposta_id):
 def visualizar_proposta(proposta_id):
     try:
         print(f"🔎 [visualizar_proposta] GET /proposta/{proposta_id}")
+        
+        # Registrar visualização para métricas
+        metrics = _registrar_visualizacao(proposta_id, request)
+        print(f"📊 [visualizar_proposta] Views: {metrics['total_views']} total, {metrics['unique_views']} únicos")
+        
         # Carregar dados da proposta
         proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
         if not proposta_file.exists():
@@ -2198,6 +2698,55 @@ def visualizar_proposta(proposta_id):
 
 # Endpoint antigo removido - agora usamos apenas os endpoints HTML
 
+# -----------------------------------------------------------------------------
+# Métricas de Visualização
+# -----------------------------------------------------------------------------
+@app.route('/proposta/<proposta_id>/views', methods=['GET'])
+def get_proposta_views(proposta_id):
+    """Retorna métricas de visualização de uma proposta específica."""
+    try:
+        views = _load_views()
+        if proposta_id not in views:
+            return jsonify({
+                "proposta_id": proposta_id,
+                "total_views": 0,
+                "unique_views": 0,
+                "first_view": None,
+                "last_view": None
+            })
+        
+        v = views[proposta_id]
+        return jsonify({
+            "proposta_id": proposta_id,
+            "total_views": v.get("total_views", 0),
+            "unique_views": len(v.get("unique_ips", [])),
+            "first_view": v.get("first_view"),
+            "last_view": v.get("last_view"),
+            "views_history": v.get("views_history", [])[-10:]  # Últimas 10 visualizações
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/propostas/views', methods=['GET'])
+def get_all_views():
+    """Retorna métricas de visualização de todas as propostas."""
+    try:
+        views = _load_views()
+        result = []
+        for proposta_id, v in views.items():
+            result.append({
+                "proposta_id": proposta_id,
+                "total_views": v.get("total_views", 0),
+                "unique_views": len(v.get("unique_ips", [])),
+                "first_view": v.get("first_view"),
+                "last_view": v.get("last_view")
+            })
+        # Ordenar por total de views (mais vistos primeiro)
+        result.sort(key=lambda x: x["total_views"], reverse=True)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'message': 'Servidor Python funcionando'})
@@ -2233,6 +2782,9 @@ def importar_locais():
                     continue
                 row = PropostaDB(
                     id=prop_id,
+                    created_by=data.get('created_by'),
+                    created_by_email=data.get('created_by_email'),
+                    cliente_id=data.get('cliente_id'),
                     cliente_nome=data.get('cliente_nome'),
                     cliente_endereco=data.get('cliente_endereco'),
                     cliente_telefone=data.get('cliente_telefone'),
@@ -2433,8 +2985,8 @@ def admin_firebase_send_invite():
 @app.route('/auth/role', methods=['GET'])
 def get_user_role():
     """
-    Retorna a role do usuário a partir do e-mail.
-    Ex.: /auth/role?email=john@doe.com -> { role: "admin" | "gestor" | "vendedor" | "instalador" }
+    Retorna a role, cargo e nome do usuário a partir do e-mail.
+    Ex.: /auth/role?email=john@doe.com -> { role: "admin", cargo: "Diretor", nome: "João" }
     Padrão: "vendedor" quando não configurado.
     """
     try:
@@ -2442,27 +2994,33 @@ def get_user_role():
         mapping = _load_roles()
         # Bootstrap: se ainda não há nenhum mapeamento, o primeiro e-mail consultado vira admin
         if email and len(mapping.keys()) == 0:
-            mapping[email] = 'admin'
+            mapping[email] = {'role': 'admin', 'cargo': 'Administrador'}
             _save_roles(mapping)
             print(f"🔐 Bootstrap de roles: '{email}' definido como admin.")
         raw = mapping.get(email, 'vendedor')
         role = raw.get('role') if isinstance(raw, dict) else raw
         nome = raw.get('nome') if isinstance(raw, dict) else None
-        return jsonify({'role': role or 'vendedor', 'nome': nome})
+        cargo = raw.get('cargo') if isinstance(raw, dict) else None
+        return jsonify({'role': role or 'vendedor', 'nome': nome, 'cargo': cargo})
     except Exception as e:
         return jsonify({'role': 'vendedor', 'message': str(e)}), 200
 
 @app.route('/auth/roles', methods=['GET'])
 def list_roles():
     """
-    Retorna o mapeamento completo de roles (apenas e-mail -> role).
+    Retorna o mapeamento completo de roles (e-mail -> role, nome, cargo).
     """
     try:
         mapping = _load_roles()
         items = []
         for k, v in mapping.items():
             if isinstance(v, dict):
-                items.append({'email': k, 'role': v.get('role'), 'nome': v.get('nome')})
+                items.append({
+                    'email': k, 
+                    'role': v.get('role'), 
+                    'nome': v.get('nome'),
+                    'cargo': v.get('cargo')
+                })
             else:
                 items.append({'email': k, 'role': v})
         return jsonify({'success': True, 'items': items})
@@ -2473,13 +3031,14 @@ def list_roles():
 def upsert_role():
     """
     Define/atualiza a role de um e-mail.
-    Body: { email: string, role: string }
+    Body: { email: string, role: string, nome?: string, cargo?: string }
     """
     try:
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()
         role = (data.get('role') or '').strip().lower()
         nome = (data.get('nome') or '').strip() or None
+        cargo = (data.get('cargo') or '').strip() or None
         if not email or role not in ('admin', 'gestor', 'vendedor', 'instalador'):
             return jsonify({'success': False, 'message': 'Parâmetros inválidos'}), 400
         mapping = _load_roles()
@@ -2488,11 +3047,15 @@ def upsert_role():
             current['role'] = role
             if nome is not None:
                 current['nome'] = nome
+            if cargo is not None:
+                current['cargo'] = cargo
             mapping[email] = current
         else:
             obj = {'role': role}
             if nome is not None:
                 obj['nome'] = nome
+            if cargo is not None:
+                obj['cargo'] = cargo
             mapping[email] = obj
         _save_roles(mapping)
         return jsonify({'success': True})
@@ -2581,6 +3144,296 @@ def atualizar_status_projeto():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+# -----------------------------------------------------------------------------
+# Clientes (CRUD via JSON local)
+# -----------------------------------------------------------------------------
+CLIENTES_FILE = DATA_DIR / "clientes.json"
+
+def _load_clientes() -> dict:
+    try:
+        if CLIENTES_FILE.exists():
+            with open(CLIENTES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"⚠️ Falha ao carregar clientes: {e}")
+    return {}
+
+def _save_clientes(data: dict) -> None:
+    try:
+        with open(CLIENTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Falha ao salvar clientes: {e}")
+
+@app.route('/clientes/list', methods=['GET'])
+def listar_clientes():
+    """Lista todos os clientes."""
+    try:
+        clientes_dict = _load_clientes()
+        clientes = list(clientes_dict.values())
+        # Ordenar por data de criação (mais recente primeiro)
+        clientes.sort(key=lambda c: c.get("created_at", ""), reverse=True)
+        return jsonify(clientes)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/create', methods=['POST'])
+def criar_cliente():
+    """Cria um novo cliente."""
+    try:
+        data = request.get_json() or {}
+        cliente_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        cliente = {
+            "id": cliente_id,
+            "nome": data.get("nome", ""),
+            "telefone": data.get("telefone", ""),
+            "email": data.get("email"),
+            "endereco_completo": data.get("endereco_completo"),
+            "cep": data.get("cep"),
+            "tipo": data.get("tipo"),
+            "observacoes": data.get("observacoes"),
+            "created_by": data.get("created_by"),
+            "created_by_email": data.get("created_by_email"),
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        clientes = _load_clientes()
+        clientes[cliente_id] = cliente
+        _save_clientes(clientes)
+        
+        print(f"✅ Cliente criado: {cliente['nome']} ({cliente_id})")
+        return jsonify({"success": True, "cliente": cliente})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/update/<cliente_id>', methods=['PUT', 'POST'])
+def atualizar_cliente(cliente_id):
+    """Atualiza um cliente existente."""
+    try:
+        data = request.get_json() or {}
+        clientes = _load_clientes()
+        
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+        
+        cliente = clientes[cliente_id]
+        cliente.update({
+            "nome": data.get("nome", cliente.get("nome")),
+            "telefone": data.get("telefone", cliente.get("telefone")),
+            "email": data.get("email", cliente.get("email")),
+            "endereco_completo": data.get("endereco_completo", cliente.get("endereco_completo")),
+            "cep": data.get("cep", cliente.get("cep")),
+            "tipo": data.get("tipo", cliente.get("tipo")),
+            "observacoes": data.get("observacoes", cliente.get("observacoes")),
+            "updated_at": datetime.now().isoformat()
+        })
+        
+        clientes[cliente_id] = cliente
+        _save_clientes(clientes)
+        
+        return jsonify({"success": True, "cliente": cliente})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/delete/<cliente_id>', methods=['DELETE'])
+def deletar_cliente(cliente_id):
+    """Exclui um cliente e todas as propostas vinculadas (cascata)."""
+    try:
+        clientes = _load_clientes()
+        
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+        
+        cliente = clientes[cliente_id]
+        cliente_nome = cliente.get("nome", "").lower().strip()
+        cliente_telefone = (cliente.get("telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        
+        # Excluir propostas vinculadas (cascata)
+        propostas_excluidas = 0
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    proposta = json.load(f)
+                
+                # Verificar vinculação
+                vinculado = False
+                if proposta.get("cliente_id") == cliente_id:
+                    vinculado = True
+                else:
+                    # Match por nome
+                    p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                    if cliente_nome and p_nome == cliente_nome:
+                        vinculado = True
+                    # Match por telefone
+                    p_tel = (proposta.get("cliente_telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    if cliente_telefone and p_tel == cliente_telefone and len(cliente_telefone) > 8:
+                        vinculado = True
+                
+                if vinculado:
+                    file.unlink()
+                    propostas_excluidas += 1
+                    # Remover do banco também
+                    try:
+                        db = SessionLocal()
+                        row = db.get(PropostaDB, file.stem)
+                        if row:
+                            db.delete(row)
+                            db.commit()
+                        db.close()
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"⚠️ Erro ao verificar proposta {file.name}: {e}")
+        
+        # Excluir cliente
+        del clientes[cliente_id]
+        _save_clientes(clientes)
+        
+        print(f"🗑️ Cliente excluído: {cliente.get('nome')} - {propostas_excluidas} propostas removidas")
+        return jsonify({"success": True, "propostas_excluidas": propostas_excluidas})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Proxy para busca de CEP (ViaCEP)
+# ─────────────────────────────────────────────────────────────────────────────
+import ssl
+
+# Cache de códigos IBGE por cidade (para evitar requisições repetidas)
+_IBGE_CACHE = {}
+
+import gzip
+
+def _buscar_ibge_por_cidade(cidade: str, uf: str, ssl_context) -> str:
+    """Busca código IBGE de uma cidade usando a API do IBGE."""
+    cache_key = f"{cidade.lower()}_{uf.lower()}"
+    if cache_key in _IBGE_CACHE:
+        return _IBGE_CACHE[cache_key]
+    
+    try:
+        # Normaliza nome da cidade para busca
+        from urllib.parse import quote
+        url = f"https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
+        
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+            'Accept-Encoding': 'gzip, deflate'
+        })
+        
+        with urllib.request.urlopen(req, timeout=15, context=ssl_context) as response:
+            # Verifica se a resposta está comprimida
+            raw_data = response.read()
+            encoding = response.info().get('Content-Encoding', '')
+            
+            if 'gzip' in encoding:
+                raw_data = gzip.decompress(raw_data)
+            
+            municipios = json.loads(raw_data.decode('utf-8'))
+            
+            # Busca a cidade no resultado
+            cidade_lower = cidade.lower().strip()
+            uf_lower = uf.lower().strip()
+            
+            for m in municipios:
+                nome_municipio = m.get('nome', '').lower()
+                sigla_uf = m.get('microrregiao', {}).get('mesorregiao', {}).get('UF', {}).get('sigla', '').lower()
+                
+                if nome_municipio == cidade_lower and sigla_uf == uf_lower:
+                    ibge_code = str(m.get('id', ''))
+                    _IBGE_CACHE[cache_key] = ibge_code
+                    print(f"✅ IBGE encontrado para {cidade}/{uf}: {ibge_code}")
+                    return ibge_code
+    except Exception as e:
+        print(f"⚠️ Falha ao buscar IBGE para {cidade}/{uf}: {e}")
+    
+    return ""
+
+@app.route('/cep/<cep>', methods=['GET'])
+def buscar_cep_proxy(cep):
+    """Proxy para busca de CEP - tenta múltiplas APIs."""
+    try:
+        # Limpa CEP (remove não-numéricos)
+        cep_limpo = re.sub(r'\D', '', cep)
+        
+        if len(cep_limpo) != 8:
+            return jsonify({"erro": True, "message": "CEP deve ter 8 dígitos"}), 400
+        
+        # Lista de APIs para tentar (em ordem de prioridade)
+        # ViaCEP retorna o código IBGE, então é prioridade
+        apis = [
+            (f"https://viacep.com.br/ws/{cep_limpo}/json/", "viacep"),
+            (f"https://brasilapi.com.br/api/cep/v2/{cep_limpo}", "brasilapi"),
+        ]
+        
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        last_error = None
+        for url, api_name in apis:
+            try:
+                req = urllib.request.Request(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/json'
+                })
+                
+                with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
+                    raw_data = json.loads(response.read().decode('utf-8'))
+                    
+                    # Normaliza resposta baseado na API
+                    if api_name == "viacep":
+                        if not raw_data.get('erro'):
+                            print(f"✅ CEP {cep_limpo} encontrado via {api_name}")
+                            return jsonify(raw_data)
+                    elif api_name == "brasilapi":
+                        if raw_data.get('cep'):
+                            # Tenta extrair IBGE da resposta v2
+                            ibge_code = ""
+                            location = raw_data.get('location', {})
+                            if location:
+                                ibge_data = location.get('ibge', {})
+                                if ibge_data and ibge_data.get('city', {}).get('id'):
+                                    ibge_code = str(ibge_data['city']['id'])
+                            
+                            cidade = raw_data.get('city', '')
+                            uf = raw_data.get('state', '')
+                            
+                            # Se não tiver IBGE na resposta, tenta buscar pela API do IBGE
+                            if not ibge_code and cidade and uf:
+                                ibge_code = _buscar_ibge_por_cidade(cidade, uf, ssl_context)
+                            
+                            cep_raw = raw_data.get('cep', '').replace('-', '')
+                            data = {
+                                "cep": f"{cep_raw[:5]}-{cep_raw[5:]}" if len(cep_raw) == 8 else cep_raw,
+                                "logradouro": raw_data.get('street', ''),
+                                "bairro": raw_data.get('neighborhood', ''),
+                                "localidade": cidade,
+                                "uf": uf,
+                                "ibge": ibge_code,
+                                "complemento": "",
+                                "ddd": "",
+                            }
+                            print(f"✅ CEP {cep_limpo} encontrado via {api_name} (IBGE: {ibge_code})")
+                            return jsonify(data)
+                    
+                    last_error = "CEP não encontrado"
+                    
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ Falha ao buscar CEP via {api_name}: {e}")
+                continue
+        
+        return jsonify({"erro": True, "message": last_error or "CEP não encontrado"}), 404
+    
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar CEP {cep}: {e}")
+        return jsonify({"erro": True, "message": str(e)}), 500
+
 @app.route('/projetos/list', methods=['GET'])
 def listar_projetos():
     """
@@ -2606,11 +3459,37 @@ def listar_projetos():
                     "preco_final": data.get("preco_final") or data.get("custo_total_projeto") or 0,
                     "cidade": data.get("cidade"),
                     "estado": data.get("estado"),
+                    "endereco_completo": data.get("cliente_endereco") or data.get("endereco_completo"),
                     # Requisito: recem gerados devem cair em "dimensionamento"
                     "status": data.get("status") or "dimensionamento",
                     "prioridade": data.get("prioridade") or "Normal",
                     "created_date": data.get("data_criacao") or datetime.now().isoformat(),
-                    "url_proposta": f"/proposta/{file.stem}"
+                    "url_proposta": f"/proposta/{file.stem}",
+                    # Dados técnicos
+                    "potencia_sistema": data.get("potencia_sistema") or 0,
+                    "potencia_sistema_kwp": data.get("potencia_sistema") or 0,
+                    "economia_mensal_estimada": data.get("economia_mensal_estimada") or 0,
+                    "anos_payback": data.get("anos_payback") or 0,
+                    "payback_meses": data.get("payback_meses") or 0,
+                    "consumo_mensal_kwh": data.get("consumo_mensal_kwh") or 0,
+                    "tarifa_energia": data.get("tarifa_energia") or 0,
+                    "quantidade_placas": data.get("quantidade_placas") or 0,
+                    "potencia_placa_w": data.get("potencia_placa_w") or 0,
+                    "geracao_media_mensal": data.get("geracao_media_mensal") or 0,
+                    "area_necessaria": data.get("area_necessaria") or 0,
+                    "irradiacao_media": data.get("irradiacao_media") or 5.15,
+                    "economia_total_25_anos": data.get("economia_total_25_anos") or 0,
+                    "tipo_telhado": data.get("tipo_telhado"),
+                    "concessionaria": data.get("concessionaria"),
+                    # Dados financeiros adicionais
+                    "conta_atual_anual": data.get("conta_atual_anual") or 0,
+                    "custo_total_projeto": data.get("custo_total_projeto") or 0,
+                    "gasto_acumulado_payback": data.get("gasto_acumulado_payback") or 0,
+                    "preco_venda": data.get("preco_venda") or data.get("preco_final") or 0,
+                    # Rastreamento
+                    "created_by": data.get("created_by"),
+                    "created_by_email": data.get("created_by_email"),
+                    "vendedor_email": data.get("vendedor_email"),
                 }
                 projetos.append(projeto)
             except Exception as e:

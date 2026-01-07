@@ -35,21 +35,27 @@ class AuthService {
     // Escutar mudanças no estado de autenticação
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        this.currentUser = this.mapFirebaseUser(firebaseUser);
-        // Carregar role a partir do banco/localStorage e notificar novamente
+        // Primeiro cria o usuário mapeado
+        const mappedUser = this.mapFirebaseUser(firebaseUser);
+        
+        // Carregar role e cargo a partir do backend ANTES de notificar
         try {
-          const role = await this.fetchUserRoleByEmail(this.currentUser.email);
-          if (role) {
-            this.currentUser = { ...this.currentUser, role };
-          }
+          const userData = await this.fetchUserDataByEmail(mappedUser.email);
+          this.currentUser = { 
+            ...mappedUser, 
+            role: userData?.role || 'vendedor',
+            cargo: userData?.cargo || '',
+            nome: userData?.nome || mappedUser.nome
+          };
         } catch (e) {
-          console.warn('Falha ao obter role do usuário:', e?.message || e);
+          console.warn('Falha ao obter dados do usuário, usando padrão:', e?.message || e);
+          this.currentUser = { ...mappedUser, role: 'vendedor' };
         }
       } else {
         this.currentUser = null;
       }
       
-      // Notificar listeners
+      // Notificar listeners DEPOIS de carregar a role
       this.listeners.forEach(listener => listener(this.currentUser));
     });
   }
@@ -259,14 +265,11 @@ class AuthService {
   }
 
   /**
-   * Busca a role do usuário por e-mail em ordem:
-   * 1) Supabase (tabela 'usuarios')
-   * 2) localStorage ('usuarios_local')
-   * 3) fallback 'vendedor'
+   * Busca dados do usuário (role, cargo, nome) pelo email
    */
-  async fetchUserRoleByEmail(email) {
-    if (!email) return 'vendedor';
-    // Consultar role no backend Python
+  async fetchUserDataByEmail(email) {
+    if (!email) return { role: 'vendedor', cargo: '', nome: '' };
+    // Consultar dados no backend Python
     try {
       const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
       const serverUrl = `http://${hostname}:8000`;
@@ -278,12 +281,24 @@ class AuthService {
       clearTimeout(timeout);
       if (resp.ok) {
         const json = await resp.json();
-        if (json?.role) return json.role;
+        return {
+          role: json?.role || 'vendedor',
+          cargo: json?.cargo || '',
+          nome: json?.nome || ''
+        };
       }
     } catch (e) {
-      console.warn('Falha ao consultar role no backend, usando padrão vendedor:', e?.message || e);
+      console.warn('Falha ao consultar dados do usuário no backend:', e?.message || e);
     }
-    return 'vendedor';
+    return { role: 'vendedor', cargo: '', nome: '' };
+  }
+  
+  /**
+   * Mantido para compatibilidade
+   */
+  async fetchUserRoleByEmail(email) {
+    const data = await this.fetchUserDataByEmail(email);
+    return data.role;
   }
 
   /**

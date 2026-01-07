@@ -1,0 +1,316 @@
+{
+  "_metadata": {
+    "fonte": "ANEEL - Portal Luz na Tarifa",
+    "url": "https://portalrelatorios.aneel.gov.br/luznatarifa/rankingtarifas",
+    "atualizacao": "2025-12-20",
+    "regiao": "SP - Sudeste"
+  },
+  "concessionarias": {
+    "cedrap": {
+      "nome": "Cedrap",
+      "uf": "SP",
+      "ranking": 1,
+      "tarifa_kwh": 1.091,
+      "tarifa_branca_ponta": 2.409,
+      "tarifa_branca_intermediaria": 1.611,
+      "tarifa_branca_fora_ponta": 0.814,
+      "custo_disponibilidade": {
+        "monofasica": 32.73,
+        "bifasica": 54.55,
+        "trifasica": 109.10
+      },
+      "resolucao": "3549/2025",
+      "vigencia": "2025-11-30"
+    },
+    "ceris": {
+      "nome": "Ceris",
+      "uf": "SP",
+      "ranking": 2,
+      "tarifa_kwh": 0.980,
+      "tarifa_branca_ponta": 1.935,
+      "tarifa_branca_intermediaria": 1.362,
+      "tarifa_branca_fora_ponta": 0.789,
+      "custo_disponibilidade": {
+        "monofasica": 29.40,
+        "bifasica": 49.00,
+        "trifasica": 98.00
+      },
+      "resolucao": "3502/2025",
+      "vigencia": "2025-07-30"
+    },
+    "cermc": {
+      "nome": "CERMC",
+      "uf": "SP",
+      "ranking": 3,
+      "tarifa_kwh": 0.969,
+      "tarifa_branca_ponta": 1.706,
+      "tarifa_branca_intermediaria": 1.227,
+      "tarifa_branca_fora_ponta": 0.748,
+      "custo_disponibilidade": {
+        "monofasica": 29.07,
+        "bifasica": 48.45,
+        "trifasica": 96.90
+      },
+      "resolucao": "3552/2025",
+      "vigencia": "2025-11-30"
+    },
+    "cetril": {
+      "nome": "Cetril",
+      "uf": "SP",
+      "ranking": 4,
+      "tarifa_kwh": 0.910,
+      "tarifa_branca_ponta": 1.699,
+      "tarifa_branca_intermediaria": 1.186,
+      "tarifa_branca_fora_ponta": 0.673,
+      "custo_disponibilidade": {
+        "monofasica": 27.30,
+        "bifasica": 45.50,
+        "trifasica": 91.00
+      },
+      "resolucao": "3553/2025",
+      "vigencia": "2025-11-30"
+    },
+    "cedri": {
+      "nome": "Cedri",
+      "uf": "SP",
+      "ranking": 5,
+      "tarifa_kwh": 0.886,
+      "tarifa_branca_ponta": 1.563,
+      "tarifa_branca_intermediaria": 1.117,
+      "tarifa_branca_fora_ponta": 0.672,
+      "custo_disponibilidade": {
+        "monofasica": 26.58,
+        "bifasica": 44.30,
+        "trifasica": 88.60
+      },
+      "resolucao": "3531/2025",
+      "vigencia": "2025-09-30"
+    },
+    "cerim": {
+      "nome": "Cerim",
+      "uf": "SP",
+      "ranking": 6,
+      "tarifa_kwh": 0.882,
+      "tarifa_branca_ponta": 1.636,
+      "tarifa_branca_intermediaria": 1.146,
+      "tarifa_branca_fora_ponta": 0.656,
+      "custo_disponibilidade": {
+        "monofasica": 26.46,
+        "bifasica": 44.10,
+        "trifasica": 88.20
+      },
+      "resolucao": "3551/2025",
+      "vigencia": "2025-11-30"
+    },
+    "cervam": {
+      "nome": "CERVAM",
+      "uf": "SP",
+      "ranking": 7,
+      "tarifa_kwh": 0.864,
+      "tarifa_branca_ponta": 1.719,
+      "tarifa_branca_intermediaria": 1.197,
+      "tarifa_branca_fora_ponta": 0.675,
+      "custo_disponibilidade": {
+        "monofasica": 25.92,
+        "bifasica": 43.20,
+        "trifasica": 86.40
+      },
+      "resolucao": "3527/2025",
+      "vigencia": "2025-09-30"
+    },
+    "neoenergia_elektro": {
+      "nome": "Neoenergia Elektro",
+      "uf": "SP",
+      "ranking": 8,
+      "tarifa_kwh": 0.796,
+      "tarifa_branca_ponta": 1.400,
+      "tarifa_branca_intermediaria": 0.930,
+      "tarifa_branca_fora_ponta": 0.643,
+      "custo_disponibilidade": {
+        "monofasica": 23.88,
+        "bifasica": 39.80,
+        "trifasica": 79.60
+      },
+      "resolucao": "3510/2025",
+      "vigencia": "2025-08-27"
+    },
+    "ceripa": {
+      "nome": "Ceripa",
+      "uf": "SP",
+      "ranking": 9,
+      "tarifa_kwh": 0.795,
+      "tarifa_branca_ponta": 1.494,
+      "tarifa_branca_intermediaria": 1.040,
+      "tarifa_branca_fora_ponta": 0.586,
+      "custo_disponibilidade": {
+        "monofasica": 23.85,
+        "bifasica": 39.75,
+        "trifasica": 79.50
+      },
+      "resolucao": "3449/2025",
+      "vigencia": "2025-04-29"
+    },
+    "cerpro": {
+      "nome": "Cerpro",
+      "uf": "SP",
+      "ranking": 10,
+      "tarifa_kwh": 0.794,
+      "tarifa_branca_ponta": 1.580,
+      "tarifa_branca_intermediaria": 1.091,
+      "tarifa_branca_fora_ponta": 0.602,
+      "custo_disponibilidade": {
+        "monofasica": 23.82,
+        "bifasica": 39.70,
+        "trifasica": 79.40
+      },
+      "resolucao": "3457/2025",
+      "vigencia": "2025-05-29"
+    },
+    "edp_sp": {
+      "nome": "EDP SP",
+      "uf": "SP",
+      "ranking": 11,
+      "tarifa_kwh": 0.787,
+      "tarifa_branca_ponta": 1.360,
+      "tarifa_branca_intermediaria": 0.915,
+      "tarifa_branca_fora_ponta": 0.649,
+      "custo_disponibilidade": {
+        "monofasica": 23.61,
+        "bifasica": 39.35,
+        "trifasica": 78.70
+      },
+      "resolucao": "3541/2025",
+      "vigencia": "2025-10-23"
+    },
+    "cernhe": {
+      "nome": "Cernhe",
+      "uf": "SP",
+      "ranking": 12,
+      "tarifa_kwh": 0.766,
+      "tarifa_branca_ponta": 1.702,
+      "tarifa_branca_intermediaria": 1.163,
+      "tarifa_branca_fora_ponta": 0.624,
+      "custo_disponibilidade": {
+        "monofasica": 22.98,
+        "bifasica": 38.30,
+        "trifasica": 76.60
+      },
+      "resolucao": "3503/2025",
+      "vigencia": "2025-07-30"
+    },
+    "energisa_sul_sudeste": {
+      "nome": "Energisa Sul Sudeste",
+      "uf": "SP",
+      "ranking": 13,
+      "tarifa_kwh": 0.746,
+      "tarifa_branca_ponta": 1.405,
+      "tarifa_branca_intermediaria": 0.931,
+      "tarifa_branca_fora_ponta": 0.642,
+      "custo_disponibilidade": {
+        "monofasica": 22.38,
+        "bifasica": 37.30,
+        "trifasica": 74.60
+      },
+      "resolucao": "3480/2025",
+      "vigencia": "2025-07-12"
+    },
+    "cpfl_piratininga": {
+      "nome": "CPFL Piratininga",
+      "uf": "SP",
+      "ranking": 14,
+      "tarifa_kwh": 0.740,
+      "tarifa_branca_ponta": 1.257,
+      "tarifa_branca_intermediaria": 0.844,
+      "tarifa_branca_fora_ponta": 0.621,
+      "custo_disponibilidade": {
+        "monofasica": 22.20,
+        "bifasica": 37.00,
+        "trifasica": 74.00
+      },
+      "resolucao": "3543/2025",
+      "vigencia": "2025-10-23"
+    },
+    "cerrp": {
+      "nome": "CERRP",
+      "uf": "SP",
+      "ranking": 15,
+      "tarifa_kwh": 0.735,
+      "tarifa_branca_ponta": 1.402,
+      "tarifa_branca_intermediaria": 0.987,
+      "tarifa_branca_fora_ponta": 0.572,
+      "custo_disponibilidade": {
+        "monofasica": 22.05,
+        "bifasica": 36.75,
+        "trifasica": 73.50
+      },
+      "resolucao": "3458/2025",
+      "vigencia": "2025-05-29"
+    },
+    "enel_sp": {
+      "nome": "Enel SP",
+      "uf": "SP",
+      "ranking": 16,
+      "tarifa_kwh": 0.725,
+      "tarifa_branca_ponta": 1.382,
+      "tarifa_branca_intermediaria": 0.913,
+      "tarifa_branca_fora_ponta": 0.610,
+      "custo_disponibilidade": {
+        "monofasica": 21.75,
+        "bifasica": 36.25,
+        "trifasica": 72.50
+      },
+      "resolucao": "3477/2025",
+      "vigencia": "2025-07-04"
+    },
+    "cemirim": {
+      "nome": "Cemirim",
+      "uf": "SP",
+      "ranking": 17,
+      "tarifa_kwh": 0.696,
+      "tarifa_branca_ponta": 1.217,
+      "tarifa_branca_intermediaria": 0.893,
+      "tarifa_branca_fora_ponta": 0.589,
+      "custo_disponibilidade": {
+        "monofasica": 20.88,
+        "bifasica": 34.80,
+        "trifasica": 69.60
+      },
+      "resolucao": "3455/2025",
+      "vigencia": "2025-05-29"
+    },
+    "cpfl_santa_cruz": {
+      "nome": "CPFL Santa Cruz",
+      "uf": "SP",
+      "ranking": 18,
+      "tarifa_kwh": 0.689,
+      "tarifa_branca_ponta": 1.256,
+      "tarifa_branca_intermediaria": 0.826,
+      "tarifa_branca_fora_ponta": 0.547,
+      "custo_disponibilidade": {
+        "monofasica": 20.67,
+        "bifasica": 34.45,
+        "trifasica": 68.90
+      },
+      "resolucao": "3460/2025",
+      "vigencia": "2025-05-22"
+    },
+    "cpfl_paulista": {
+      "nome": "CPFL Paulista",
+      "uf": "SP",
+      "ranking": 19,
+      "tarifa_kwh": 0.676,
+      "tarifa_branca_ponta": 1.248,
+      "tarifa_branca_intermediaria": 0.817,
+      "tarifa_branca_fora_ponta": 0.560,
+      "custo_disponibilidade": {
+        "monofasica": 20.28,
+        "bifasica": 33.80,
+        "trifasica": 67.60
+      },
+      "resolucao": "3452/2025",
+      "vigencia": "2025-04-30"
+    }
+  }
+}
+
+

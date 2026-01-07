@@ -19,8 +19,7 @@ import solaryumApi from "../services/solaryumApi";
 import { propostaService } from "../services/propostaService";
 import { getIrradianciaByCity } from "../utils/irradianciaUtils";
 import { useProjectCosts } from "../hooks/useProjectCosts";
-import { buscarConcessionaria, calcularTarifaTotal } from "../data/concessionariasSP";
-
+import { dimensionarSistema, calcularProjecaoFinanceira, CONSTANTES } from "../utils/calculosSolares";
 import DimensionamentoResults from "../components/projetos/DimensionamentoResults.jsx";
 import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes.jsx";
 import CostsDetailed from "../components/projetos/CostsDetailed.jsx";
@@ -31,6 +30,7 @@ export default function NovoProjeto() {
   const { user } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [configs, setConfigs] = useState({});
+  const [concessionariasLista, setConcessionariasLista] = useState([]);
   const [loading, setLoading] = useState(false);
   const [calculando, setCalculando] = useState(false);
   const [activeTab, setActiveTab] = useState("basico");
@@ -307,13 +307,20 @@ export default function NovoProjeto() {
   const loadData = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const projetoId = urlParams.get('projeto_id');
+    const clienteIdFromUrl = urlParams.get('cliente_id');
     
-    const [clientesData, configsData] = await Promise.all([
+    const [clientesData, configsData, concessionariasData] = await Promise.all([
       Cliente.list(),
-      Configuracao.list()
+      Configuracao.list(),
+      Configuracao.getConcessionarias()
     ]);
     
     setClientes(clientesData);
+    
+    // Concessionárias oficiais ANEEL (ordenadas por ranking)
+    if (concessionariasData && concessionariasData.length > 0) {
+      setConcessionariasLista(concessionariasData.sort((a, b) => (a.ranking || 99) - (b.ranking || 99)));
+    }
     
     const configsMap = {};
     configsData.forEach(config => {
@@ -345,6 +352,19 @@ export default function NovoProjeto() {
             custo_obra: projetoEdit.custo_obra
           });
         }
+      }
+    } else if (clienteIdFromUrl) {
+      // Se veio cliente_id na URL (do modal de cliente), pré-selecionar o cliente
+      const clienteSelecionado = clientesData.find(c => c.id === clienteIdFromUrl);
+      if (clienteSelecionado) {
+        setFormData(prev => ({
+          ...prev,
+          cliente_id: clienteIdFromUrl,
+          nome_projeto: `Projeto - ${clienteSelecionado.nome}`,
+          // Preencher dados do endereço se o cliente tiver
+          cep: clienteSelecionado.cep || prev.cep,
+          endereco_completo: clienteSelecionado.endereco_completo || prev.endereco_completo,
+        }));
       }
     }
   };
@@ -384,7 +404,7 @@ export default function NovoProjeto() {
   };
 
   // Função para aplicar filtros locais aos kits
-  const aplicarFiltrosLocais = (kits, filtros) => {
+  const aplicarFiltrosLocais = useCallback((kits, filtros) => {
     if (!kits || kits.length === 0) return [];
 
     return kits.filter(kit => {
@@ -475,7 +495,171 @@ export default function NovoProjeto() {
 
       return true;
     });
-  };
+  }, [filtrosDisponiveis]);
+
+  // Contagem de kits por marca de inversor (para exibir no dropdown)
+  // Regra: respeita filtros atuais, mas IGNORA o filtro de marca de inversor para não "zerar" as outras opções.
+  const kitsCountPorMarcaInversor = useMemo(() => {
+    const marcas = Array.isArray(filtrosDisponiveis?.marcasInversores)
+      ? filtrosDisponiveis.marcasInversores
+      : [];
+    if (!Array.isArray(todosOsKits) || todosOsKits.length === 0 || marcas.length === 0) {
+      return { totalBase: 0, porId: {} };
+    }
+
+    const norm = (s) =>
+      (s || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const filtrosBase = { ...filtrosSelecionados, marcaInversor: null };
+    const base = aplicarFiltrosLocais(todosOsKits, filtrosBase);
+
+    // Mapa por nome normalizado -> count (kit conta 1 vez por marca)
+    const countsByName = {};
+    for (const kit of base) {
+      const brandsThisKit = new Set();
+      try {
+        (kit?.componentes || []).forEach((c) => {
+          if (c?.agrupamento !== "Inversor") return;
+          const b = norm(c?.marca);
+          if (b) brandsThisKit.add(b);
+        });
+      } catch (_) {}
+      for (const b of brandsThisKit) {
+        countsByName[b] = (countsByName[b] || 0) + 1;
+      }
+    }
+
+    const porId = {};
+    for (const m of marcas) {
+      const id = m?.idMarca?.toString?.() ?? "";
+      const nome = norm(m?.descricao);
+      porId[id] = countsByName[nome] || 0;
+    }
+
+    return { totalBase: base.length, porId };
+  }, [todosOsKits, filtrosSelecionados, filtrosDisponiveis, aplicarFiltrosLocais]);
+
+  // Contagem de kits por marca de painel (para exibir no dropdown)
+  const kitsCountPorMarcaPainel = useMemo(() => {
+    const marcas = Array.isArray(filtrosDisponiveis?.marcasPaineis)
+      ? filtrosDisponiveis.marcasPaineis
+      : [];
+    if (!Array.isArray(todosOsKits) || todosOsKits.length === 0 || marcas.length === 0) {
+      return { totalBase: 0, porId: {} };
+    }
+
+    const norm = (s) =>
+      (s || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const filtrosBase = { ...filtrosSelecionados, marcaPainel: null };
+    const base = aplicarFiltrosLocais(todosOsKits, filtrosBase);
+
+    const countsByName = {};
+    for (const kit of base) {
+      const brandsThisKit = new Set();
+      try {
+        (kit?.componentes || []).forEach((c) => {
+          if (c?.agrupamento !== "Painel") return;
+          const b = norm(c?.marca);
+          if (b) brandsThisKit.add(b);
+        });
+      } catch (_) {}
+      for (const b of brandsThisKit) {
+        countsByName[b] = (countsByName[b] || 0) + 1;
+      }
+    }
+
+    const porId = {};
+    for (const m of marcas) {
+      const id = m?.idMarca?.toString?.() ?? "";
+      const nome = norm(m?.descricao);
+      porId[id] = countsByName[nome] || 0;
+    }
+
+    return { totalBase: base.length, porId };
+  }, [todosOsKits, filtrosSelecionados, filtrosDisponiveis, aplicarFiltrosLocais]);
+
+  // Contagem de kits por potência de painel (para exibir no dropdown)
+  const kitsCountPorPotenciaPainel = useMemo(() => {
+    const potencias = Array.isArray(filtrosDisponiveis?.potenciasPaineis)
+      ? filtrosDisponiveis.potenciasPaineis
+      : [];
+    if (!Array.isArray(todosOsKits) || todosOsKits.length === 0 || potencias.length === 0) {
+      return { totalBase: 0, porPotencia: {} };
+    }
+
+    const filtrosBase = { ...filtrosSelecionados, potenciaPainel: null };
+    const base = aplicarFiltrosLocais(todosOsKits, filtrosBase);
+
+    const counts = {};
+    for (const kit of base) {
+      const potThisKit = new Set();
+      try {
+        (kit?.componentes || []).forEach((c) => {
+          if (c?.agrupamento !== "Painel") return;
+          const p = c?.potencia;
+          const key = p != null ? p.toString() : "";
+          if (key) potThisKit.add(key);
+        });
+      } catch (_) {}
+      for (const key of potThisKit) {
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+
+    const porPotencia = {};
+    for (const p of potencias) {
+      const key = p?.potencia != null ? p.potencia.toString() : "";
+      porPotencia[key] = counts[key] || 0;
+    }
+
+    return { totalBase: base.length, porPotencia };
+  }, [todosOsKits, filtrosSelecionados, filtrosDisponiveis, aplicarFiltrosLocais]);
+
+  // Contagem de kits por tipo de inversor (micro/string/híbrido) (para exibir no dropdown)
+  const kitsCountPorTipoInversor = useMemo(() => {
+    if (!Array.isArray(todosOsKits) || todosOsKits.length === 0) {
+      return { totalBase: 0, porTipo: { micro: 0, string: 0, hibrido: 0 } };
+    }
+
+    const filtrosBase = { ...filtrosSelecionados, tipoInversor: null };
+    const base = aplicarFiltrosLocais(todosOsKits, filtrosBase);
+
+    const counts = { micro: 0, string: 0, hibrido: 0 };
+    for (const kit of base) {
+      const typesThisKit = new Set();
+      try {
+        (kit?.componentes || []).forEach((c) => {
+          if (c?.agrupamento !== "Inversor") return;
+          const descricao = (c?.descricao || "").toString().toLowerCase();
+          const marca = (c?.marca || "").toString().toLowerCase();
+          if (descricao.includes("micro") || marca.includes("micro")) {
+            typesThisKit.add("micro");
+            return;
+          }
+          if (descricao.includes("híbrido") || descricao.includes("hibrido") || marca.includes("híbrido") || marca.includes("hibrido")) {
+            typesThisKit.add("hibrido");
+            return;
+          }
+          // default: string
+          typesThisKit.add("string");
+        });
+      } catch (_) {}
+      for (const t of typesThisKit) counts[t] += 1;
+    }
+
+    return { totalBase: base.length, porTipo: counts };
+  }, [todosOsKits, filtrosSelecionados, aplicarFiltrosLocais]);
 
   // Função para verificar se há filtros ativos
   const temFiltrosAtivos = () => {
@@ -1021,9 +1205,15 @@ export default function NovoProjeto() {
       }));
       
       // Mostra mensagem de sucesso
-      console.log('CEP encontrado:', dadosCEP);
+      console.log('✅ CEP encontrado:', dadosCEP);
+      console.log('✅ Código IBGE:', dadosCEP.ibge);
+      
+      // Alerta visual de sucesso
+      if (dadosCEP.ibge) {
+        console.log(`✅ CEP ${dadosCEP.cep} encontrado! Cidade: ${dadosCEP.localidade}/${dadosCEP.uf}, IBGE: ${dadosCEP.ibge}`);
+      }
     } catch (error) {
-      console.error('Erro ao buscar CEP:', error);
+      console.error('❌ Erro ao buscar CEP:', error);
       alert(`Erro ao buscar CEP: ${error.message}`);
     } finally {
       setLoading(false);
@@ -1691,92 +1881,75 @@ export default function NovoProjeto() {
   const calcularDimensionamento = async () => {
     setCalculando(true);
     
-    let consumoKwh = 0;
-    
-    if (tipoConsumo === "mes_a_mes" && formData.consumo_mes_a_mes && formData.consumo_mes_a_mes.length > 0) {
-      const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
-      const mediaMensal = totalAnual / 12;
-      // Aplicar margem adicional também para mês a mês
-      const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
-      const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
-      if (margemPercentual > 0) {
-        consumoKwh = mediaMensal * (1 + margemPercentual / 100);
-      } else if (margemKwh > 0) {
-        consumoKwh = mediaMensal + margemKwh;
-      } else {
-        consumoKwh = mediaMensal;
+    try {
+      // Determinar consumo mensal em kWh
+      let consumoKwh = 0;
+      
+      if (tipoConsumo === "mes_a_mes" && formData.consumo_mes_a_mes && formData.consumo_mes_a_mes.length > 0) {
+        const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+        consumoKwh = totalAnual / 12;
+        
+        // Aplicar margem adicional
+        const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
+        const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+        if (margemPercentual > 0) {
+          consumoKwh *= (1 + margemPercentual / 100);
+        } else if (margemKwh > 0) {
+          consumoKwh += margemKwh;
+        }
+      } else if (formData.consumo_mensal_kwh) {
+        consumoKwh = parseFloat(formData.consumo_mensal_kwh);
       }
-    } else if (formData.consumo_mensal_kwh) {
-      consumoKwh = parseFloat(formData.consumo_mensal_kwh);
-    } else if (formData.consumo_mensal_reais && formData.concessionaria) {
-      const tarifaConfig = Object.values(configs).find(
-        c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
-      );
-      const tarifaKwh = tarifaConfig?.tarifa_kwh || 0.75;
-      consumoKwh = parseFloat(formData.consumo_mensal_reais) / tarifaKwh;
+
+      // Obter tarifa da concessionária (ANEEL)
+      const tarifaKwh = getTarifaConcessionaria(formData.concessionaria);
+      
+      // Se não tem consumo em kWh, calcular a partir de R$
+      if (consumoKwh <= 0 && formData.consumo_mensal_reais) {
+        consumoKwh = parseFloat(formData.consumo_mensal_reais) / tarifaKwh;
+      }
+
+      // Buscar irradiação da cidade
+      const irradianciaLocal = await getIrradianciaByCity(formData.cidade || 'São Paulo');
+      const irradiacaoMedia = irradianciaLocal?.annual ? irradianciaLocal.annual / 365 : 4.5;
+
+      // Obter configurações de custo
+      const propostaConfig = Object.values(configs).find(c => c.chave === 'proposta_configs') || {};
+      
+      // Usar o módulo de cálculos profissional
+      const resultado = dimensionarSistema({
+        consumoMensalKwh: consumoKwh,
+        consumoMensalReais: parseFloat(formData.consumo_mensal_reais) || 0,
+        tarifaKwh,
+        irradiacaoMedia,
+        potenciaPainelW: propostaConfig.potencia_placa_padrao_w || 550,
+        tipoLigacao: formData.tipo_ligacao || 'monofasica',
+        custoKitPorKwp: kitSelecionado?.precoTotal 
+          ? kitSelecionado.precoTotal / (kitSelecionado.potencia || 1) 
+          : 3500,
+        margemLucro: (formData.percentual_margem_lucro || 25) / 100,
+        comissaoVendedor: (formData.percentual_comissao || 5) / 100,
+        configs: propostaConfig
+      });
+
+      setResultados(resultado);
+      setFormData(prev => ({ ...prev, ...resultado }));
+      setProjecoesFinanceiras({
+        ...resultado.projecao_anual,
+        economia_mensal_estimada: resultado.economia_mensal_estimada,
+        payback_meses: resultado.payback_meses,
+        economia_total_25_anos: resultado.economia_total_25_anos,
+        geracao_media_mensal: resultado.geracao_media_mensal,
+        custo_total_projeto: resultado.preco_venda
+      });
+      
+      setActiveTab("resultados");
+    } catch (error) {
+      console.error('Erro no dimensionamento:', error);
+      alert('Erro ao calcular dimensionamento: ' + error.message);
+    } finally {
+      setCalculando(false);
     }
-
-    const irradiacoes = await IrradiacaoSolar.list();
-    const irradiacaoLocal = irradiacoes.find(
-      i => i.cidade?.toLowerCase() === formData.cidade?.toLowerCase() && 
-           i.estado?.toLowerCase() === formData.estado?.toLowerCase()
-    );
-    
-    const irradiacaoMedia = irradiacaoLocal?.irradiacao_anual || 5.0;
-    const eficienciaSistema = configs['eficiencia_sistema']?.eficiencia_sistema || 0.80;
-    const potenciaPlaca = configs['potencia_placa']?.potencia_placa_padrao_w || 600;
-
-    const geracaoAnual = consumoKwh * 12;
-    const geracaoDiariaMedia = geracaoAnual / 365;
-    const potenciaNecessariaKw = geracaoDiariaMedia / (irradiacaoMedia * eficienciaSistema);
-    const potenciaSistemaKwp = potenciaNecessariaKw;
-    const quantidadePlacas = Math.ceil((potenciaSistemaKwp * 1000) / potenciaPlaca);
-
-    const custoInstalacao = quantidadePlacas * 200;
-    const custoHomologacao = calcularCustoHomologacao(potenciaSistemaKwp);
-    const custoCA = quantidadePlacas * 100;
-    const custoPlaquinhas = 60;
-    const custoObra = custoInstalacao * 0.1;
-
-    const custoEquipamentos = 15000;
-
-    const custoTotal = custoEquipamentos + custoInstalacao + custoHomologacao + 
-                      custoCA + custoPlaquinhas + custoObra;
-
-    const custoComComissao = custoTotal * (1 + formData.percentual_comissao / 100);
-    const precoFinal = custoComComissao * (1 + formData.percentual_margem_lucro / 100);
-
-    const tarifaConfig = Object.values(configs).find(
-      c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
-    );
-    const tarifaKwh = tarifaConfig?.tarifa_kwh || 0.75;
-    const economiaMensal = consumoKwh * tarifaKwh * 0.95;
-    // payback_meses não é mais calculado no frontend; será definido pelas métricas do backend
-    const paybackMeses = 0;
-
-    const results = {
-      potencia_sistema_kwp: potenciaSistemaKwp,
-      quantidade_placas: quantidadePlacas,
-      potencia_placa_w: potenciaPlaca,
-      custo_equipamentos: custoEquipamentos,
-      custo_instalacao: custoInstalacao,
-      custo_homologacao: custoHomologacao,
-      custo_ca: custoCA,
-      custo_plaquinhas: custoPlaquinhas,
-      custo_obra: custoObra,
-      custo_total: custoTotal,
-      preco_final: precoFinal,
-      preco_venda: precoFinal,
-      economia_mensal_estimada: economiaMensal,
-      payback_meses: paybackMeses,
-      irradiacao_media: irradiacaoMedia,
-      consumo_mensal_kwh: consumoKwh
-    };
-
-    setResultados(results);
-    setFormData(prev => ({ ...prev, ...results }));
-    setCalculando(false);
-    setActiveTab("resultados");
   };
 
   const handleSave = async () => {
@@ -1799,133 +1972,27 @@ export default function NovoProjeto() {
     navigate(createPageUrl("Projetos"));
   };
 
-  const concessionarias = Object.values(configs)
-    .filter(c => c.tipo === "tarifa")
-    .map(c => c.concessionaria);
-
-  // ===== FUNÇÕES DE CÁLCULO FINANCEIRO (chamadas apenas ao final do processo) =====
+  // Concessionárias - usar dados oficiais ANEEL do backend
+  const concessionarias = useMemo(() => {
+    if (concessionariasLista && concessionariasLista.length > 0) {
+      return concessionariasLista.map(c => c.nome);
+    }
+    // Fallback para configs antigos
+    return Object.values(configs)
+      .filter(c => c.tipo === "tarifa")
+      .map(c => c.concessionaria);
+  }, [concessionariasLista, configs]);
   
-  // Função para calcular geração mensal
-  const calcularGeracaoMensal = (potenciaKw, irradianciaMensal, eficiencia = 0.85, fatorCorrecao = 1.066) => {
-    // Geração mensal = Potência (kW) × Irradiação mensal (kWh/m²) × Eficiência × Fator de correção
-    return potenciaKw * irradianciaMensal * eficiencia * fatorCorrecao;
-  };
+  // Buscar tarifa da concessionária selecionada
+  const getTarifaConcessionaria = useCallback((nomeConcessionaria) => {
+    if (!nomeConcessionaria) return 0.73; // Média SP
+    const conc = concessionariasLista.find(c => 
+      c.nome.toLowerCase() === nomeConcessionaria.toLowerCase()
+    );
+    return conc?.tarifa_kwh || 0.73;
+  }, [concessionariasLista]);
 
-  // Função para calcular projeções financeiras de 25 anos
-  const calcularProjecoesFinanceiras = (consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal) => {
-    const anos = 25;
-    const aumentoTarifaAnual = 0.0034; // 0.34% ao ano
-    const perdaEficienciaAnual = 0.008; // 0.8% ao ano
-    const eficienciaInicial = 0.85;
-    const fatorCorrecao = 1.066;
-
-    const projecoes = {
-      geracaoMensal: [],
-      geracaoAnual: [],
-      consumoMensal: [],
-      consumoAnual: [],
-      tarifaMensal: [],
-      contaMensal: [],
-      contaAnual: [],
-      economiaMensal: [],
-      economiaAnual: [],
-      economiaAcumulada: [],
-      fluxoCaixa: [],
-      fluxoCaixaAcumulado: [],
-      payback: null,
-      payback_meses: null,
-      economia_mensal_estimada: 0,
-      economia_total_25_anos: 0,
-      geracao_media_mensal: 0,
-      creditos_anuais: 0,
-      custo_total_projeto: 0,
-      custo_equipamentos: 0,
-      custo_instalacao: 0,
-      custo_homologacao: 0,
-      custo_outros: 0,
-      margem_lucro: 0
-    };
-
-    let economiaAcumulada = 0;
-    let fluxoCaixaAcumulado = 0;
-    let paybackEncontrado = false;
-
-    for (let ano = 1; ano <= anos; ano++) {
-      // Calcular eficiência atual (perda de 0.8% ao ano)
-      const eficienciaAtual = ano === 1 ? eficienciaInicial : eficienciaInicial * Math.pow(1 - perdaEficienciaAnual, ano - 1);
-      
-      // Calcular tarifa atual (aumento de 0.34% ao ano)
-      const tarifaAtualAno = ano === 1 ? tarifaAtual : tarifaAtual * Math.pow(1 + aumentoTarifaAnual, ano - 1);
-      
-      // Calcular consumo mensal (aumento de 0.34% ao ano)
-      const consumoMensalAtual = ano === 1 ? consumoMensalKwh : consumoMensalKwh * Math.pow(1 + aumentoTarifaAnual, ano - 1);
-
-      // Calcular geração mensal
-      const geracaoMensalAtual = calcularGeracaoMensal(potenciaKw, irradianciaMensal, eficienciaAtual, fatorCorrecao);
-      
-      // Calcular valores anuais
-      const geracaoAnualAtual = geracaoMensalAtual * 12;
-      const consumoAnualAtual = consumoMensalAtual * 12;
-      
-      // Calcular conta mensal sem solar
-      const contaMensalSemSolar = consumoMensalAtual * tarifaAtualAno;
-      const contaAnualSemSolar = contaMensalSemSolar * 12;
-      
-      // Calcular economia mensal e anual
-      // Economia = menor valor entre geração e consumo, multiplicado pela tarifa
-      const economiaMensalAtual = Math.min(geracaoMensalAtual, consumoMensalAtual) * tarifaAtualAno;
-      const economiaAnualAtual = economiaMensalAtual * 12;
-      
-      // Calcular fluxo de caixa (economia - custos de distribuição)
-      const custoDistribuicao = contaMensalSemSolar * 0.1; // Estimativa: 10% da conta como taxa de distribuição
-      const fluxoCaixaMensal = economiaMensalAtual - custoDistribuicao;
-      const fluxoCaixaAnual = fluxoCaixaMensal * 12;
-      
-      // Acumular valores
-      economiaAcumulada += economiaAnualAtual;
-      fluxoCaixaAcumulado += fluxoCaixaAnual;
-      
-      // Verificar payback (quando fluxo acumulado fica positivo)
-      if (!paybackEncontrado && fluxoCaixaAcumulado > 0) {
-        projecoes.payback = ano;
-        projecoes.payback_meses = ano * 12; // Converter para meses
-        paybackEncontrado = true;
-      }
-
-      // Armazenar dados do ano
-      projecoes.geracaoMensal.push(geracaoMensalAtual);
-      projecoes.geracaoAnual.push(geracaoAnualAtual);
-      projecoes.consumoMensal.push(consumoMensalAtual);
-      projecoes.consumoAnual.push(consumoAnualAtual);
-      projecoes.tarifaMensal.push(tarifaAtualAno);
-      projecoes.contaMensal.push(contaMensalSemSolar);
-      projecoes.contaAnual.push(contaAnualSemSolar);
-      projecoes.economiaMensal.push(economiaMensalAtual);
-      projecoes.economiaAnual.push(economiaAnualAtual);
-      projecoes.economiaAcumulada.push(economiaAcumulada);
-      projecoes.fluxoCaixa.push(fluxoCaixaAnual);
-      projecoes.fluxoCaixaAcumulado.push(fluxoCaixaAcumulado);
-    }
-
-    // Calcular valores finais
-    projecoes.economia_mensal_estimada = projecoes.economiaMensal[0] || 0;
-    projecoes.economia_total_25_anos = economiaAcumulada;
-    projecoes.geracao_media_mensal = projecoes.geracaoMensal[0] || 0;
-    projecoes.creditos_anuais = projecoes.geracaoAnual[0] || 0;
-    
-    // Se não encontrou payback, usar cálculo simples baseado na economia mensal
-    if (!projecoes.payback_meses) {
-      const economiaMensal = projecoes.economia_mensal_estimada;
-      if (economiaMensal > 0) {
-        // Estimativa de custo baseada na potência (R$ 3.000 por kWp)
-        const custoEstimado = potenciaKw * 3000;
-        projecoes.payback_meses = Math.ceil(custoEstimado / economiaMensal);
-        projecoes.payback = Math.ceil(projecoes.payback_meses / 12);
-      }
-    }
-
-    return projecoes;
-  };
+  // As funções de cálculo financeiro agora estão centralizadas em src/utils/calculosSolares.js
 
   // Função para calcular todas as variáveis necessárias para a proposta
   const calcularTodasAsVariaveis = async () => {
@@ -1933,145 +2000,77 @@ export default function NovoProjeto() {
     const temConsumoReais = formData.consumo_mensal_reais && parseFloat(formData.consumo_mensal_reais) > 0;
     
     if (!kitSelecionado || (!temConsumoKwh && !temConsumoReais)) {
-      console.log('⚠️ Dados insuficientes para calcular variáveis');
-      console.log('📊 Kit selecionado:', !!kitSelecionado);
-      console.log('📊 Consumo mensal kWh:', formData.consumo_mensal_kwh);
-      console.log('📊 Consumo mensal Reais:', formData.consumo_mensal_reais);
-      console.log('📊 Tem consumo kWh:', temConsumoKwh);
-      console.log('📊 Tem consumo Reais:', temConsumoReais);
       return null;
     }
 
-    console.log('💰 Calculando todas as variáveis para a proposta...');
-    
-    const potenciaKw = kitSelecionado.potencia || formData.potencia_kw || 0;
-    
-    // Calcular consumo em kWh se necessário
-    let consumoMensalKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
-    if (consumoMensalKwh <= 0 && temConsumoReais) {
-      // Se não tem kWh mas tem reais, calcular baseado na tarifa
-      const consumoReais = parseFloat(formData.consumo_mensal_reais);
-      // Não chute tarifa aqui; será definida a partir da concessionária abaixo.
-      // Mantemos temporariamente 0 até obter a tarifa real.
-      consumoMensalKwh = 0;
-      console.log('📊 Consumo kWh calculado a partir do valor em reais:', consumoMensalKwh);
-    }
-    
-    // Obter tarifa da concessionária selecionada
-    let tarifaAtual = null;
-    
-    console.log('🔍 DEBUG tarifa - formData.concessionaria:', formData.concessionaria);
-    console.log('🔍 DEBUG tarifa - concessionarias disponíveis:', concessionarias);
-    
-    if (formData.concessionaria) {
-      try {
-        const concessionariaData = buscarConcessionaria(formData.concessionaria);
-        console.log('🔍 DEBUG tarifa - concessionariaData encontrada:', concessionariaData);
-        if (concessionariaData) {
-          tarifaAtual = calcularTarifaTotal(concessionariaData, 'residencial', 'verde');
-          console.log('📊 Tarifa obtida da concessionária:', formData.concessionaria, '=', tarifaAtual);
-          // Propagar para o formulário para uso posterior (salvar proposta)
-          handleChange('tarifa_energia', tarifaAtual);
-        } else {
-          console.log('❌ Concessionária não encontrada nos dados:', formData.concessionaria);
-        }
-      } catch (error) {
-        console.warn('⚠️ Erro ao buscar tarifa da concessionária:', error);
+    try {
+      // Obter tarifa da concessionária (ANEEL)
+      const tarifaKwh = getTarifaConcessionaria(formData.concessionaria);
+      handleChange('tarifa_energia', tarifaKwh);
+      
+      // Calcular consumo em kWh
+      let consumoMensalKwh = parseFloat(formData.consumo_mensal_kwh) || 0;
+      if (consumoMensalKwh <= 0 && temConsumoReais) {
+        consumoMensalKwh = parseFloat(formData.consumo_mensal_reais) / tarifaKwh;
+        handleChange('consumo_mensal_kwh', consumoMensalKwh);
       }
-    } else {
-      console.log('❌ Nenhuma concessionária selecionada no formData');
-    }
-    
-    // Se não conseguiu obter da concessionária, calcular automaticamente
-    if (!tarifaAtual && temConsumoReais && consumoMensalKwh > 0) {
-      const consumoReais = parseFloat(formData.consumo_mensal_reais);
-      tarifaAtual = consumoReais / consumoMensalKwh;
-      console.log('📊 Tarifa calculada automaticamente:', tarifaAtual);
-      handleChange('tarifa_energia', tarifaAtual);
-    }
-    
-    // Se ainda não tem tarifa, usar fallback das configurações
-    if (!tarifaAtual) {
-      const tarifaConfig = Object.values(configs).find(
-        c => c.tipo === "tarifa" && c.concessionaria === formData.concessionaria
-      );
-      tarifaAtual = tarifaConfig?.tarifa_kwh || 0.75;
-      console.log('📊 Tarifa obtida das configurações:', tarifaAtual);
-      handleChange('tarifa_energia', tarifaAtual);
-    }
-    
-    if (!tarifaAtual || tarifaAtual <= 0) {
-      throw new Error('Tarifa de energia não informada - Não é possível calcular projeções financeiras');
-    }
-
-    // Se consumo em kWh ainda não foi definido e temos valor em R$, derive agora usando a tarifa válida
-    if (consumoMensalKwh <= 0 && temConsumoReais) {
-      const consumoReais = parseFloat(formData.consumo_mensal_reais);
-      consumoMensalKwh = consumoReais / tarifaAtual;
-      handleChange('consumo_mensal_kwh', consumoMensalKwh);
-      console.log('📊 Consumo kWh derivado com tarifa válida:', consumoMensalKwh);
-    }
-    
-    // Buscar dados de irradiância se não estiverem disponíveis
-    let irradianciaDataLocal = irradianciaData;
-    if (!irradianciaDataLocal) {
-      console.log('📊 Buscando dados de irradiância...');
-      irradianciaDataLocal = await getIrradianciaByCity(formData.cidade || 'São José dos Campos');
-      if (irradianciaDataLocal) {
-        setIrradianciaData(irradianciaDataLocal);
+      
+      // Buscar dados de irradiância
+      let irradianciaDataLocal = irradianciaData;
+      if (!irradianciaDataLocal) {
+        irradianciaDataLocal = await getIrradianciaByCity(formData.cidade || 'São Paulo');
+        if (irradianciaDataLocal) setIrradianciaData(irradianciaDataLocal);
       }
+      
+      if (!irradianciaDataLocal) {
+        throw new Error('Dados de irradiação não encontrados');
+      }
+      
+      const irradiacaoMedia = irradianciaDataLocal.annual / 365;
+      const potenciaKw = kitSelecionado.potencia || formData.potencia_kw || 0;
+      const investimento = kitSelecionado?.precoTotal || formData.preco_venda || 0;
+      
+      // Usar módulo centralizado para projeção financeira
+      const projecao = calcularProjecaoFinanceira({
+        potenciaKwp: potenciaKw,
+        irradiacaoMedia,
+        consumoMensalKwh,
+        tarifaKwh,
+        investimentoTotal: investimento,
+        tipoLigacao: formData.tipo_ligacao || 'monofasica'
+      });
+      
+      const projecoes = {
+        economia_mensal_estimada: projecao.economiaMensalAno1,
+        economia_total_25_anos: projecao.economiaTotal25Anos,
+        payback_meses: projecao.paybackMeses,
+        geracao_media_mensal: projecao.geracaoMensalAno1,
+        creditos_anuais: projecao.geracaoMensalAno1 * 12,
+        custo_total_projeto: investimento,
+        custo_equipamentos: investimento * 0.6,
+        custo_instalacao: investimento * 0.15,
+        custo_homologacao: investimento * 0.05,
+        custo_outros: investimento * 0.05,
+        margem_lucro: investimento * 0.15,
+        projecao_anual: projecao.anos
+      };
+      
+      setProjecoesFinanceiras(projecoes);
+      return projecoes;
+      
+    } catch (error) {
+      console.error('Erro ao calcular variáveis:', error);
+      return null;
     }
-    
-    if (!irradianciaDataLocal) {
-      throw new Error(`Dados de irradiação solar não encontrados para a cidade "${formData.cidade || 'não informada'}"`);
-    }
-    
-    const irradianciaMensal = irradianciaDataLocal.annual / 12; // Irradiação média mensal
-    
-    console.log('📊 Dados para cálculo:', {
-      potenciaKw,
-      consumoMensalKwh,
-      tarifaAtual,
-      irradianciaMensal
-    });
-    
-    const projecoes = calcularProjecoesFinanceiras(consumoMensalKwh, tarifaAtual, potenciaKw, irradianciaMensal);
-    
-    // Adicionar dados do kit às projeções (sem valores estimados)
-    projecoes.custo_total_projeto = kitSelecionado?.precoTotal || 0;
-    projecoes.custo_equipamentos = 0; // Deve ser calculado pela API real
-    projecoes.custo_instalacao = 0; // Deve ser calculado pela API real
-    projecoes.custo_homologacao = 0; // Deve ser calculado pela API real
-    projecoes.custo_outros = 0; // Deve ser calculado pela API real
-    projecoes.margem_lucro = kitSelecionado?.precoTotal * 0.3 || 0; // 30% de margem
-    
-    setProjecoesFinanceiras(projecoes);
-    
-    console.log('✅ Todas as variáveis calculadas:', projecoes);
-    console.log('💰 Valores financeiros calculados:', {
-      economia_mensal_estimada: projecoes.economia_mensal_estimada,
-      payback_meses: projecoes.payback_meses,
-      economia_total_25_anos: projecoes.economia_total_25_anos,
-      custo_total_projeto: projecoes.custo_total_projeto
-    });
-    return projecoes;
   };
 
   // Função para gerar proposta e avançar para resultados
   const gerarPropostaEAvançar = async () => {
     try {
-      console.log('🎯 Gerando proposta e avançando para resultados...');
-      // Não executar cálculos locais; os KPIs serão obtidos no backend ao salvar
-      // Ativar auto-geração da proposta
       setAutoGenerateProposta(true);
-      
-      // Avançar para a aba de resultados
       setActiveTab('resultados');
-      
-      console.log('✅ Navegação para resultados concluída!');
-      
     } catch (error) {
-      console.error('❌ Erro ao gerar proposta e avançar:', error);
+      console.error('Erro ao gerar proposta:', error);
       alert('Erro ao gerar proposta: ' + error.message);
     }
   };
@@ -2273,14 +2272,32 @@ export default function NovoProjeto() {
 
                   <div className="space-y-2 md:col-span-2">
                     <Label>Concessionária *</Label>
-                    <Select value={formData.concessionaria} onValueChange={(v) => handleChange("concessionaria", v)}>
+                    <Select value={formData.concessionaria} onValueChange={(v) => {
+                      handleChange("concessionaria", v);
+                      // Atualizar tarifa automaticamente ao selecionar concessionária
+                      const tarifa = getTarifaConcessionaria(v);
+                      if (tarifa > 0) {
+                        handleChange('tarifa_energia', tarifa);
+                      }
+                    }}>
                       <SelectTrigger className="bg-white/50 border-sky-200">
                         <SelectValue placeholder="Selecione a concessionária" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {concessionarias.map(conc => (
-                          <SelectItem key={conc} value={conc}>{conc}</SelectItem>
-                        ))}
+                      <SelectContent className="max-h-[300px]">
+                        {concessionariasLista.length > 0 ? (
+                          concessionariasLista.map(conc => (
+                            <SelectItem key={conc.id} value={conc.nome}>
+                              <span className="flex items-center justify-between w-full gap-2">
+                                <span>{conc.nome}</span>
+                                <span className="text-xs text-gray-500">R$ {conc.tarifa_kwh?.toFixed(3)}/kWh</span>
+                              </span>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          concessionarias.map(conc => (
+                            <SelectItem key={conc} value={conc}>{conc}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2523,10 +2540,22 @@ export default function NovoProjeto() {
                                 <SelectValue placeholder="Todas as marcas" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="todos">Todas as marcas</SelectItem>
+                                <SelectItem value="todos">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Todas as marcas</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorMarcaPainel.totalBase}
+                                    </span>
+                                  </span>
+                                </SelectItem>
                                 {filtrosDisponiveis.marcasPaineis.map((marca) => (
                                   <SelectItem key={marca.idMarca} value={marca.idMarca.toString()}>
-                                    {marca.descricao}
+                                    <span className="flex items-center justify-between w-full gap-2">
+                                      <span>{marca.descricao}</span>
+                                      <span className="text-[11px] text-gray-500">
+                                        {kitsCountPorMarcaPainel.porId?.[marca.idMarca.toString()] ?? 0}
+                                      </span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2548,10 +2577,22 @@ export default function NovoProjeto() {
                                 <SelectValue placeholder="Todas as marcas" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="todos">Todas as marcas</SelectItem>
+                                <SelectItem value="todos">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Todas as marcas</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorMarcaInversor.totalBase}
+                                    </span>
+                                  </span>
+                                </SelectItem>
                                 {filtrosDisponiveis.marcasInversores.map((marca) => (
                                   <SelectItem key={marca.idMarca} value={marca.idMarca.toString()}>
-                                    {marca.descricao}
+                                    <span className="flex items-center justify-between w-full gap-2">
+                                      <span>{marca.descricao}</span>
+                                      <span className="text-[11px] text-gray-500">
+                                        {kitsCountPorMarcaInversor.porId?.[marca.idMarca.toString()] ?? 0}
+                                      </span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2573,10 +2614,22 @@ export default function NovoProjeto() {
                                 <SelectValue placeholder="Todas as potências" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="todas">Todas as potências</SelectItem>
+                                <SelectItem value="todas">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Todas as potências</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorPotenciaPainel.totalBase}
+                                    </span>
+                                  </span>
+                                </SelectItem>
                                 {filtrosDisponiveis.potenciasPaineis.map((potencia) => (
                                   <SelectItem key={potencia.potencia} value={potencia.potencia.toString()}>
-                                    {potencia.potencia}W
+                                    <span className="flex items-center justify-between w-full gap-2">
+                                      <span>{potencia.potencia}W</span>
+                                      <span className="text-[11px] text-gray-500">
+                                        {kitsCountPorPotenciaPainel.porPotencia?.[potencia.potencia.toString()] ?? 0}
+                                      </span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2598,10 +2651,38 @@ export default function NovoProjeto() {
                                 <SelectValue placeholder="Todos os tipos" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="todos">Todos os tipos</SelectItem>
-                                <SelectItem value="micro">Micro Inversor</SelectItem>
-                                <SelectItem value="string">String Inversor</SelectItem>
-                                <SelectItem value="hibrido">Híbrido</SelectItem>
+                                <SelectItem value="todos">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Todos os tipos</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorTipoInversor.totalBase}
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="micro">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Micro Inversor</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorTipoInversor.porTipo?.micro ?? 0}
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="string">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>String Inversor</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorTipoInversor.porTipo?.string ?? 0}
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="hibrido">
+                                  <span className="flex items-center justify-between w-full gap-2">
+                                    <span>Híbrido</span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {kitsCountPorTipoInversor.porTipo?.hibrido ?? 0}
+                                    </span>
+                                  </span>
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -3526,6 +3607,7 @@ export default function NovoProjeto() {
                   configs={configs}
                   autoGenerateProposta={autoGenerateProposta}
                   onAutoGenerateComplete={() => setAutoGenerateProposta(false)}
+                  user={user}
                 />
               </TabsContent>
             </Tabs>

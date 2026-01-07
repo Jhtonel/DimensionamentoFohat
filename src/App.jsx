@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './services/authService.jsx';
 import Login from './components/auth/Login';
 import Layout from './components/layout/Layout.jsx';
@@ -20,6 +20,20 @@ import ChangePassword from './pages/auth/ChangePassword.jsx';
 
 function RequireRole({ roles, children }) {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  
+  const userRole = user?.role;
+  const hasAccess = !roles || roles.length === 0 || (userRole && roles.includes(userRole));
+  const isLoadingRole = !userRole && user;
+  
+  // Redireciona para o Dashboard se não tem permissão
+  useEffect(() => {
+    if (!loading && userRole && roles && roles.length > 0 && !roles.includes(userRole)) {
+      navigate('/', { replace: true });
+    }
+  }, [loading, userRole, roles, navigate]);
+  
+  // Ainda carregando autenticação
   if (loading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center text-gray-500">
@@ -27,14 +41,30 @@ function RequireRole({ roles, children }) {
       </div>
     );
   }
-  if (!roles || roles.includes(user?.role)) {
+  
+  // Se a role ainda está carregando do backend
+  if (isLoadingRole) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p>Carregando permissões...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Se tem acesso, renderiza o conteúdo
+  if (hasAccess) {
     return children;
   }
+  
+  // Mostra mensagem enquanto redireciona
   return (
     <div className="min-h-[50vh] flex items-center justify-center">
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-semibold text-gray-800">Acesso negado</h2>
-        <p className="text-gray-600">Você não possui permissão para acessar esta página.</p>
+        <h2 className="text-xl font-semibold text-gray-800">Acesso restrito</h2>
+        <p className="text-gray-600">Redirecionando para o Dashboard...</p>
       </div>
     </div>
   );

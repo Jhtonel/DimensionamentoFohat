@@ -189,53 +189,39 @@ class BaseEntity {
 
 class Cliente extends BaseEntity {
   static data = clientesData;
+  
+  static getServerUrl() {
+    try {
+      const { systemConfig } = require('../config/firebase.js');
+      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
+        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
+      }
+      if (systemConfig?.apiUrl) return systemConfig.apiUrl;
+    } catch (_) {}
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const port = '8000';
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${port}`;
+    return `http://${hostname}:${port}`;
+  }
 
   static async list(orderBy = '-created_at') {
     try {
-      const col = String(orderBy || '').replace('-', '') || 'created_at';
-      const orderCol = col === 'created_date' ? 'created_at' : col;
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*')
-        .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
-      if (error) throw error;
-      // Se o Supabase retornou com sucesso:
-      if (Array.isArray(data)) {
-        // Tentar enriquecer com email do criador quando faltar e criador for o usuário da sessão
-        let sessionUid = null;
-        let sessionEmail = null;
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          sessionUid = sessionData?.session?.user?.id || null;
-          sessionEmail = sessionData?.session?.user?.email || null;
-        } catch (_) {}
-
-        const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
-        // Estratégia: mesclar resultados do Supabase com o cache local
-        // Preferimos dados do Supabase, mas completamos campos ausentes (ex.: created_by_email) com o cache
-        const cacheById = new Map((cached || []).map((c) => [String(c?.id || ''), c]));
-        const merged = (data || []).map((srv) => {
-          const key = String(srv?.id || '');
-          const loc = cacheById.get(key) || {};
-          const base = { ...srv };
-          if ((base.created_by_email === undefined || base.created_by_email === null) && sessionUid && base.created_by === sessionUid) {
-            base.created_by_email = sessionEmail || null;
-          }
-          const completion = Object.fromEntries(Object.entries(loc).filter(([k,v]) => typeof base[k] === 'undefined' || base[k] === null));
-          return { ...base, ...completion };
-        });
-        // Também adiciona itens que existem apenas no cache (ainda não sincronizados)
-        for (const [key, loc] of cacheById.entries()) {
-          if (!merged.find((m) => String(m?.id || '') === key)) merged.push(loc);
+      // Buscar do backend Python (fonte de verdade)
+      const url = `${this.getServerUrl()}/clientes/list?t=${Date.now()}`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const arr = await resp.json();
+        if (Array.isArray(arr)) {
+          // Mapear campos para compatibilidade
+          const normalized = arr.map(c => ({
+            ...c,
+            created_date: c.created_at || c.created_date
+          }));
+          localStorage.setItem('clientes_local', JSON.stringify(normalized));
+          return normalized;
         }
-        // Atualiza o cache local com o conjunto mesclado
-        localStorage.setItem('clientes_local', JSON.stringify(merged));
-        return merged;
       }
-      // Formato inesperado → tenta cache local
-      const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
-      if (cached.length > 0) return cached;
-      return [];
+      throw new Error('Backend indisponível');
     } catch (_) {
       // Fallback: cache local → memória
       const cached = JSON.parse(localStorage.getItem('clientes_local') || '[]');
@@ -246,17 +232,6 @@ class Cliente extends BaseEntity {
 
   static async create(data) {
     try {
-      // 1. Tentar usar o ID passado explicitamente (do Firebase Auth no frontend)
-      let uid = data?.created_by || null;
-      let userEmail = data?.created_by_email || null;
-
-      // 2. Se não veio no data, tentar buscar sessão do Supabase
-      if (!uid) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        uid = sessionData?.session?.user?.id || null;
-        userEmail = sessionData?.session?.user?.email || null;
-      }
-
       const payload = {
         nome: data?.nome ?? '',
         telefone: data?.telefone ?? '',
@@ -265,26 +240,31 @@ class Cliente extends BaseEntity {
         cep: data?.cep ?? null,
         tipo: data?.tipo ?? null,
         observacoes: data?.observacoes ?? null,
-        created_by: uid || null,
-        created_by_email: (data?.created_by_email || userEmail || null),
-        // Se tiver coluna created_by_email no banco, descomente:
-        // created_by_email: userEmail 
+        created_by: data?.created_by || null,
+        created_by_email: data?.created_by_email || null,
       };
       
-      const { data: inserted, error } = await supabase
-        .from('clientes')
-        .insert([payload])
-        .select('*')
-        .single();
-        
-      if (error) throw error;
-      // Completar campos não persistidos no Supabase (como created_by_email) para uso local
-      const completed = { ...inserted, created_by_email: payload.created_by_email || null, created_by: payload.created_by || inserted.created_by };
-      // espelhar no cache local
-      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
-      localStorage.setItem('clientes_local', JSON.stringify([completed, ...stored]));
-      return completed;
-    } catch (_) {
+      // Salvar no backend Python
+      const url = `${this.getServerUrl()}/clientes/create`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!resp.ok) throw new Error('Falha ao criar cliente');
+      
+      const result = await resp.json();
+      if (result.success && result.cliente) {
+        // Atualizar cache local
+        const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+        localStorage.setItem('clientes_local', JSON.stringify([result.cliente, ...stored]));
+        return result.cliente;
+      }
+      throw new Error(result.message || 'Erro desconhecido');
+    } catch (e) {
+      console.error('Erro ao criar cliente:', e);
+      // Fallback: criar localmente
       const created = await super.create(data);
       const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
       localStorage.setItem('clientes_local', JSON.stringify([created, ...stored]));
@@ -302,23 +282,31 @@ class Cliente extends BaseEntity {
         cep: data?.cep,
         tipo: data?.tipo,
         observacoes: data?.observacoes,
-        updated_at: new Date().toISOString()
       };
-      const { data: updated, error } = await supabase
-        .from('clientes')
-        .update(updates)
-        .eq('id', id)
-        .select('*')
-        .single();
-      if (error) throw error;
-      // espelhar no cache local
-      const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
-      const idx = stored.findIndex(c => c.id === id);
-      if (idx !== -1) stored[idx] = { ...stored[idx], ...updates, id };
-      else stored.unshift({ id, ...updates });
-      localStorage.setItem('clientes_local', JSON.stringify(stored));
-      return updated;
-    } catch (_) {
+      
+      // Atualizar no backend Python
+      const url = `${this.getServerUrl()}/clientes/update/${id}`;
+      const resp = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!resp.ok) throw new Error('Falha ao atualizar cliente');
+      
+      const result = await resp.json();
+      if (result.success && result.cliente) {
+        // Atualizar cache local
+        const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
+        const idx = stored.findIndex(c => c.id === id);
+        if (idx !== -1) stored[idx] = result.cliente;
+        else stored.unshift(result.cliente);
+        localStorage.setItem('clientes_local', JSON.stringify(stored));
+        return result.cliente;
+      }
+      throw new Error(result.message || 'Erro desconhecido');
+    } catch (e) {
+      console.error('Erro ao atualizar cliente:', e);
       const updated = await super.update(id, data);
       const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
       const idx = stored.findIndex(c => c.id === id);
@@ -331,13 +319,26 @@ class Cliente extends BaseEntity {
 
   static async delete(id) {
     try {
-      const { error } = await supabase.from('clientes').delete().eq('id', id);
-      if (error) throw error;
-      // remover do cache local
+      // Excluir no backend Python (já faz cascata das propostas)
+      const url = `${this.getServerUrl()}/clientes/delete/${id}`;
+      const resp = await fetch(url, { method: 'DELETE' });
+      
+      if (!resp.ok) throw new Error('Falha ao excluir cliente');
+      
+      const result = await resp.json();
+      console.log(`🗑️ Cliente excluído - ${result.propostas_excluidas || 0} propostas removidas`);
+      
+      // Remover do cache local
       const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
       localStorage.setItem('clientes_local', JSON.stringify(stored.filter(c => c.id !== id)));
-      return { id };
-    } catch (_) {
+      
+      // Atualizar cache de projetos também
+      const projetos = JSON.parse(localStorage.getItem('projetos_local') || '[]');
+      localStorage.setItem('projetos_local', JSON.stringify(projetos.filter(p => p.cliente_id !== id)));
+      
+      return { id, success: true };
+    } catch (e) {
+      console.error('Erro ao excluir cliente:', e);
       const deleted = await super.delete(id);
       const stored = JSON.parse(localStorage.getItem('clientes_local') || '[]');
       localStorage.setItem('clientes_local', JSON.stringify(stored.filter(c => c.id !== id)));
@@ -524,21 +525,78 @@ class Projeto extends BaseEntity {
 
 class Configuracao extends BaseEntity {
   static data = configuracoesData;
+  static _concessionariasCache = null;
 
-  // Método para buscar tarifa por concessionária
+  static getServerUrl() {
+    try {
+      const { systemConfig } = require('../config/firebase.js');
+      if (import.meta && import.meta.env && import.meta.env.VITE_PROPOSAL_SERVER_URL) {
+        return import.meta.env.VITE_PROPOSAL_SERVER_URL;
+      }
+      return systemConfig?.proposalServerUrl || `http://${window.location.hostname}:8000`;
+    } catch {
+      return `http://${window.location.hostname}:8000`;
+    }
+  }
+
+  // Método para buscar todas as concessionárias do backend (dados ANEEL)
+  static async getConcessionarias() {
+    try {
+      // Usar cache se disponível
+      if (this._concessionariasCache) {
+        return this._concessionariasCache;
+      }
+      
+      const serverUrl = this.getServerUrl();
+      const response = await fetch(`${serverUrl}/config/concessionarias`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.concessionarias) {
+          this._concessionariasCache = data.concessionarias;
+          return data.concessionarias;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Erro ao buscar concessionárias:', error);
+      return [];
+    }
+  }
+
+  // Método para buscar tarifa por concessionária (dados ANEEL)
   static async getTarifaByConcessionaria(concessionaria) {
     try {
+      // 1. Tentar buscar do backend (fonte oficial ANEEL)
+      const concessionarias = await this.getConcessionarias();
+      const nomeLower = (concessionaria || '').toLowerCase().trim();
+      
+      const found = concessionarias.find(c => {
+        const nome = (c.nome || '').toLowerCase();
+        const id = (c.id || '').toLowerCase().replace(/_/g, ' ');
+        return nome === nomeLower || 
+               nome.includes(nomeLower) || 
+               nomeLower.includes(nome) ||
+               id === nomeLower.replace(/\s+/g, '_');
+      });
+      
+      if (found && found.tarifa_kwh) {
+        console.log(`✅ Tarifa ANEEL encontrada para ${concessionaria}: R$ ${found.tarifa_kwh}/kWh`);
+        return found.tarifa_kwh;
+      }
+      
+      // 2. Fallback: usar dados locais antigos
       const { obterConcessionaria } = await import('../utils/tarifasUtils');
       const concessionariaData = obterConcessionaria(concessionaria);
       
-      if (!concessionariaData) {
-        throw new Error(`Concessionária "${concessionaria}" não encontrada`);
+      if (concessionariaData) {
+        return concessionariaData.tarifas.residencial.totalComImpostos;
       }
 
-      return concessionariaData.tarifas.residencial.totalComImpostos;
+      console.warn(`⚠️ Concessionária "${concessionaria}" não encontrada`);
+      return 0.73; // Valor médio SP como fallback
     } catch (error) {
       console.error('Erro ao buscar tarifa:', error);
-      throw error;
+      return 0.73; // Valor médio como fallback
     }
   }
 

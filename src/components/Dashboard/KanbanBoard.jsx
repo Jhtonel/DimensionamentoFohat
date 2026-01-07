@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Projeto } from "@/entities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,16 @@ import {
   DollarSign,
   User,
   LayoutGrid,
-  List
+  List,
+  Copy,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { formatDateBR } from "@/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useGesture } from "@use-gesture/react";
 
 const statusConfig = {
   lead: { 
@@ -92,6 +97,7 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
   const [draggedProject, setDraggedProject] = useState(null);
   const [projetosState, setProjetosState] = useState(projetos);
   const [viewMode, setViewMode] = useState("kanban");
+  const kanbanScrollRef = useRef(null);
 
   // Sincroniza quando o pai trouxer novos dados
   React.useEffect(() => {
@@ -155,10 +161,39 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
     setDraggedProject(null);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateString) => formatDateBR(dateString);
+
+  const getProjetoPath = (id) => `${createPageUrl("NovoProjeto")}?projeto_id=${id}`;
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      // fallback simples
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
   };
+
+  const bindKanbanDragScroll = useGesture(
+    {
+      onDrag: ({ event, delta: [dx], pointerType }) => {
+        // Só aplica em touch/pen para não brigar com DnD do mouse
+        if (pointerType !== "touch" && pointerType !== "pen") return;
+        if (event?.target?.closest?.('[draggable="true"]')) return;
+        const el = kanbanScrollRef.current;
+        if (!el) return;
+        event?.preventDefault?.();
+        el.scrollLeft -= dx;
+      },
+    },
+    {
+      drag: { axis: "x", filterTaps: true },
+    }
+  );
 
   const normalizeNumber = (v) => {
     if (v === null || v === undefined) return null;
@@ -218,7 +253,10 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
 
       {viewMode === "kanban" ? (
         <div 
-          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto" 
+          ref={kanbanScrollRef}
+          {...bindKanbanDragScroll()}
+          style={{ touchAction: "pan-y" }}
+          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto cursor-grab active:cursor-grabbing" 
         >
         {statusOrder.map((status) => {
           const config = statusConfig[status];
@@ -269,11 +307,64 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
                               <h4 className="font-semibold text-gray-900 text-xs sm:text-sm line-clamp-2 flex-1 min-w-0">
                                 {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
                               </h4>
+                              <div className="flex items-center gap-1 flex-shrink-0">
                               {(projeto.prioridade && projeto.prioridade !== 'Normal') && (
                                 <Badge variant="outline" className="text-xs flex-shrink-0">
                                   {projeto.prioridade}
                                 </Badge>
                               )}
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-gray-500 hover:text-gray-800"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <MoreVertical className="w-4 h-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="end"
+                                    className="w-56"
+                                    onOpenAutoFocus={(e) => e.preventDefault()}
+                                  >
+                                    <div className="space-y-1">
+                                      <Link
+                                        to={getProjetoPath(projeto.id)}
+                                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <ExternalLink className="w-4 h-4 text-fohat-blue" />
+                                        Abrir projeto
+                                      </Link>
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 text-left"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const origin = typeof window !== "undefined" ? window.location.origin : "";
+                                          copyToClipboard(`${origin}${getProjetoPath(projeto.id)}`);
+                                        }}
+                                      >
+                                        <Copy className="w-4 h-4 text-gray-600" />
+                                        Copiar link
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 text-left"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyToClipboard(projeto.nome_projeto || projeto.nome || "");
+                                        }}
+                                      >
+                                        <Copy className="w-4 h-4 text-gray-600" />
+                                        Copiar nome
+                                      </button>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
                             </div>
                             
                             <div className="space-y-1.5 sm:space-y-2 text-xs text-gray-600">
