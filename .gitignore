@@ -37,6 +37,10 @@ Thumbs.db
 logs
 *.log
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Runtime data
 pids
 *.pid
@@ -99,4 +103,14 @@ jspm_packages/
 .tern-port
 
 # Firebase credentials
-.fohat-energia-3c422e081e0e.json
+# Nunca commitar credenciais/chaves
+fohat-energia-3c422e081e0e.json
+**/fohat-energia-*.json
+**/*service_account*.json
+**/*service-account*.json
+**/*firebase*admin*.json
+**/*credentials*.json
+
+# Local database / artifacts
+app.db
+*.db

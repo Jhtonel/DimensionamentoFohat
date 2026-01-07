@@ -28,10 +28,12 @@ cd "$(dirname "$0")"
 # Criar diretório para propostas salvas se não existir
 mkdir -p propostas_salvas
 
-# Definir credenciais do Google se o arquivo existir
-if [ -f "fohat-energia-3c422e081e0e.json" ]; then
-    export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/fohat-energia-3c422e081e0e.json"
-    echo "🔑 Credenciais do Google encontradas e configuradas."
+# Segurança: nunca inferir/usar arquivo de credenciais no repositório.
+# Use GOOGLE_APPLICATION_CREDENTIALS apontando para um caminho fora do repo, ou Application Default Credentials (ADC).
+if [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    echo "🔑 GOOGLE_APPLICATION_CREDENTIALS já definido (usando credencial externa ao repositório)."
+else
+    echo "ℹ️ GOOGLE_APPLICATION_CREDENTIALS não definido. Se precisar de Firebase Admin, configure a variável de ambiente (fora do repo) ou use ADC."
 fi
 
 # Iniciar o servidor
