@@ -3,10 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Plus, Trash2, CreditCard, Building2, Save } from "lucide-react";
+import { getBackendUrl } from "@/services/backendUrl.js";
 
-const API_BASE = () => {
-  const host = window.location.hostname;
-  return `http://${host}:8000`;
+const API_BASE = () => getBackendUrl();
+
+const getAuthHeaders = () => {
+  try {
+    const token = localStorage.getItem("app_jwt_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+};
+
+const parseLocaleNumber = (value) => {
+  const s = String(value ?? "").trim();
+  if (!s) return 0;
+  // Aceitar "2,95" e "2.95"
+  const normalized = s.replace(/\s+/g, "").replace(",", ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
 };
 
 // Valores padrão - PoloCombate 50k (VISA/MASTER)
@@ -58,7 +74,9 @@ export default function AdminTaxas() {
   const carregarPagamento = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${base}/config/formas-pagamento`);
+      const r = await fetch(`${base}/config/formas-pagamento`, {
+        headers: { ...getAuthHeaders() },
+      });
       const j = await r.json();
       if (j.success && j.formas_pagamento) {
         const dados = j.formas_pagamento;
@@ -88,7 +106,7 @@ export default function AdminTaxas() {
     try {
       const r = await fetch(`${base}/config/formas-pagamento`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ formas_pagamento: formasPagamento }),
       });
       const j = await r.json();
@@ -193,7 +211,7 @@ export default function AdminTaxas() {
                     min="0"
                     value={formasPagamento.debito?.[0]?.taxa || 1.09}
                     onChange={(e) => {
-                      const novaTaxa = parseFloat(e.target.value) || 0;
+                      const novaTaxa = parseLocaleNumber(e.target.value);
                       setFormasPagamento(prev => ({
                         ...prev,
                         debito: [{ tipo: "Débito", taxa: novaTaxa }]
@@ -236,7 +254,7 @@ export default function AdminTaxas() {
                     step="0.01"
                     min="0"
                     value={item.taxa}
-                    onChange={(e) => atualizarLinha('pagseguro', index, 'taxa', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => atualizarLinha('pagseguro', index, 'taxa', parseLocaleNumber(e.target.value))}
                     className="h-9"
                   />
                   <div className="text-sm font-medium text-gray-700">
@@ -308,7 +326,7 @@ export default function AdminTaxas() {
                       step="0.01"
                       min="0"
                       value={item.taxa}
-                      onChange={(e) => atualizarLinha('financiamento', index, 'taxa', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => atualizarLinha('financiamento', index, 'taxa', parseLocaleNumber(e.target.value))}
                       className="h-9"
                     />
                     <div className="text-sm font-medium text-gray-700">
