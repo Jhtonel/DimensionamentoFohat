@@ -1121,6 +1121,76 @@ def process_template_html(proposta_data):
             anos_payback_calc = float(proposta_data.get('anos_payback', 0) or 0)
             gasto_acum_payback_calc = float(proposta_data.get('gasto_acumulado_payback', 0) or 0)
 
+        # ====== CALCULAR PREÇO FINAL DE FORMA ROBUSTA ======
+        # Buscar o preço em múltiplos campos para garantir que temos um valor válido
+        def _parse_preco_robusto(val):
+            """Converte qualquer formato de preço para float."""
+            if val is None:
+                return 0.0
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                s = val.strip()
+                # Remover prefixos de moeda
+                for token in ['R$', 'r$', 'RS', 'rs', ' ']:
+                    s = s.replace(token, '')
+                s = s.strip()
+                if not s:
+                    return 0.0
+                # Detectar formato (brasileiro ou americano)
+                if ',' in s and '.' in s:
+                    if s.rfind(',') > s.rfind('.'):
+                        # Formato brasileiro: 10.174,00
+                        s = s.replace('.', '').replace(',', '.')
+                    else:
+                        # Formato americano: 10,174.00
+                        s = s.replace(',', '')
+                elif ',' in s:
+                    parts = s.split(',')
+                    if len(parts) == 2 and len(parts[1]) == 2:
+                        s = s.replace(',', '.')
+                    else:
+                        s = s.replace(',', '')
+                try:
+                    return float(s)
+                except:
+                    return 0.0
+            return 0.0
+        
+        # Tentar obter o preço de várias fontes
+        preco_final_real = 0.0
+        chaves_preco = ['preco_venda', 'preco_final', 'custo_total_projeto', 'investimento_inicial', 'custo_total', 'valor_total']
+        for chave in chaves_preco:
+            val = proposta_data.get(chave)
+            if val is not None:
+                parsed = _parse_preco_robusto(val)
+                if parsed > 0:
+                    preco_final_real = parsed
+                    print(f"💰 [PRECO] Encontrado em '{chave}': R$ {preco_final_real:,.2f}")
+                    break
+        
+        # Se ainda não encontrou, tentar calcular a partir dos custos
+        if preco_final_real == 0:
+            try:
+                custo_equip = _parse_preco_robusto(proposta_data.get('custo_equipamentos', 0))
+                custo_inst = _parse_preco_robusto(proposta_data.get('custo_instalacao', 0))
+                custo_homol = _parse_preco_robusto(proposta_data.get('custo_homologacao', 0))
+                custo_outros = _parse_preco_robusto(proposta_data.get('custo_outros', 0))
+                margem = _parse_preco_robusto(proposta_data.get('margem_lucro', 0))
+                soma = custo_equip + custo_inst + custo_homol + custo_outros + margem
+                if soma > 0:
+                    preco_final_real = soma
+                    print(f"💰 [PRECO] Calculado da soma de custos: R$ {preco_final_real:,.2f}")
+            except Exception as e:
+                print(f"⚠️ [PRECO] Erro ao calcular soma de custos: {e}")
+        
+        if preco_final_real == 0:
+            print(f"⚠️ [PRECO] Não foi possível determinar o preço! Keys disponíveis: {list(proposta_data.keys())[:20]}")
+        
+        # Formatar preço para exibição
+        preco_final_formatado = f"R$ {preco_final_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        print(f"💰 [PRECO] Valor final para proposta: {preco_final_formatado}")
+
         # Substituir todas as variáveis {{}} no template (agora com valores normalizados)
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
         endereco_resumido = format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade'))
@@ -1128,7 +1198,8 @@ def process_template_html(proposta_data):
         template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
         template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))
         template_html = template_html.replace('{{potencia_sistema_kwp}}', f"{proposta_data.get('potencia_sistema', 0):.2f}")
-        template_html = template_html.replace('{{preco_final}}', f"R$ {proposta_data.get('preco_final', 0):,.2f}")
+        # Usar o preço calculado de forma robusta
+        template_html = template_html.replace('{{preco_final}}', preco_final_formatado)
         template_html = template_html.replace('{{cidade}}', proposta_data.get('cidade', 'Projeto'))
         template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome', 'Representante Comercial'))
         template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo', 'Especialista em Energia Solar'))
@@ -1504,75 +1575,11 @@ def process_template_html(proposta_data):
         
         # ====== FORMAS DE PAGAMENTO (Slide 10) ======
         try:
-            # Função para parsear valores que podem estar como string formatada
-            def parse_preco_valor(val):
-                if val is None:
-                    return 0.0
-                if isinstance(val, (int, float)):
-                    return float(val)
-                if isinstance(val, str):
-                    s = val.strip()
-                    # Remover prefixos de moeda
-                    for token in ['R$', 'r$', 'RS', 'rs', ' ']:
-                        s = s.replace(token, '')
-                    s = s.strip()
-                    if not s:
-                        return 0.0
-                    # Detectar formato (brasileiro ou americano)
-                    # Se tem vírgula E ponto, verificar qual vem por último
-                    if ',' in s and '.' in s:
-                        if s.rfind(',') > s.rfind('.'):
-                            # Formato brasileiro: 10.174,00 -> 10174.00
-                            s = s.replace('.', '').replace(',', '.')
-                        else:
-                            # Formato americano: 10,174.00 -> 10174.00
-                            s = s.replace(',', '')
-                    elif ',' in s:
-                        # Só vírgula: pode ser BR (1.234,56) ou separador de milhares (1,234)
-                        parts = s.split(',')
-                        if len(parts) == 2 and len(parts[1]) == 2:
-                            # Provavelmente decimal brasileiro
-                            s = s.replace(',', '.')
-                        else:
-                            # Separador de milhares
-                            s = s.replace(',', '')
-                    # Ponto sozinho já é decimal
-                    try:
-                        return float(s)
-                    except:
-                        return 0.0
-                return 0.0
+            # Usar o preco_final_real calculado no início da função (já validado e robusto)
+            print(f"💳 [SLIDE10] Usando preco_final_real: R$ {preco_final_real:,.2f}")
             
-            # Tentar extrair o valor do HTML já processado (mais confiável!)
-            preco_final_pagamento = 0.0
-            
-            # Procurar valor no campo {{preco_final}} que já foi substituído anteriormente
-            # O formato é "R$ 10,174.00" (formatação Python com vírgula como separador de milhares)
-            match = re.search(r'class="valor"[^>]*>\s*R\$\s*([\d,]+\.?\d*)', template_html)
-            if match:
-                preco_str = match.group(1)
-                preco_final_pagamento = parse_preco_valor(preco_str)
-                print(f"💰 [SLIDE10] Preço extraído do HTML: {preco_str} -> {preco_final_pagamento}")
-            
-            # Fallback: buscar no proposta_data
-            if preco_final_pagamento == 0:
-                chaves_preco = [
-                    'preco_venda', 'preco_final', 'custo_total_projeto', 
-                    'investimento_inicial', 'valor_total', 'custo_total'
-                ]
-                for key in chaves_preco:
-                    val = proposta_data.get(key)
-                    if val is not None:
-                        parsed = parse_preco_valor(val)
-                        if parsed > 0:
-                            preco_final_pagamento = parsed
-                            print(f"💰 [SLIDE10] Preço de proposta_data['{key}']: {preco_final_pagamento}")
-                            break
-            
-            print(f"💰 [SLIDE10] Preço final para pagamento: R$ {preco_final_pagamento:,.2f}")
-            
-            if preco_final_pagamento > 0:
-                pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
+            if preco_final_real > 0:
+                pagamento_data = calcular_parcelas_pagamento(preco_final_real)
                 template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
                 template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
                 template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
