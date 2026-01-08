@@ -2285,10 +2285,26 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     # Garantir que valor_total é um número válido (aceita string com moeda/virgula/NBSP)
     valor_total = _to_float(valor_total, default=0.0)
 
+    # Blindagem: formas_pagamento pode vir como string JSON, dict aninhado, ou formato inválido.
+    try:
+        if isinstance(formas_pagamento, str):
+            # tentar parsear JSON salvo como string
+            try:
+                formas_pagamento = json.loads(formas_pagamento)
+            except Exception:
+                formas_pagamento = None
+        # alguns callers podem mandar {"formas_pagamento": {...}}
+        if isinstance(formas_pagamento, dict) and "formas_pagamento" in formas_pagamento and "pagseguro" not in formas_pagamento:
+            inner = formas_pagamento.get("formas_pagamento")
+            if isinstance(inner, dict):
+                formas_pagamento = inner
+    except Exception:
+        formas_pagamento = None
+
     print(f"💳 [PAGAMENTO] Valor total: {valor_total}, Formas: {type(formas_pagamento)}")
 
     # Garantir que temos os dados padrão se necessário
-    if not formas_pagamento or not formas_pagamento.get("pagseguro"):
+    if not isinstance(formas_pagamento, dict) or not formas_pagamento.get("pagseguro"):
         print("⚠️ [PAGAMENTO] Usando taxas padrão")
         formas_pagamento = DEFAULT_FORMAS_PAGAMENTO
     
@@ -2335,6 +2351,70 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         "valor_avista_cartao": fmt_currency(valor_avista),
         "menor_parcela_financiamento": fmt_currency(menor_parcela) if menor_parcela != float('inf') else fmt_currency(0)
     }
+
+
+@app.route('/debug/slide10/<proposta_id>', methods=['GET'])
+def debug_slide10(proposta_id):
+    """
+    Diagnóstico do Slide 10: retorna preço base detectado e os valores calculados/persistidos.
+    Útil para validar rapidamente por que o PDF/preview está mostrando R$ 0,00.
+    """
+    try:
+        # Carregar dados da proposta + ACL (mesma política do PDF quando USE_DB)
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+
+            role = (me.role or "").strip().lower()
+            if role not in ("admin", "gestor"):
+                if not (
+                    (row.created_by_email and row.created_by_email == me.email)
+                    or (row.created_by and row.created_by == me.uid)
+                ):
+                    return jsonify({"success": False, "message": "Não autorizado"}), 403
+
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                proposta_data = json.load(f)
+
+        base = (
+            (proposta_data or {}).get("preco_venda")
+            or (proposta_data or {}).get("preco_final")
+            or (proposta_data or {}).get("custo_total_projeto")
+            or 0
+        )
+        calc = calcular_parcelas_pagamento(base)
+
+        return jsonify({
+            "success": True,
+            "base_preco_raw": base,
+            "base_preco_float": float(str(calc.get("valor_avista_cartao", "0").replace("R$", "").replace(".", "").replace(",", ".")).strip() or 0) if isinstance(calc.get("valor_avista_cartao"), str) else None,
+            "persistido": {
+                "parcelas_cartao_len": len((proposta_data or {}).get("parcelas_cartao") or ""),
+                "parcelas_financiamento_len": len((proposta_data or {}).get("parcelas_financiamento") or ""),
+                "valor_avista_cartao": (proposta_data or {}).get("valor_avista_cartao"),
+                "menor_parcela_financiamento": (proposta_data or {}).get("menor_parcela_financiamento"),
+            },
+            "calculado": {
+                "parcelas_cartao_len": len(calc.get("parcelas_cartao") or ""),
+                "parcelas_financiamento_len": len(calc.get("parcelas_financiamento") or ""),
+                "valor_avista_cartao": calc.get("valor_avista_cartao"),
+                "menor_parcela_financiamento": calc.get("menor_parcela_financiamento"),
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/analise/gerar-graficos', methods=['POST'])
 def analise_gerar_graficos():
