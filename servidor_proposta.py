@@ -2808,9 +2808,10 @@ def salvar_proposta():
         if USE_DB and not me:
             return jsonify({"success": False, "message": "Não autenticado"}), 401
         
-        # Gerar ID único para a proposta
-        proposta_id = str(uuid.uuid4())
-        print(f"🔍 DEBUG: ID gerado: {proposta_id}")
+        # Upsert: se vier um ID existente, atualizamos; caso contrário criamos.
+        incoming_id = (data.get("id") or data.get("proposta_id") or data.get("projeto_id") or "").strip()
+        proposta_id = incoming_id if incoming_id else str(uuid.uuid4())
+        print(f"🔍 DEBUG: ID da proposta: {proposta_id} (incoming={bool(incoming_id)})")
         
         # Validação obrigatória: concessionária e tarifa válidas
         def _to_float(v, d=0.0):
@@ -2824,13 +2825,18 @@ def salvar_proposta():
                 return float(v)
             except Exception:
                 return d
+        status_payload = (data.get("status") or "").strip().lower() or "dimensionamento"
+        is_draft = status_payload in ("rascunho", "draft")
+
         concessionaria_payload = (data.get('concessionaria') or data.get('concessionária') or '').strip()
         tarifa_payload = _to_float(data.get('tarifa_energia', 0), 0.0)
-        if not concessionaria_payload or tarifa_payload <= 0 or tarifa_payload > 10:
-            return jsonify({
-                "success": False,
-                "message": "Selecione a concessionária e informe uma tarifa válida (R$/kWh)."
-            }), 400
+        # Em rascunho, permitimos salvar sem tarifa/concessionária (o usuário ainda não preencheu tudo).
+        if not is_draft:
+            if not concessionaria_payload or tarifa_payload <= 0 or tarifa_payload > 10:
+                return jsonify({
+                    "success": False,
+                    "message": "Selecione a concessionária e informe uma tarifa válida (R$/kWh)."
+                }), 400
         
         # Preparar dados da proposta
         # Normalizar consumo mês a mês (se fornecido)
@@ -2858,6 +2864,7 @@ def salvar_proposta():
             # Rastreamento do criador (para filtros por usuário)
             'created_by': (me.uid if USE_DB and me else data.get('created_by')),
             'created_by_email': (me.email if USE_DB and me else data.get('created_by_email')),
+            'status': status_payload,
             # Campos do CRM (persistir para edição)
             'nome_projeto': data.get('nome_projeto') or data.get('nome') or None,
             'cep': data.get('cep') or None,
@@ -2972,44 +2979,82 @@ def salvar_proposta():
         # Persistir no banco de dados (best-effort)
         try:
             db = SessionLocal()
-            row = PropostaDB(
-                id=proposta_id,
-                created_by=proposta_data.get('created_by'),
-                created_by_email=proposta_data.get('created_by_email'),
-                cliente_id=proposta_data.get('cliente_id'),
-                cliente_nome=proposta_data.get('cliente_nome'),
-                cliente_endereco=proposta_data.get('cliente_endereco'),
-                cliente_telefone=proposta_data.get('cliente_telefone'),
-                cidade=proposta_data.get('cidade'),
-                potencia_sistema=proposta_data.get('potencia_sistema'),
-                preco_final=proposta_data.get('preco_final'),
-                conta_atual_anual=proposta_data.get('conta_atual_anual'),
-                anos_payback=proposta_data.get('anos_payback'),
-                gasto_acumulado_payback=proposta_data.get('gasto_acumulado_payback'),
-                consumo_mensal_kwh=float(proposta_data.get('consumo_mensal_kwh', 0) or 0),
-                tarifa_energia=proposta_data.get('tarifa_energia'),
-                economia_mensal_estimada=proposta_data.get('economia_mensal_estimada'),
-                quantidade_placas=proposta_data.get('quantidade_placas'),
-                potencia_placa_w=int(proposta_data.get('potencia_placa_w', 0) or 0),
-                area_necessaria=proposta_data.get('area_necessaria'),
-                irradiacao_media=proposta_data.get('irradiacao_media'),
-                geracao_media_mensal=proposta_data.get('geracao_media_mensal'),
-                creditos_anuais=proposta_data.get('creditos_anuais'),
-                economia_total_25_anos=proposta_data.get('economia_total_25_anos'),
-                payback_meses=proposta_data.get('payback_meses'),
-                custo_total_projeto=proposta_data.get('custo_total_projeto'),
-                custo_equipamentos=proposta_data.get('custo_equipamentos'),
-                custo_instalacao=proposta_data.get('custo_instalacao'),
-                custo_homologacao=proposta_data.get('custo_homologacao'),
-                custo_outros=proposta_data.get('custo_outros'),
-                margem_lucro=proposta_data.get('margem_lucro'),
-                comissao_vendedor=proposta_data.get('comissao_vendedor'),
-                payload=proposta_data,
-            )
-            db.add(row)
+            row = db.get(PropostaDB, proposta_id)
+            if row:
+                # Preservar owner original
+                proposta_data['created_by'] = row.created_by or proposta_data.get('created_by')
+                proposta_data['created_by_email'] = row.created_by_email or proposta_data.get('created_by_email')
+
+                row.created_by = proposta_data.get('created_by')
+                row.created_by_email = proposta_data.get('created_by_email')
+                row.cliente_id = proposta_data.get('cliente_id')
+                row.cliente_nome = proposta_data.get('cliente_nome')
+                row.cliente_endereco = proposta_data.get('cliente_endereco')
+                row.cliente_telefone = proposta_data.get('cliente_telefone')
+                row.cidade = proposta_data.get('cidade')
+                row.potencia_sistema = proposta_data.get('potencia_sistema') or 0
+                row.preco_final = proposta_data.get('preco_final') or 0
+                row.conta_atual_anual = proposta_data.get('conta_atual_anual') or 0
+                row.anos_payback = proposta_data.get('anos_payback') or 0
+                row.gasto_acumulado_payback = proposta_data.get('gasto_acumulado_payback') or 0
+                row.consumo_mensal_kwh = float(proposta_data.get('consumo_mensal_kwh', 0) or 0)
+                row.tarifa_energia = proposta_data.get('tarifa_energia') or 0
+                row.economia_mensal_estimada = proposta_data.get('economia_mensal_estimada') or 0
+                row.quantidade_placas = proposta_data.get('quantidade_placas') or 0
+                row.potencia_placa_w = int(proposta_data.get('potencia_placa_w', 0) or 0)
+                row.area_necessaria = proposta_data.get('area_necessaria') or 0
+                row.irradiacao_media = proposta_data.get('irradiacao_media') or 5.15
+                row.geracao_media_mensal = proposta_data.get('geracao_media_mensal') or 0
+                row.creditos_anuais = proposta_data.get('creditos_anuais') or 0
+                row.economia_total_25_anos = proposta_data.get('economia_total_25_anos') or 0
+                row.payback_meses = proposta_data.get('payback_meses') or 0
+                row.custo_total_projeto = proposta_data.get('custo_total_projeto') or 0
+                row.custo_equipamentos = proposta_data.get('custo_equipamentos') or 0
+                row.custo_instalacao = proposta_data.get('custo_instalacao') or 0
+                row.custo_homologacao = proposta_data.get('custo_homologacao') or 0
+                row.custo_outros = proposta_data.get('custo_outros') or 0
+                row.margem_lucro = proposta_data.get('margem_lucro') or 0
+                row.comissao_vendedor = proposta_data.get('comissao_vendedor') or 0
+                row.payload = proposta_data
+            else:
+                row = PropostaDB(
+                    id=proposta_id,
+                    created_by=proposta_data.get('created_by'),
+                    created_by_email=proposta_data.get('created_by_email'),
+                    cliente_id=proposta_data.get('cliente_id'),
+                    cliente_nome=proposta_data.get('cliente_nome'),
+                    cliente_endereco=proposta_data.get('cliente_endereco'),
+                    cliente_telefone=proposta_data.get('cliente_telefone'),
+                    cidade=proposta_data.get('cidade'),
+                    potencia_sistema=proposta_data.get('potencia_sistema') or 0,
+                    preco_final=proposta_data.get('preco_final') or 0,
+                    conta_atual_anual=proposta_data.get('conta_atual_anual') or 0,
+                    anos_payback=proposta_data.get('anos_payback') or 0,
+                    gasto_acumulado_payback=proposta_data.get('gasto_acumulado_payback') or 0,
+                    consumo_mensal_kwh=float(proposta_data.get('consumo_mensal_kwh', 0) or 0),
+                    tarifa_energia=proposta_data.get('tarifa_energia') or 0,
+                    economia_mensal_estimada=proposta_data.get('economia_mensal_estimada') or 0,
+                    quantidade_placas=proposta_data.get('quantidade_placas') or 0,
+                    potencia_placa_w=int(proposta_data.get('potencia_placa_w', 0) or 0),
+                    area_necessaria=proposta_data.get('area_necessaria') or 0,
+                    irradiacao_media=proposta_data.get('irradiacao_media') or 5.15,
+                    geracao_media_mensal=proposta_data.get('geracao_media_mensal') or 0,
+                    creditos_anuais=proposta_data.get('creditos_anuais') or 0,
+                    economia_total_25_anos=proposta_data.get('economia_total_25_anos') or 0,
+                    payback_meses=proposta_data.get('payback_meses') or 0,
+                    custo_total_projeto=proposta_data.get('custo_total_projeto') or 0,
+                    custo_equipamentos=proposta_data.get('custo_equipamentos') or 0,
+                    custo_instalacao=proposta_data.get('custo_instalacao') or 0,
+                    custo_homologacao=proposta_data.get('custo_homologacao') or 0,
+                    custo_outros=proposta_data.get('custo_outros') or 0,
+                    margem_lucro=proposta_data.get('margem_lucro') or 0,
+                    comissao_vendedor=proposta_data.get('comissao_vendedor') or 0,
+                    payload=proposta_data,
+                )
+                db.add(row)
             db.commit()
             db.close()
-            print(f"💾 Proposta {proposta_id} salva no banco de dados")
+            print(f"💾 Proposta {proposta_id} salva no banco de dados (upsert)")
         except Exception as e:
             print(f"⚠️ Falha ao salvar proposta no banco: {e}")
         

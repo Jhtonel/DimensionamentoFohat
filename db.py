@@ -40,24 +40,17 @@ def _build_connect_args(url: str) -> dict:
     if url.startswith('sqlite'):
         return {"check_same_thread": False}
 
-    # Postgres (incl. Supabase) with SSL
+    # Postgres com SSL
     if url.startswith('postgresql'):
         # Allow overriding via env
-        # Supabase exige CA + verify-full; Railway normalmente funciona com 'require' (ou até sem SSL).
-        is_supabase = ('supabase.co' in url) or ('pooler.supabase.com' in url)
-        default_sslmode = 'verify-full' if is_supabase else 'require'
-        sslmode = os.getenv('PGSSLMODE', default_sslmode)
+        sslmode = os.getenv('PGSSLMODE', 'require')
 
         args = {"sslmode": sslmode}
 
-        # Prefer explicit env var path; fallback to ./certs/prod-ca-2021.crt (apenas se existir)
-        default_ca = Path(__file__).parent / 'certs' / 'prod-ca-2021.crt'
-        ca_path = os.getenv('PGSSLROOTCERT') or os.getenv('SUPABASE_CA_CERT') or str(default_ca)
-        if is_supabase and Path(ca_path).exists():
-            args["sslrootcert"] = ca_path
-        # Para Railway/hosts não-Supabase, não forçamos CA (evita falhas).
-        if (not is_supabase) and os.getenv('PGSSLROOTCERT') and Path(os.getenv('PGSSLROOTCERT')).exists():
-            args["sslrootcert"] = os.getenv('PGSSLROOTCERT')
+        # CA opcional (se fornecida via env)
+        ca_env = os.getenv('PGSSLROOTCERT')
+        if ca_env and Path(ca_env).exists():
+            args["sslrootcert"] = ca_env
         return args
 
     return {}

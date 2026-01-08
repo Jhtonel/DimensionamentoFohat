@@ -74,7 +74,11 @@ export default function Dashboard() {
       let items = [];
       if (resp.ok) {
         const json = await resp.json();
-        const users = Array.isArray(json?.users) ? json.users : Array.isArray(json) ? json : [];
+        const users =
+          Array.isArray(json?.items) ? json.items :
+          Array.isArray(json?.users) ? json.users :
+          Array.isArray(json) ? json :
+          [];
         items = users.map((u) => ({
           uid: u.uid,
           email: u.email || "",

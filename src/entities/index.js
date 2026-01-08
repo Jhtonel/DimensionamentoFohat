@@ -1,5 +1,4 @@
 // Simulação de dados em memória para desenvolvimento
-import { supabase } from '../services/supabaseClient.js';
 import { getBackendUrl } from '../services/backendUrl.js';
 let clientesData = [
   {
@@ -365,7 +364,7 @@ class Projeto extends BaseEntity {
   static async list(orderBy = '-created_at') {
     try {
       // Política: se o backend Python responder, ele é a verdade (mesmo se vier vazio).
-      // Caso o backend falhe, caímos para Supabase → localStorage → memória.
+      // Caso o backend falhe, caímos para localStorage → memória.
       const fetchBackend = async () => {
         try {
           const url = `${this.getServerUrl()}/projetos/list?t=${Date.now()}`;
@@ -381,20 +380,6 @@ class Projeto extends BaseEntity {
       };
       const backend = await fetchBackend();
       if (backend !== null) return backend;
-
-      // Fallback: Supabase
-    try {
-      const col = String(orderBy || '').replace('-', '') || 'created_at';
-      const orderCol = col === 'created_date' ? 'created_at' : col;
-      const { data, error } = await supabase
-        .from('projetos')
-        .select('*')
-        .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
-        if (!error && Array.isArray(data)) {
-          localStorage.setItem('projetos_local', JSON.stringify(data));
-          return data;
-        }
-      } catch (_) {}
 
       // Fallback: cache local
       const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
@@ -420,35 +405,22 @@ class Projeto extends BaseEntity {
 
   static async create(data) {
     try {
-      // 1. Tentar usar o ID passado explicitamente
-      let uid = data?.created_by || null;
+      // Criar projeto como "rascunho" no backend (Postgres).
+      const url = `${this.getServerUrl()}/salvar-proposta`;
+      const body = { ...(data || {}), status: data?.status || 'rascunho' };
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(body),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) throw new Error(json?.message || `Falha ao criar projeto (${resp.status})`);
 
-      // 2. Fallback para sessão Supabase
-      if (!uid) {
-        // Evitar dependência de auth do Supabase (o projeto usa Firebase Auth).
-        // Além disso, quando o Supabase entra em loop de refresh_token, isso pode travar o fluxo.
-        uid = null;
-      }
-
-      const payload = {
-        cliente_id: data?.cliente_id || null,
-        nome: data?.nome || data?.nome_projeto || null,
-        descricao: data?.descricao || null,
-        status: data?.status || 'rascunho',
-        proposta_id: data?.proposta_id || null,
-        payload: data || null,
-        created_by: uid || null
-      };
-      const { data: inserted, error } = await supabase
-        .from('projetos')
-        .insert([payload])
-        .select('*')
-        .single();
-      if (error) throw error;
+      const created = { id: json.proposta_id, ...(data || {}), status: body.status };
       // espelhar no localStorage para uso offline
       const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
-      localStorage.setItem('projetos_local', JSON.stringify([inserted, ...stored]));
-      return inserted;
+      localStorage.setItem('projetos_local', JSON.stringify([created, ...stored]));
+      return created;
     } catch (_) {
       const created = await super.create(data);
       const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
@@ -459,29 +431,23 @@ class Projeto extends BaseEntity {
 
   static async update(id, data) {
     try {
-      const updates = {
-        nome: data?.nome || data?.nome_projeto,
-        descricao: data?.descricao,
-        status: data?.status,
-        cliente_id: data?.cliente_id,
-        proposta_id: data?.proposta_id,
-        payload: data || null,
-        updated_at: new Date().toISOString()
-      };
-      const { data: updated, error } = await supabase
-        .from('projetos')
-        .update(updates)
-        .eq('id', id)
-        .select('*')
-        .single();
-      if (error) throw error;
+      const updates = { ...(data || {}), id };
+      const url = `${this.getServerUrl()}/salvar-proposta`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(updates),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) throw new Error(json?.message || `Falha ao atualizar projeto (${resp.status})`);
+      const updated = { id, ...(data || {}) };
       // espelhar no localStorage
       const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
       const idx = stored.findIndex(p => p.id === id);
       if (idx !== -1) {
-        stored[idx] = { ...stored[idx], ...updates, id };
+        stored[idx] = { ...stored[idx], ...updated };
       } else {
-        stored.unshift({ id, ...updates });
+        stored.unshift(updated);
       }
       localStorage.setItem('projetos_local', JSON.stringify(stored));
       return updated;
@@ -504,18 +470,8 @@ class Projeto extends BaseEntity {
       // Tentar remover no backend Python (arquivos em /propostas)
       try {
         const url = `${this.getServerUrl()}/projetos/delete/${id}`;
-        await fetch(url, { method: 'DELETE' });
+        await fetch(url, { method: 'DELETE', headers: { ...this._getAuthHeaders() } });
       } catch (_) {}
-      // Tentar remover no Supabase (se existir)
-    try {
-      const { error } = await supabase.from('projetos').delete().eq('id', id);
-        if (error) {
-          // apenas loga; seguimos com remoção local
-          console.warn('Supabase delete falhou (seguindo com remoção local):', error?.message || error);
-        }
-      } catch (e) {
-        console.warn('Supabase indisponível para delete:', e?.message || e);
-      }
       // Remover do localStorage
       const stored = JSON.parse(localStorage.getItem('projetos_local') || '[]');
       localStorage.setItem('projetos_local', JSON.stringify(stored.filter(p => p.id !== id)));
@@ -748,20 +704,34 @@ export class Usuario extends BaseEntity {
     return getBackendUrl();
   }
 
-  static async list(orderBy = '-created_at') {
-    // 1) Tentar Supabase
+  static _getAuthHeaders() {
     try {
-      const col = String(orderBy || '').replace('-', '') || 'created_at';
-      const orderCol = col === 'created_date' ? 'created_at' : col;
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .order(orderCol, { ascending: !String(orderBy || '').startsWith('-') });
-      if (error) throw error;
-      if (Array.isArray(data) && data.length > 0) {
-        localStorage.setItem('usuarios_local', JSON.stringify(data));
-        return data;
-      }
+      const token = localStorage.getItem('app_jwt_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  static async list(orderBy = '-created_at') {
+    try {
+      const url = `${this.getServerUrl()}/admin/users?t=${Date.now()}`;
+      const resp = await fetch(url, { headers: { ...this._getAuthHeaders() } });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || json?.success === false) throw new Error(json?.message || 'Falha ao listar usuários');
+      const arr = Array.isArray(json?.items) ? json.items : [];
+      // normalizar para o shape antigo onde necessário
+      const normalized = arr.map((u) => ({
+        id: u.uid,
+        uid: u.uid,
+        email: u.email || "",
+        nome: u.nome || (u.email ? u.email.split("@")[0] : "Usuário"),
+        role: u.role || "vendedor",
+        cargo: u.cargo || "",
+        created_date: u.created_at || new Date().toISOString(),
+      }));
+      localStorage.setItem('usuarios_local', JSON.stringify(normalized));
+      return normalized;
     } catch (_) {}
     // 2) Cache local
     const stored = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
@@ -774,18 +744,20 @@ export class Usuario extends BaseEntity {
     const payload = {
       nome: data?.nome ?? '',
       email: data?.email ?? '',
-      telefone: data?.telefone ?? '',
       role: Usuario.roles.includes(data?.role) ? data.role : 'vendedor',
-      firebase_uid: data?.firebase_uid || null
+      cargo: data?.cargo ?? '',
+      password: data?.password ?? ''
     };
-    // Supabase
     try {
-      const { data: inserted, error } = await supabase
-        .from('usuarios')
-        .insert([payload])
-        .select('*')
-        .single();
-      if (error) throw error;
+      const url = `${this.getServerUrl()}/admin/users`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(payload),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao criar usuário');
+      const inserted = { id: json.uid, uid: json.uid, ...payload };
       const stored = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
       localStorage.setItem('usuarios_local', JSON.stringify([inserted, ...stored]));
       return inserted;
@@ -810,15 +782,16 @@ export class Usuario extends BaseEntity {
     Object.keys(candidate).forEach((k) => {
       if (typeof candidate[k] !== 'undefined') updates[k] = candidate[k];
     });
-    // Supabase
     try {
-      const { data: updated, error } = await supabase
-        .from('usuarios')
-        .update(updates)
-        .eq('id', id)
-        .select('*')
-        .single();
-      if (error) throw error;
+      const url = `${this.getServerUrl()}/admin/users/${id}`;
+      const resp = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(updates),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || json?.success === false) throw new Error(json?.message || 'Falha ao atualizar usuário');
+      const updated = { id, ...updates };
       // espelhar no local
       const stored = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
       const idx = stored.findIndex(u => u.id === id);
@@ -839,10 +812,10 @@ export class Usuario extends BaseEntity {
 
   static async delete(id) {
     try {
-      // Remover somente o mapeamento interno (não remove do Firebase)
+      // Remover usuário no backend (Postgres)
       try {
-        const { error } = await supabase.from('usuarios').delete().eq('id', id);
-        if (error) throw error;
+        const url = `${this.getServerUrl()}/admin/users/${id}`;
+        await fetch(url, { method: 'DELETE', headers: { ...this._getAuthHeaders() } });
       } catch (_) {}
       const stored = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
       localStorage.setItem('usuarios_local', JSON.stringify(stored.filter(u => u.id !== id)));

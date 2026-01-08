@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient.js';
 import { getBackendUrl } from "./backendUrl.js";
 
 const TOKEN_KEY = 'app_jwt_token';
