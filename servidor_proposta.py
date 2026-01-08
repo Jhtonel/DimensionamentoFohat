@@ -2995,12 +2995,6 @@ def visualizar_proposta(proposta_id):
             with open(proposta_file, 'r', encoding='utf-8') as f:
                 proposta_data = json.load(f)
         
-        # DEBUG: Mostrar campos de preço disponíveis
-        print(f"🔍 [DEBUG] proposta_data keys: {list(proposta_data.keys())}")
-        print(f"🔍 [DEBUG] preco_venda={proposta_data.get('preco_venda')}, preco_final={proposta_data.get('preco_final')}")
-        print(f"🔍 [DEBUG] custo_total_projeto={proposta_data.get('custo_total_projeto')}, custo_total={proposta_data.get('custo_total')}")
-        print(f"🔍 [DEBUG] custo_equipamentos={proposta_data.get('custo_equipamentos')}, custo_instalacao={proposta_data.get('custo_instalacao')}")
-        
         # Visualização/Preview sempre vem do process_template_html (ECharts + SVG).
         try:
             processed = process_template_html(proposta_data)
