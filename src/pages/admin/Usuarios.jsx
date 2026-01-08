@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Usuario } from "@/entities";
-import { systemConfig } from "@/config/firebase.js";
+import { systemConfig } from "@/config/systemConfig.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
 import { useAuth } from "@/services/authService.jsx";
 import { Card, CardContent } from "@/components/ui/card";

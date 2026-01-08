@@ -106,10 +106,7 @@ class AuthService {
     }
   }
 
-  // Firebase desativado (mantido só por compatibilidade do nome do método)
-  async createFirebaseUser() {
-    throw new Error('Criação de usuários via Firebase foi desativada. Use o painel de Admin (Postgres).');
-  }
+  // Criação de usuários é via painel Admin (Postgres) no backend.
 
   /**
    * Envia e-mail de recuperação/definição de senha
@@ -187,7 +184,7 @@ class AuthService {
   }
 
   /**
-   * Converte códigos de erro do Firebase para mensagens amigáveis
+   * Converte códigos de erro (legado) para mensagens amigáveis
    */
   getErrorMessage(errorCode) {
     const errorMessages = {

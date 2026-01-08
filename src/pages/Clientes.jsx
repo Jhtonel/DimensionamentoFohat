@@ -37,7 +37,7 @@ import { format } from "date-fns";
 import ClienteForm from "../components/clientes/ClienteForm.jsx";
 import { useAuth } from "@/services/authService.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { systemConfig } from "@/config/firebase.js";
+import { systemConfig } from "@/config/systemConfig.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
 
 export default function Clientes() {

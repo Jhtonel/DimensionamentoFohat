@@ -1926,7 +1926,7 @@ export default function NovoProjeto() {
     const getServerUrl = () => {
       if (import.meta?.env?.VITE_PROPOSAL_SERVER_URL) return import.meta.env.VITE_PROPOSAL_SERVER_URL;
       try {
-        const { systemConfig } = require('../config/firebase.js');
+        const { systemConfig } = require('../config/systemConfig.js');
         if (systemConfig?.apiUrl) return systemConfig.apiUrl;
       } catch (_) {}
       const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';

@@ -1,4 +1,4 @@
-import { systemConfig } from "../config/firebase.js";
+import { systemConfig } from "../config/systemConfig.js";
 
 const stripTrailingSlash = (s) => String(s || "").replace(/\/+$/, "");
 

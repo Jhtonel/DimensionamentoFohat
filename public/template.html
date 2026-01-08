@@ -513,13 +513,16 @@
     padding:0;
     overflow:hidden;
   }
-  .chart-media img{
+  .chart-media .echart{
     width:100% !important;
     height:100% !important;
     display:block !important;
-    object-fit:contain !important;
-    image-rendering:auto;
-    filter:contrast(1.05);
+  }
+  .chart-media .echart svg,
+  .chart-media .echart canvas{
+    width:100% !important;
+    height:100% !important;
+    display:block !important;
   }
 
   /* Slide 03 - Gráfico de Barras do Cenário Atual */
@@ -2144,7 +2147,7 @@
               <h4 class="grafico-titulo">Seu Gasto Atual</h4>
             </div>
             <div class="chart-media grafico-barras">
-              <img id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Evolução da Conta de Luz">
+              <div id="grafico-slide-03" class="echart" aria-label="Gráfico de Evolução da Conta de Luz"></div>
             </div>
           </div>
         </div>
@@ -2197,7 +2200,7 @@
             <h4 class="grafico-titulo">Evolução da Conta de Luz (25 anos)</h4>
           </div>
           <div class="chart-media grafico-linha">
-            <img id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Linha - Evolução da Conta de Luz">
+            <div id="grafico-slide-04" class="echart" aria-label="Gráfico de Linha - Evolução da Conta de Luz"></div>
           </div>
         </div>
       </div>
@@ -2236,7 +2239,7 @@
             <h4 class="grafico-titulo">Consumo x Geração (kWh/mês)</h4>
           </div>
           <div class="chart-media grafico-barras-duplas">
-            <img id="grafico-slide-05" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA1PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Barras Duplas - Consumo x Geração">
+            <div id="grafico-slide-05" class="echart" aria-label="Gráfico de Barras Duplas - Consumo x Geração"></div>
           </div>
       </div>
     </div>
@@ -2280,7 +2283,7 @@
             <p class="grafico-subtitulo">Comparação ao longo dos anos</p>
           </div>
           <div class="chart-media">
-            <img id="grafico-slide-06" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA2PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Economia Acumulada vs Investimento">
+            <div id="grafico-slide-06" class="echart" aria-label="Gráfico de Economia Acumulada vs Investimento"></div>
           </div>
         </div>
       </div>
@@ -2487,7 +2490,7 @@
             <h4 class="grafico-titulo">Comparativo Financeiro (25 anos)</h4>
           </div>
           <div class="chart-media">
-            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento">
+            <div id="grafico-slide-09" class="echart" aria-label="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento"></div>
           </div>
         </div>
       </div>

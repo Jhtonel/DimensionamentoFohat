@@ -17,6 +17,7 @@ export default function ResetPassword() {
     const oob = params.get("oobCode") || params.get("code");
     if (oob) {
       setCode(oob);
+      // Fluxo de reset via link está desativado (sem Firebase).
       authService.verifyResetCode(oob)
         .then((em) => {
           setEmail(em);
@@ -51,6 +52,9 @@ export default function ResetPassword() {
         <CardContent className="p-6 space-y-4">
           <h1 className="text-2xl font-bold text-gray-800">Definir nova senha</h1>
           {status.loading && <p className="text-gray-600">Validando link...</p>}
+          {!status.loading && !status.ready && !status.done && !status.error && (
+            <p className="text-gray-600">Recuperação por link está desativada. Solicite ao administrador a redefinição.</p>
+          )}
           {!status.loading && status.ready && (
             <>
               <p className="text-gray-600">E-mail: <span className="font-semibold">{email}</span></p>

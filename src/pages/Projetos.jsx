@@ -31,9 +31,9 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
-import { useAuth } from "@/services/authService.jsx";
+import authService, { useAuth } from "@/services/authService.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { systemConfig } from "@/config/firebase.js";
+import { systemConfig } from "@/config/systemConfig.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
 
 const statusColors = {
@@ -251,17 +251,20 @@ export default function Projetos() {
   const loadUsers = async () => {
     try {
       const serverUrl = getBackendUrl();
-      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      const resp = await fetch(`${serverUrl}/admin/users?t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${(await authService.getAuthToken()) || ""}`,
+        },
+      });
       let items = [];
       if (resp.ok) {
         const json = await resp.json();
-        if (json?.success && Array.isArray(json.users)) {
-          items = json.users.map(u => ({
-            uid: u.uid,
-            email: u.email || '',
-            nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário')
-          }));
-        }
+        const users = Array.isArray(json?.users) ? json.users : Array.isArray(json) ? json : [];
+        items = users.map((u) => ({
+          uid: u.uid,
+          email: u.email || "",
+          nome: u.nome || (u.email ? u.email.split("@")[0] : "Usuário"),
+        }));
       }
       setUsuarios(items);
     } catch (_) {

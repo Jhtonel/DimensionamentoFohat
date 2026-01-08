@@ -42,6 +42,15 @@ async function main() {
       // ensure fonts are ready
       await page.evaluate(() => document.fonts?.ready);
     } catch (_) {}
+    try {
+      // aguardar ECharts (SVG) renderizar antes do PDF
+      await page.waitForFunction(
+        "window.__FOHAT_ECHARTS_READY__ === true",
+        { timeout: 30000 }
+      );
+      // micro-delay para layout estabilizar
+      await page.waitForTimeout(150);
+    } catch (_) {}
 
     const pdf = await page.pdf({
       format: "A4",

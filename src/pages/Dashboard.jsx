@@ -25,9 +25,9 @@ import {
 import { motion } from "framer-motion";
 
 import StatsCard from "../components/Dashboard/StatsCard.jsx";
-import { useAuth } from "@/services/authService.jsx";
+import authService, { useAuth } from "@/services/authService.jsx";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { systemConfig } from "@/config/firebase.js";
+import { systemConfig } from "@/config/systemConfig.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
 import StageBarChart from "@/components/Dashboard/Charts/StageBarChart.jsx";
 import ConversionDoughnut from "@/components/Dashboard/Charts/ConversionDoughnut.jsx";
@@ -66,17 +66,20 @@ export default function Dashboard() {
   const loadUsers = async () => {
     try {
       const serverUrl = getBackendUrl();
-      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      const resp = await fetch(`${serverUrl}/admin/users?t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${(await authService.getAuthToken()) || ""}`,
+        },
+      });
       let items = [];
       if (resp.ok) {
         const json = await resp.json();
-        if (json?.success && Array.isArray(json.users)) {
-          items = json.users.map(u => ({
-            uid: u.uid,
-            email: u.email || '',
-            nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário')
-          }));
-        }
+        const users = Array.isArray(json?.users) ? json.users : Array.isArray(json) ? json : [];
+        items = users.map((u) => ({
+          uid: u.uid,
+          email: u.email || "",
+          nome: u.nome || (u.email ? u.email.split("@")[0] : "Usuário"),
+        }));
       }
       setUsuarios(items);
     } catch (_) {

@@ -2,33 +2,9 @@
  * Serviço para comunicação com o servidor de propostas
  */
 
-import { systemConfig } from '../config/firebase.js';
 import { getBackendUrl } from './backendUrl.js';
 
-// Detectar automaticamente a URL do servidor baseada no host atual, priorizando config
-const getServerUrl = () => {
-  // Verificar se há uma variável de ambiente configurada
-  if (import.meta.env.VITE_PROPOSAL_SERVER_URL) {
-    return import.meta.env.VITE_PROPOSAL_SERVER_URL;
-  }
-  // Priorizar configuração do sistema
-  if (typeof systemConfig?.apiUrl === 'string' && systemConfig.apiUrl.trim() !== '') {
-    return systemConfig.apiUrl.trim();
-  }
-  
-  const hostname = window.location.hostname;
-  const port = '8000';
-  
-  // Se estiver rodando localmente, usar localhost
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `http://localhost:${port}`;
-  }
-  
-  // Em produção, o backend serve o frontend no mesmo origin
-  return window.location.origin;
-};
-
-const SERVER_URL = getBackendUrl() || getServerUrl();
+const SERVER_URL = getBackendUrl();
 
 // Log da URL do servidor para debug
 console.log('🌐 SERVER_URL configurado como:', SERVER_URL);

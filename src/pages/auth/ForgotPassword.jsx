@@ -25,7 +25,9 @@ export default function ForgotPassword() {
       <Card className="w-full max-w-lg">
         <CardContent className="p-6 space-y-4">
           <h1 className="text-2xl font-bold text-gray-800">Recuperar / Criar Senha</h1>
-          <p className="text-gray-600">Informe seu e-mail para receber o link de definição/redefinição de senha.</p>
+          <p className="text-gray-600">
+            Recuperação automática está desativada. Solicite ao administrador a redefinição da sua senha.
+          </p>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1">
               <Label>E-mail</Label>

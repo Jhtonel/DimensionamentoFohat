@@ -38,39 +38,6 @@ from urllib.parse import urljoin
 from datetime import date
 import jwt
 import bcrypt
-#
-# Firebase Admin (opcional, para gerenciar usuários do Auth)
-FIREBASE_ADMIN_AVAILABLE = False
-try:
-    import firebase_admin
-    from firebase_admin import auth as fb_auth
-    from firebase_admin import credentials as fb_credentials
-    if not firebase_admin._apps:
-        # Política: não varrer arquivos locais no repositório.
-        # Usar apenas GOOGLE_APPLICATION_CREDENTIALS ou tentar ADC.
-        sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if sa_path and os.path.exists(sa_path):
-            try:
-                cred = fb_credentials.Certificate(sa_path)
-                firebase_admin.initialize_app(cred)
-                FIREBASE_ADMIN_AVAILABLE = True
-                print("🔐 Firebase Admin inicializado via GOOGLE_APPLICATION_CREDENTIALS")
-            except Exception as _sa_err:
-                print(f"⚠️ Falha ao inicializar Firebase Admin com GOOGLE_APPLICATION_CREDENTIALS: {_sa_err}")
-                FIREBASE_ADMIN_AVAILABLE = False
-        else:
-            try:
-                firebase_admin.initialize_app()
-                FIREBASE_ADMIN_AVAILABLE = True
-                print("🔐 Firebase Admin inicializado via Application Default Credentials (ADC)")
-            except Exception as _adc_err:
-                print("ℹ️ Firebase Admin indisponível (defina GOOGLE_APPLICATION_CREDENTIALS ou ADC).")
-                FIREBASE_ADMIN_AVAILABLE = False
-    else:
-        FIREBASE_ADMIN_AVAILABLE = True
-except Exception as e:
-    print(f"ℹ️ Firebase Admin indisponível (instale firebase-admin se precisar): {e}")
-    FIREBASE_ADMIN_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)
@@ -274,90 +241,13 @@ def _get_bearer_token() -> str:
     except Exception:
         return ""
 
-def _get_request_email_from_firebase() -> str | None:
-    """
-    Tenta extrair o e-mail do requester a partir do Firebase ID token (Authorization: Bearer ...).
-    Retorna None se não houver token válido ou Firebase Admin indisponível.
-    """
-    token = _get_bearer_token()
-    if not token:
-        return None
-    # 1) Prefer Firebase Admin se disponível (mais robusto)
-    if FIREBASE_ADMIN_AVAILABLE:
-        try:
-            decoded = fb_auth.verify_id_token(token)
-            email = (decoded.get("email") or "").strip().lower()
-            return email or None
-        except Exception:
-            pass
-    # 2) Fallback: validar JWT do Firebase via chaves públicas (sem service account)
-    try:
-        project_id = (os.environ.get("FIREBASE_PROJECT_ID") or "fohat-energia").strip()
-        issuer = f"https://securetoken.google.com/{project_id}"
-
-        # cache simples de certs
-        global _FIREBASE_CERTS_CACHE  # type: ignore
-        try:
-            _FIREBASE_CERTS_CACHE
-        except Exception:
-            _FIREBASE_CERTS_CACHE = {"ts": 0, "keys": {}}
-
-        now = time.time()
-        cache_ttl = 3600  # 1h
-        if (now - float(_FIREBASE_CERTS_CACHE.get("ts", 0) or 0)) > cache_ttl or not _FIREBASE_CERTS_CACHE.get("keys"):
-            certs_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-            try:
-                with urllib.request.urlopen(certs_url, timeout=20) as resp:
-                    body = resp.read().decode("utf-8")
-                    keys = json.loads(body) if body else {}
-                    if isinstance(keys, dict):
-                        _FIREBASE_CERTS_CACHE = {"ts": now, "keys": keys}
-            except Exception as _cert_err:
-                print(f"⚠️ Falha ao buscar certs do Firebase (HTTPS): {_cert_err}")
-                return None
-
-        unverified_header = jwt.get_unverified_header(token)
-        kid = unverified_header.get("kid")
-        keys = _FIREBASE_CERTS_CACHE.get("keys") or {}
-        cert_pem = keys.get(kid) if kid else None
-        if not cert_pem:
-            return None
-
-        decoded = jwt.decode(
-            token,
-            cert_pem,
-            algorithms=["RS256"],
-            audience=project_id,
-            issuer=issuer,
-            options={"require": ["exp", "iat", "aud", "iss"]},
-        )
-        email = (decoded.get("email") or "").strip().lower()
-        return email or None
-    except Exception:
-        return None
-
-def _is_email_admin(email: str | None) -> bool:
-    if not email:
-        return False
-    email = email.strip().lower()
-    admin_emails = _parse_env_emails("ADMIN_EMAILS")
-    if email in admin_emails:
-        return True
-    if USE_DB:
-        try:
-            db = SessionLocal()
-            r = db.get(RoleDB, email)
-            db.close()
-            return bool(r and (r.role or "").strip().lower() == "admin")
-        except Exception:
-            return False
-    return False
-
 def _require_admin_access() -> bool:
     """
     Protege endpoints administrativos.
-    - Em DEV: mantém compatibilidade (se ROLE_ADMIN_SECRET não estiver definido, permite).
-    - Em PROD: exige OU secret (X-Admin-Secret) OU Firebase ID token de um admin (ADMIN_EMAILS ou RoleDB=admin).
+    Compat legado: este helper existe para endpoints antigos.
+    Regras (sem Firebase):
+    - Se ROLE_ADMIN_SECRET estiver definido: exige X-Admin-Secret.
+    - Caso contrário: permite apenas em DEV/local.
     """
     # Secret (quando configurado) sempre é aceito
     secret = (os.environ.get("ROLE_ADMIN_SECRET") or "").strip()
@@ -368,9 +258,7 @@ def _require_admin_access() -> bool:
     if (not _is_prod()) and (not secret):
         return True
 
-    # Produção (ou secret ausente mas queremos proteger): exigir token admin
-    req_email = _get_request_email_from_firebase()
-    return _is_email_admin(req_email)
+    return False
 
 # -----------------------------------------------------------------------------
 # Auth próprio (Postgres) - JWT
@@ -1410,93 +1298,330 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         })
         tabelas = core.get("tabelas") or {}
 
-        # Gerar os 5 gráficos necessários a partir das tabelas
-        graficos = {}
-        try:
-            # 1) Slide 03 – acumulado sem solar em anos 1,5,10,15,20,25
-            cas = tabelas.get("custo_acumulado_sem_solar_r") or []
-            if len(cas) >= 25:
-                idxs = [0, 4, 9, 14, 19, 24]
-                vals = [float(cas[i]) for i in idxs]
-                labs = [f"Ano {i+1}" for i in idxs]
-                graf1 = generate_chart_base64(
-                    'bar', vals, labs, "", 
-                    ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A'],
-                    figsize=(16, 10),
-                    y_currency=True
-                )
-                if graf1: graficos["grafico1"] = graf1
-        except Exception:
-            pass
-        try:
-            # 2) Slide 04 – custo anual sem solar (25 anos), legendas a cada 5 anos
-            ca = tabelas.get("custo_anual_sem_solar_r") or []
-            if ca:
-                labs = [f"Ano {i+1}" if ((i + 1) % 5 == 0) else "" for i in range(len(ca))]
-                graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#1E3A8A'], figsize=(16, 10), y_currency=True)
-                if graf2: graficos["grafico2"] = graf2
-        except Exception:
-            pass
-        try:
-            # 3) Slide 05 – produção mensal (kWh) ano 1 x consumo médio mensal (kWh)
-            consumo_mes = (tabelas.get("consumo_mensal_kwh") or [0])[0] if tabelas else 0
-            prod_mes = (tabelas.get("producao_mensal_kwh_ano1") or [])
-            meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-            if (prod_mes and len(prod_mes) == 12) or consumo_mes > 0:
-                consumo_vec = [float(consumo_mes)] * 12
-                prod_vec = [float(v) for v in (prod_mes[:12] if prod_mes else [])]
-                if not prod_vec or len(prod_vec) != 12:
-                    prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
-                    if float(prod_anual_kwh) > 0:
-                        prod_vec = [float(prod_anual_kwh) / 12.0] * 12
-                graf3 = generate_chart_base64('dual_bar', [consumo_vec, prod_vec], meses, "", ['#1E3A8A', '#059669'], figsize=(16, 10), y_currency=False)
-                if graf3: graficos["grafico3"] = graf3
-        except Exception:
-            pass
-        try:
-            # 4) Slide 06 – fluxo de caixa acumulado (25 anos)
-            fca = tabelas.get("fluxo_caixa_acumulado_r") or []
-            if fca:
-                labs = [f"Ano {i+1}" for i in range(len(fca))]
-                graf4 = generate_chart_base64('line', [float(v) for v in fca], labs, "", ['#059669'], figsize=(16, 10), y_currency=True)
-                if graf4: graficos["grafico4"] = graf4
-        except Exception:
-            pass
-        try:
-            # 5) Slide 09 – Comparativo: custo sem energia solar (25 anos) vs investimento (preço de venda)
-            cas = tabelas.get("custo_acumulado_sem_solar_r") or []
+        # --------------------------
+        # ECharts (SVG) — datasets
+        # --------------------------
+        cas = tabelas.get("custo_acumulado_sem_solar_r") or []
+        ca = tabelas.get("custo_anual_sem_solar_r") or []
+        fca = tabelas.get("fluxo_caixa_acumulado_r") or []
+        consumo_mes = (tabelas.get("consumo_mensal_kwh") or [0])[0] if tabelas else 0
+        prod_mes = (tabelas.get("producao_mensal_kwh_ano1") or [])
 
-            gasto_total_25 = float(cas[-1]) if cas else 0.0
-            investimento = float(preco_venda or 0.0)
+        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        # Slide 03 — acumulado sem solar (1,5,10,15,20,25)
+        idxs = [0, 4, 9, 14, 19, 24]
+        s03_vals = [float(cas[i]) for i in idxs] if len(cas) >= 25 else []
+        s03_labs = [f"Ano {i+1}" for i in idxs]
 
-            if gasto_total_25 > 0 or investimento > 0:
-                graf5 = generate_chart_base64(
-                    'bar',
-                    [gasto_total_25, investimento],
-                    ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
-                    "",
-                    ['#DC2626', '#1E3A8A'],
-                    figsize=(16, 10),
-                    y_currency=True
-                )
-                if graf5:
-                    graficos["grafico5"] = graf5
+        # Slide 04 — custo anual sem solar (25 anos)
+        s04_vals = [float(v) for v in ca] if ca else []
+        s04_labs = [f"Ano {i+1}" for i in range(len(s04_vals))]
+
+        # Slide 05 — consumo vs produção (kWh/mês)
+        consumo_vec = [float(consumo_mes)] * 12 if float(consumo_mes or 0) > 0 else [0.0] * 12
+        prod_vec = [float(v) for v in (prod_mes[:12] if prod_mes else [])]
+        if not prod_vec or len(prod_vec) != 12:
+            prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
+            if float(prod_anual_kwh or 0) > 0:
+                prod_vec = [float(prod_anual_kwh) / 12.0] * 12
+            else:
+                prod_vec = [0.0] * 12
+
+        # Slide 06 — fluxo de caixa acumulado (25 anos)
+        s06_vals = [float(v) for v in fca] if fca else []
+        s06_labs = [f"Ano {i+1}" for i in range(len(s06_vals))]
+
+        # Slide 09 — comparativo 25 anos (sem solar vs investimento)
+        gasto_total_25 = float(cas[-1]) if cas else 0.0
+        investimento = float(preco_venda or 0.0)
+        s09_vals = [gasto_total_25, investimento]
+        s09_labs = ["Sem energia solar (25 anos)", "Investimento (preço de venda)"]
+
+        charts_payload = {
+            "brand": {"blue": "#1E3A8A", "green": "#059669", "red": "#DC2626", "text": "#0f172a", "muted": "#334155", "grid": "#e2e8f0"},
+            "s03": {"el": "grafico-slide-03", "labels": s03_labs, "values": s03_vals},
+            "s04": {"el": "grafico-slide-04", "labels": s04_labs, "values": s04_vals},
+            "s05": {"el": "grafico-slide-05", "labels": meses, "consumo": consumo_vec, "producao": prod_vec},
+            "s06": {"el": "grafico-slide-06", "labels": s06_labs, "values": s06_vals},
+            "s09": {"el": "grafico-slide-09", "labels": s09_labs, "values": s09_vals},
+        }
+
+        # Injetar ECharts + bootstrap apenas uma vez
+        if "FOHAT_ECHARTS_BOOTSTRAP" in template_html:
+            return template_html
+
+        try:
+            vendor_path = Path(__file__).parent / "public" / "vendor" / "echarts.min.js"
+            echarts_js = vendor_path.read_text(encoding="utf-8") if vendor_path.exists() else ""
         except Exception:
-            pass
+            echarts_js = ""
 
-        # Substituir nos slides correspondentes
-        substitutions = [
-            ("grafico-slide-03", graficos.get("grafico1")),  # Custo acumulado sem solar
-            ("grafico-slide-04", graficos.get("grafico2")),  # Conta média mensal
-            ("grafico-slide-05", graficos.get("grafico3")),  # Produção mensal x Consumo médio mensal (R$)
-            ("grafico-slide-06", graficos.get("grafico4")),  # Fluxo de caixa acumulado
-            ("grafico-slide-09", graficos.get("grafico5")),  # Economia x Custos
+        charts_json = json.dumps(charts_payload, ensure_ascii=False)
+
+        bootstrap = f"""
+<!-- FOHAT_ECHARTS_BOOTSTRAP -->
+<script>{echarts_js}</script>
+<script>
+(function(){{
+  try {{
+    window.__FOHAT_CHARTS__ = {charts_json};
+    const C = window.__FOHAT_CHARTS__ || {{}};
+    const brand = C.brand || {{}};
+    const fmtBRL0 = new Intl.NumberFormat('pt-BR', {{ style:'currency', currency:'BRL', maximumFractionDigits:0 }});
+    const fmtNum0 = new Intl.NumberFormat('pt-BR', {{ maximumFractionDigits:0 }});
+
+    function axisLabelEvery5(value, idx) {{
+      const n = idx + 1;
+      if (idx === 0 || n === 25 || (n % 5 === 0)) return 'Ano ' + n;
+      return '';
+    }}
+
+    function baseGrid() {{
+      return {{ left: 56, right: 20, top: 18, bottom: 48, containLabel: true }};
+    }}
+
+    function render(elId, option) {{
+      const el = document.getElementById(elId);
+      if (!el) return null;
+      try {{
+        const chart = echarts.init(el, null, {{ renderer: 'svg' }});
+        chart.setOption(option, true);
+        // Responsivo (para preview)
+        window.addEventListener('resize', () => chart.resize(), {{ passive:true }});
+        return chart;
+      }} catch (e) {{
+        return null;
+      }}
+    }}
+
+    // Slide 03 (bar)
+    if (C.s03 && Array.isArray(C.s03.values) && C.s03.values.length) {{
+      const colors = ['#EF4444','#DC2626','#B91C1C','#991B1B','#7F1D1D','#450A0A'];
+      render(C.s03.el, {{
+        backgroundColor: 'transparent',
+        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
+        grid: baseGrid(),
+        xAxis: {{
+          type: 'category',
+          data: C.s03.labels,
+          axisTick: {{ show:false }},
+          axisLine: {{ lineStyle: {{ color: brand.grid }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 14, interval:0 }}
+        }},
+        yAxis: {{
+          type: 'value',
+          axisLine: {{ show:false }},
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 13, formatter: (v) => fmtBRL0.format(v) }}
+        }},
+        tooltip: {{
+          trigger: 'axis',
+          axisPointer: {{ type:'shadow' }},
+          formatter: (p) => {{
+            const x = p?.[0]?.axisValueLabel ?? '';
+            const v = p?.[0]?.data?.value ?? p?.[0]?.data ?? 0;
+            return `<b>${{x}}</b><br/>${{fmtBRL0.format(v)}}`;
+          }}
+        }},
+        series: [{{
+          type: 'bar',
+          data: C.s03.values.map((v,i)=>({{ value:v, itemStyle: {{ color: colors[i] || brand.red }} }})),
+          barWidth: '58%',
+          label: {{ show:true, position:'top', fontSize: 14, fontWeight: 800, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
+        }}]
+      }});
+    }}
+
+    // Slide 04 (line)
+    if (C.s04 && Array.isArray(C.s04.values) && C.s04.values.length) {{
+      render(C.s04.el, {{
+        backgroundColor: 'transparent',
+        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
+        grid: baseGrid(),
+        xAxis: {{
+          type:'category',
+          data: C.s04.labels,
+          axisTick: {{ show:false }},
+          axisLine: {{ lineStyle: {{ color: brand.grid }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v, idx) => axisLabelEvery5(v, idx) }}
+        }},
+        yAxis: {{
+          type:'value',
+          axisLine: {{ show:false }},
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v) => fmtBRL0.format(v) }}
+        }},
+        tooltip: {{
+          trigger:'axis',
+          formatter: (p)=> {{
+            const idx = p?.[0]?.dataIndex ?? 0;
+            const ano = idx + 1;
+            const v = p?.[0]?.data ?? 0;
+            return `<b>Ano ${{ano}}</b><br/>${{fmtBRL0.format(v)}}`;
+          }}
+        }},
+        series: [{{
+          type:'line',
+          data: C.s04.values,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 7,
+          lineStyle: {{ width: 3, color: brand.blue }},
+          itemStyle: {{ color: brand.blue }},
+          areaStyle: {{ color: 'rgba(30,58,138,0.10)' }}
+        }}]
+      }});
+    }}
+
+    // Slide 05 (dual bar)
+    if (C.s05 && Array.isArray(C.s05.labels) && C.s05.labels.length) {{
+      render(C.s05.el, {{
+        backgroundColor: 'transparent',
+        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
+        grid: {{ left: 52, right: 18, top: 18, bottom: 44, containLabel: true }},
+        legend: {{
+          top: 0,
+          right: 8,
+          textStyle: {{ color: brand.muted, fontSize: 12 }},
+          itemWidth: 14,
+          itemHeight: 10
+        }},
+        xAxis: {{
+          type:'category',
+          data: C.s05.labels,
+          axisTick: {{ show:false }},
+          axisLine: {{ lineStyle: {{ color: brand.grid }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, interval:0 }}
+        }},
+        yAxis: {{
+          type:'value',
+          axisLine: {{ show:false }},
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v)=>fmtNum0.format(v) }}
+        }},
+        tooltip: {{
+          trigger:'axis',
+          axisPointer: {{ type:'shadow' }},
+          formatter: (p)=> {{
+            const x = p?.[0]?.axisValueLabel ?? '';
+            const lines = (p||[]).map(s => `${{s.marker}} ${{s.seriesName}}: <b>${{fmtNum0.format(s.data)}}</b>`);
+            return `<b>${{x}}</b><br/>${{lines.join('<br/>')}}`;
+          }}
+        }},
+        series: [
+          {{
+            name: 'Consumo médio',
+            type:'bar',
+            data: (C.s05.consumo || []),
+            barWidth: '30%',
+            itemStyle: {{ color: brand.blue, opacity: 0.85 }}
+          }},
+          {{
+            name: 'Produção estimada',
+            type:'bar',
+            data: (C.s05.producao || []),
+            barWidth: '30%',
+            itemStyle: {{ color: brand.green, opacity: 0.85 }},
+            label: {{ show:true, position:'top', fontSize: 12, fontWeight: 800, color: brand.muted, formatter: (p)=>fmtNum0.format(p.value) }}
+          }}
         ]
-        for img_id, data_uri in substitutions:
-            if data_uri:
-                pattern = rf'id="{img_id}" src="[^"]*"'
-                replacement = f'id="{img_id}" src="{data_uri}"'
-                template_html = re.sub(pattern, replacement, template_html)
+      }});
+    }}
+
+    // Slide 06 (line - fluxo caixa acumulado)
+    if (C.s06 && Array.isArray(C.s06.values) && C.s06.values.length) {{
+      render(C.s06.el, {{
+        backgroundColor: 'transparent',
+        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
+        grid: baseGrid(),
+        xAxis: {{
+          type:'category',
+          data: C.s06.labels,
+          axisTick: {{ show:false }},
+          axisLine: {{ lineStyle: {{ color: brand.grid }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v, idx) => axisLabelEvery5(v, idx) }}
+        }},
+        yAxis: {{
+          type:'value',
+          axisLine: {{ show:false }},
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v) => fmtBRL0.format(v) }}
+        }},
+        tooltip: {{
+          trigger:'axis',
+          formatter: (p)=> {{
+            const idx = p?.[0]?.dataIndex ?? 0;
+            const ano = idx + 1;
+            const v = p?.[0]?.data ?? 0;
+            return `<b>Ano ${{ano}}</b><br/>${{fmtBRL0.format(v)}}`;
+          }}
+        }},
+        series: [{{
+          type:'line',
+          data: C.s06.values,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          lineStyle: {{ width: 3, color: brand.green }},
+          itemStyle: {{ color: brand.green }},
+          areaStyle: {{ color: 'rgba(5,150,105,0.10)' }}
+        }}]
+      }});
+    }}
+
+    // Slide 09 (bar comparativo)
+    if (C.s09 && Array.isArray(C.s09.values) && C.s09.values.length) {{
+      const cats = ['Sem energia solar\\n(25 anos)','Investimento\\n(preço de venda)'];
+      render(C.s09.el, {{
+        backgroundColor: 'transparent',
+        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
+        grid: {{ left: 56, right: 20, top: 18, bottom: 58, containLabel: true }},
+        xAxis: {{
+          type:'category',
+          data: cats,
+          axisTick: {{ show:false }},
+          axisLine: {{ lineStyle: {{ color: brand.grid }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, interval:0 }}
+        }},
+        yAxis: {{
+          type:'value',
+          axisLine: {{ show:false }},
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v)=>fmtBRL0.format(v) }}
+        }},
+        tooltip: {{
+          trigger:'axis',
+          axisPointer: {{ type:'shadow' }},
+          formatter: (p)=> {{
+            const x = p?.[0]?.axisValueLabel ?? '';
+            const v = p?.[0]?.data ?? 0;
+            return `<b>${{x.replace('\\n',' ')}}</b><br/>${{fmtBRL0.format(v)}}`;
+          }}
+        }},
+        series: [{{
+          type:'bar',
+          data: [
+            {{ value: C.s09.values[0] || 0, itemStyle: {{ color: brand.red }} }},
+            {{ value: C.s09.values[1] || 0, itemStyle: {{ color: brand.blue }} }},
+          ],
+          barWidth: '54%',
+          label: {{ show:true, position:'top', fontSize: 14, fontWeight: 900, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
+        }}]
+      }});
+    }}
+
+    window.__FOHAT_ECHARTS_READY__ = true;
+  }} catch (e) {{
+    window.__FOHAT_ECHARTS_READY__ = true;
+  }}
+}})();
+</script>
+"""
+
+        if "</body>" in template_html:
+            template_html = template_html.replace("</body>", bootstrap + "\n</body>")
+        else:
+            template_html = template_html + bootstrap
 
         return template_html
     except Exception as e:
@@ -2540,92 +2665,47 @@ def analise_gerar_graficos():
             cas = tabelas.get("custo_acumulado_sem_solar_r") or []
             pontos_sem_solar = [float(cas[i]) for i in idxs] if len(cas) >= 25 else []
 
-        # Gerar gráficos base64 a partir das TABELAS do núcleo (sem mocks)
+        # MIGRAÇÃO: gráficos da proposta agora são ECharts (SVG) no template + Puppeteer.
+        # Este endpoint fica focado em métricas e dados-base; mantemos `graficos_base64` por compatibilidade,
+        # mas vazio (evita custo de CPU do Matplotlib).
         graficos_base64 = {}
         try:
-            anos = tabelas.get("ano") or list(range(1, 26))
-            # Slide 03 – Barras: acumulado sem solar (anos 1,5,10,15,20,25)
-            try:
-                cas = tabelas.get("custo_acumulado_sem_solar_r") or []
-                if len(cas) >= 25:
-                    idxs = [0, 4, 9, 14, 19, 24]
-                    vals = [float(cas[i]) for i in idxs]
-                    labs = [f"Ano {i+1}" for i in idxs]
-                    graf1 = generate_chart_base64(
-                        'bar', vals, labs, "", 
-                        ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A'],
-                        figsize=(16, 10),
-                        y_currency=True
-                    )
-                    if graf1: graficos_base64["grafico1"] = graf1
-            except Exception as _e:
-                print(f"⚠️ Falha grafico1: {_e}")
-
-            # Slide 04 – Linha: custo anual sem solar (25 anos)
-            try:
-                ca = tabelas.get("custo_anual_sem_solar_r") or []
-                if ca:
-                    # Mostrar legendas apenas a cada 5 anos
-                    labs = [f"Ano {i+1}" if ((i + 1) % 5 == 0) else "" for i in range(len(ca))]
-                    graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#1E3A8A'], figsize=(16, 10), y_currency=True)
-                    if graf2: graficos_base64["grafico2"] = graf2
-            except Exception as _e:
-                print(f"⚠️ Falha grafico2: {_e}")
-
-            # Slide 05 – Barras duplas: Consumo mensal x Produção mensal (kWh) – usa ano 1 (sazonal real)
-            try:
-                consumo_mes_kwh = (tabelas.get("consumo_mensal_kwh") or [0])[0] if tabelas else 0
-                prod_mensal_vec = (tabelas.get("producao_mensal_kwh_ano1") or [])
-                meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                if (prod_mensal_vec and len(prod_mensal_vec) == 12) or consumo_mes_kwh > 0:
-                    consumo_mensal = [float(consumo_mes_kwh)] * 12
-                    prod_mensal = [float(v) for v in (prod_mensal_vec[:12] if prod_mensal_vec else [])]
-                    # Fallback seguro: se por algum motivo não vier a série, usa média
-                    if not prod_mensal or len(prod_mensal) != 12:
-                        prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
-                        if float(prod_anual_kwh) > 0:
-                            prod_mensal = [float(prod_anual_kwh) / 12.0] * 12
-                    graf3 = generate_chart_base64('dual_bar', [consumo_mensal, prod_mensal], meses, "", ['#1E3A8A', '#059669'], figsize=(16, 10), y_currency=False)
-                    if graf3: graficos_base64["grafico3"] = graf3
-            except Exception as _e:
-                print(f"⚠️ Falha grafico3: {_e}")
-
-            # Slide 06 – Linha: fluxo de caixa acumulado (payback)
-            try:
-                fca = tabelas.get("fluxo_caixa_acumulado_r") or []
-                if fca:
-                    labs = [f"Ano {i+1}" for i in range(len(fca))]
-                    graf4 = generate_chart_base64('line', [float(v) for v in fca], labs, "", ['#059669'], figsize=(16, 10), y_currency=True)
-                    if graf4: graficos_base64["grafico4"] = graf4
-            except Exception as _e:
-                print(f"⚠️ Falha grafico4: {_e}")
-
-            # Slide 09 – Comparativo: custo sem energia solar (25 anos) vs investimento (preço de venda)
-            try:
-                cas = tabelas.get("custo_acumulado_sem_solar_r") or []
-                gasto_total_25 = float(cas[-1]) if cas else 0.0
-                investimento = float(preco_venda or 0.0)
-
-                if gasto_total_25 > 0 or investimento > 0:
-                    graf5 = generate_chart_base64(
-                        'bar',
-                        [gasto_total_25, investimento],
-                        ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
-                        "Comparativo Financeiro (25 anos)",
-                        ['#DC2626', '#1E3A8A'],
-                        figsize=(16, 10),
-                        y_currency=True
-                    )
-                    if graf5:
-                        graficos_base64["grafico5"] = graf5
-            except Exception as _e:
-                print(f"⚠️ Falha grafico5: {_e}")
-        except Exception as eg:
-            print(f"⚠️ Falha ao montar gráficos base64: {eg}")
+            # Payload opcional para debug/telemetria (caso algum cliente queira renderizar fora do template)
+            cas = tabelas.get("custo_acumulado_sem_solar_r") or []
+            ca = tabelas.get("custo_anual_sem_solar_r") or []
+            fca = tabelas.get("fluxo_caixa_acumulado_r") or []
+            idxs = [0, 4, 9, 14, 19, 24]
+            charts_payload = {
+                "brand": {"blue": "#1E3A8A", "green": "#059669", "red": "#DC2626", "text": "#0f172a", "muted": "#334155", "grid": "#e2e8f0"},
+                "s03": {
+                    "labels": [f"Ano {i+1}" for i in idxs],
+                    "values": [float(cas[i]) for i in idxs] if len(cas) >= 25 else [],
+                },
+                "s04": {
+                    "labels": [f"Ano {i+1}" for i in range(len(ca or []))],
+                    "values": [float(v) for v in (ca or [])],
+                },
+                "s05": {
+                    "labels": ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+                    "consumo": [float((tabelas.get("consumo_mensal_kwh") or [0])[0] or 0)] * 12,
+                    "producao": [float(v) for v in (tabelas.get("producao_mensal_kwh_ano1") or [])[:12]],
+                },
+                "s06": {
+                    "labels": [f"Ano {i+1}" for i in range(len(fca or []))],
+                    "values": [float(v) for v in (fca or [])],
+                },
+                "s09": {
+                    "labels": ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
+                    "values": [float(cas[-1]) if cas else 0.0, float(preco_venda or 0.0)],
+                },
+            }
+        except Exception:
+            charts_payload = None
 
         resp = {
             "success": True,
             "graficos_base64": graficos_base64,
+            "charts_payload": charts_payload,
             "metrics": {
                 **metrics,
                 "consumo_medio_kwh_mes": consumo_kwh,
@@ -3142,363 +3222,13 @@ def visualizar_proposta(proposta_id):
             with open(proposta_file, 'r', encoding='utf-8') as f:
                 proposta_data = json.load(f)
         
-        # Usar o processador central para garantir substituição total de variáveis
-        # e injeção dos gráficos/imagens em base64.
+        # Visualização/Preview sempre vem do process_template_html (ECharts + SVG).
         try:
             processed = process_template_html(proposta_data)
             return processed, 200, {'Content-Type': 'text/html; charset=utf-8'}
         except Exception as e:
-            print(f"⚠️ Falha no process_template_html em visualizar_proposta: {e} - seguindo com processamento local")
-        
-        # Carregar template HTML
-        template_path = Path(__file__).parent / "public" / "template.html"
-        if not template_path.exists():
-            return f"<html><body><h1>Template não encontrado</h1></body></html>", 404
-        
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template_html = f.read()
-        
-        # Converter imagens para base64
-        fohat_base64 = convert_image_to_base64('/img/fohat.svg')
-        # Preferir logo sem fundo para evitar "quadrado branco" quando o template aplica filter invert
-        logo_green_base64 = (
-            convert_image_to_base64('/img/logo-green.svg')
-            or convert_image_to_base64('/img/logo.svg')
-            or convert_image_to_base64('/img/logo-bg-blue.svg')
-        )
-        logo_bg_blue_base64 = convert_image_to_base64('/img/logo-bg-blue.svg') or logo_green_base64
-        como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
-        
-        # Substituir URLs das imagens por base64
-        if fohat_base64:
-            template_html = template_html.replace("url('/img/fohat.svg')", f"url('{fohat_base64}')")
-            template_html = template_html.replace("url('img/fohat.svg')", f"url('{fohat_base64}')")
-        if logo_green_base64 or logo_bg_blue_base64:
-            if logo_bg_blue_base64:
-                template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
-                template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
-            if logo_green_base64:
-                template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_green_base64}"')
-                template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_green_base64}"')
-                template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_green_base64}"')
-                template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_green_base64}"')
-        if como_funciona_base64:
-            template_html = template_html.replace('src="/img/como-funciona.png"', f'src="{como_funciona_base64}"')
-            template_html = template_html.replace('src="img/como-funciona.png"', f'src="{como_funciona_base64}"')
-        
-        # Substituir todas as variáveis {{}} no template (mesmo código acima)
-        template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
-        template_html = template_html.replace('{{cliente_endereco}}', format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade')))
-        template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
-        template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))
-        template_html = template_html.replace('{{potencia_sistema_kwp}}', f"{proposta_data.get('potencia_sistema', 0):.2f}")
-        template_html = template_html.replace('{{preco_final}}', f"R$ {proposta_data.get('preco_final', 0):,.2f}")
-        template_html = template_html.replace('{{cidade}}', proposta_data.get('cidade', 'Projeto'))
-        template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome', 'Representante Comercial'))
-        template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo', 'Especialista em Energia Solar'))
-        template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone', '(11) 99999-9999'))
-        template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email', 'contato@empresa.com'))
-        template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta', datetime.now().strftime('%d/%m/%Y')))
-        
-        # Substituir variáveis financeiras
-        template_html = template_html.replace('{{conta_atual_anual}}', f"R$ {proposta_data.get('conta_atual_anual', 0):,.2f}")
-        template_html = template_html.replace('{{anos_payback}}', str(proposta_data.get('anos_payback', 0)))
-        # Não substituir aqui {{gasto_acumulado_payback}} para evitar divergência.
-        template_html = template_html.replace('{{consumo_mensal_kwh}}', str(int(proposta_data.get('consumo_mensal_kwh', 0))))
-        template_html = template_html.replace('{{tarifa_energia}}', f"{proposta_data.get('tarifa_energia', 0.75):.3f}")
-        template_html = template_html.replace('{{economia_mensal_estimada}}', f"R$ {proposta_data.get('economia_mensal_estimada', 0):,.2f}")
-        
-        # Substituir variáveis do kit
-        template_html = template_html.replace('{{quantidade_placas}}', str(proposta_data.get('quantidade_placas', 0)))
-        template_html = template_html.replace('{{potencia_placa_w}}', str(proposta_data.get('potencia_placa_w', 0)))
-        template_html = template_html.replace('{{area_necessaria}}', str(proposta_data.get('area_necessaria', 0)))
-        template_html = template_html.replace('{{irradiacao_media}}', f"{proposta_data.get('irradiacao_media', 5.15):.2f}")
-        template_html = template_html.replace('{{geracao_media_mensal}}', f"{proposta_data.get('geracao_media_mensal', 0):.0f}")
-        template_html = template_html.replace('{{creditos_anuais}}', f"R$ {proposta_data.get('creditos_anuais', 0):,.2f}")
-        # Substituir com o valor do payload (se existir); aqui não recalculamos
-        eco_total_final = float(proposta_data.get('economia_total_25_anos', 0) or 0)
-        template_html = template_html.replace('{{economia_total_25_anos}}', f"R$ {eco_total_final:,.2f}")
-        template_html = template_html.replace('{{payback_meses}}', str(proposta_data.get('payback_meses', 0)))
-        
-        # Substituir variáveis de custos
-        template_html = template_html.replace('{{custo_total_projeto}}', f"R$ {proposta_data.get('custo_total_projeto', 0):,.2f}")
-        template_html = template_html.replace('{{custo_equipamentos}}', f"R$ {proposta_data.get('custo_equipamentos', 0):,.2f}")
-        template_html = template_html.replace('{{custo_instalacao}}', f"R$ {proposta_data.get('custo_instalacao', 0):,.2f}")
-        template_html = template_html.replace('{{custo_homologacao}}', f"R$ {proposta_data.get('custo_homologacao', 0):,.2f}")
-        template_html = template_html.replace('{{custo_outros}}', f"R$ {proposta_data.get('custo_outros', 0):,.2f}")
-        template_html = template_html.replace('{{margem_lucro}}', f"R$ {proposta_data.get('margem_lucro', 0):,.2f}")
-        
-        # ====== SLIDE 03 - GRÁFICO DE BARRAS (Cenário Atual) ======
-        print("📊 === DEBUG GRÁFICO SLIDE-03 (visualizar) ===")
-        conta_atual_anual = proposta_data.get('conta_atual_anual', 0)
-        print(f"📊 Conta atual anual: R$ {conta_atual_anual:,.2f}")
-        # Helper robusto para injetar src em <img id="...">
-        import re as _re_inject
-        def _inject_img_src_local(html: str, element_id: str, new_src: str) -> str:
-            try:
-                pattern1 = _re_inject.compile(
-                    r'(<img\b[^>]*\bid=["\']%s["\'][^>]*\bsrc=["\'])([^"\']*)(["\'][^>]*>)' % _re_inject.escape(element_id),
-                    flags=_re_inject.IGNORECASE
-                )
-                if pattern1.search(html):
-                    return pattern1.sub(r'\1' + new_src + r'\3', html)
-                pattern2 = _re_inject.compile(
-                    r'(<img\b[^>]*\bid=["\']%s["\'][^>]*)(>)' % _re_inject.escape(element_id),
-                    flags=_re_inject.IGNORECASE
-                )
-                if pattern2.search(html):
-                    return pattern2.sub(r'\1 src="' + new_src + r'"\2', html)
-                return html
-            except Exception:
-                return html
-        
-        if conta_atual_anual > 0:
-            # Calcular gasto mensal atual
-            gasto_mensal_atual = conta_atual_anual / 12
-            
-            # Calcular gastos anuais para todos os 25 anos (com aumento de 4.1% ao ano)
-            gastos_anuais = []
-            for ano in range(1, 26):
-                gasto_anual = gasto_mensal_atual * (1.041 ** (ano - 1)) * 12
-                gastos_anuais.append(gasto_anual)
-            
-            # Calcular soma acumulada dos gastos
-            soma_acumulada = 0
-            gastos_acumulados = []
-            for gasto_anual in gastos_anuais:
-                soma_acumulada += gasto_anual
-                gastos_acumulados.append(soma_acumulada)
-            
-            # Selecionar valores para os anos específicos (1, 5, 10, 15, 20, 25)
-            indices_anos = [0, 4, 9, 14, 19, 24]  # Índices para anos 1, 5, 10, 15, 20, 25
-            valores = [gastos_acumulados[i] for i in indices_anos]
-            labels = ['Ano 1', 'Ano 5', 'Ano 10', 'Ano 15', 'Ano 20', 'Ano 25']
-            
-            # Paleta de cores da proposta (usando cores negativas/vermelhas para gastos)
-            cores = ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A']
-            
-            # Definir variáveis para uso posterior
-            conta_ano_1 = valores[0]
-            conta_ano_5 = valores[1]
-            conta_ano_10 = valores[2]
-            conta_ano_15 = valores[3]
-            conta_ano_20 = valores[4]
-            conta_ano_25 = valores[5]
-            
-            # Gerar gráfico usando matplotlib com Base64, fonte maior e cores da proposta
-            chart_base64 = generate_chart_base64(
-                'bar',
-                valores,
-                labels,
-                "Seu Gasto Atual",
-                cores,
-                figsize=(20, 14)  # Gráfico ainda maior para usar toda metade direita
-            )
-
-            if chart_base64:
-                print("✅ Gráfico slide-03 gerado com sucesso!")
-                template_html = _inject_img_src_local(template_html, "grafico-slide-03", chart_base64)
-            else:
-                print("❌ Erro ao gerar gráfico slide-03")
-            
-            print(f"📊 Valores calculados:")
-            for i, (label, valor) in enumerate(zip(labels, valores)):
-                print(f"   {label}: R$ {valor:,.2f}")
-        else:
-            print("⚠️ Conta atual anual é zero - usando valores padrão")
-            # Valores padrão se não houver dados
-            valores = [900, 1056, 1399, 1790, 2260, 2860]
-            labels = ['Ano 1', 'Ano 5', 'Ano 10', 'Ano 15', 'Ano 20', 'Ano 25']
-            cores = ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A']
-            
-            # Esta seção foi removida - agora usamos Base64
-        
-        # Substituir valores das contas (mantendo para compatibilidade)
-        conta_ano_1 = valores[0]
-        conta_ano_5 = valores[1]
-        conta_ano_10 = valores[2]
-        conta_ano_15 = valores[3]
-        conta_ano_20 = valores[4]
-        conta_ano_25 = valores[5]
-        
-        # Calcular alturas das barras para CSS (caso ainda existam no template)
-        valor_maximo = conta_ano_25
-        altura_barra_ano_1 = int((conta_ano_1 / valor_maximo) * 100)
-        altura_barra_ano_5 = int((conta_ano_5 / valor_maximo) * 100)
-        altura_barra_ano_10 = int((conta_ano_10 / valor_maximo) * 100)
-        altura_barra_ano_15 = int((conta_ano_15 / valor_maximo) * 100)
-        altura_barra_ano_20 = int((conta_ano_20 / valor_maximo) * 100)
-        altura_barra_ano_25 = 100  # Sempre 100% para o ano 25
-        
-        # Substituir variáveis de altura das barras (para CSS)
-        template_html = template_html.replace('{{altura_barra_ano_1}}', f"{altura_barra_ano_1}px")
-        template_html = template_html.replace('{{altura_barra_ano_5}}', f"{altura_barra_ano_5}px")
-        template_html = template_html.replace('{{altura_barra_ano_10}}', f"{altura_barra_ano_10}px")
-        template_html = template_html.replace('{{altura_barra_ano_15}}', f"{altura_barra_ano_15}px")
-        template_html = template_html.replace('{{altura_barra_ano_20}}', f"{altura_barra_ano_20}px")
-        template_html = template_html.replace('{{altura_barra_ano_25}}', f"{altura_barra_ano_25}px")
-        
-        # Substituir valores das contas
-        template_html = template_html.replace('{{conta_ano_1}}', f"R$ {conta_ano_1:,.2f}")
-        template_html = template_html.replace('{{conta_ano_5}}', f"R$ {conta_ano_5:,.2f}")
-        template_html = template_html.replace('{{conta_ano_10}}', f"R$ {conta_ano_10:,.2f}")
-        template_html = template_html.replace('{{conta_ano_15}}', f"R$ {conta_ano_15:,.2f}")
-        template_html = template_html.replace('{{conta_ano_20}}', f"R$ {conta_ano_20:,.2f}")
-        template_html = template_html.replace('{{conta_ano_25}}', f"R$ {conta_ano_25:,.2f}")
-        
-        print("📊 === FIM DEBUG GRÁFICO SLIDE-03 (visualizar) ===")
-        
-        # ====== SLIDE 04 - GRÁFICO DE LINHA ======
-        print(f"📊 === DEBUG GRÁFICO SLIDE-04 (visualizar) ===")
-        
-        # Gerar gráfico de linha para slide-04
-        if conta_atual_anual > 0:
-            # Usar os mesmos valores do slide-03
-            valores_linha = valores
-            labels_linha = labels
-            
-            # Gerar gráfico de linha usando base64
-            chart_base64_linha = generate_chart_base64(
-                'line', 
-                valores_linha, 
-                labels_linha, 
-                "Evolução da Conta de Luz (25 anos)",
-                ['#3b82f6']
-            )
-            
-            if chart_base64_linha:
-                print("✅ Gráfico slide-04 gerado com sucesso!")
-                template_html = _inject_img_src_local(template_html, "grafico-slide-04", chart_base64_linha)
-            else:
-                print("❌ Erro ao gerar gráfico de linha matplotlib")
-        
-        print(f"📊 === FIM DEBUG GRÁFICO SLIDE-04 (visualizar) ===")
-        
-        # ====== SLIDE 05 - GRÁFICO DE BARRAS DUPLAS ======
-        print("📊 === DEBUG GRÁFICO SLIDE-05 (visualizar) ===")
-        
-        # Gerar gráfico de barras duplas para slide-05 (Consumo x Geração)
-        if conta_atual_anual > 0:
-            # Dados simulados para produção e consumo mensal
-            meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-            producao_mensal = [120, 110, 130, 100, 90, 80, 85, 95, 110, 125, 135, 140]  # kWh/mês
-            consumo_mensal = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]  # kWh/mês
-            
-            # Gerar gráfico de barras duplas usando base64
-            chart_base64_slide05 = generate_chart_base64(
-                'dual_bar',
-                [producao_mensal, consumo_mensal],
-                meses,
-                "Consumo x Geração (kWh/mês)",
-                ['#2ca02c', '#d62728']  # Verde para produção, vermelho para consumo
-            )
-            
-            if chart_base64_slide05:
-                print("✅ Gráfico slide-05 gerado com sucesso!")
-                template_html = _inject_img_src_local(template_html, "grafico-slide-05", chart_base64_slide05)
-            else:
-                print("❌ Erro ao gerar gráfico de barras duplas matplotlib")
-        
-        print("📊 === FIM DEBUG GRÁFICO SLIDE-05 (visualizar) ===")
-        
-        # ====== SLIDE 06 - GRÁFICO DE PAYBACK ======
-        print("📊 === DEBUG GRÁFICO SLIDE-06 (visualizar) ===")
-        print(f"conta_atual_anual: {conta_atual_anual}")
-        
-        # Gerar gráfico de payback para slide-06 (Economia Acumulada vs Investimento)
-        if conta_atual_anual > 0:
-            print("✅ Condição conta_atual_anual > 0 satisfeita")
-            # Dados para gráfico de payback
-            anos = ['Ano 1', 'Ano 5', 'Ano 10', 'Ano 15', 'Ano 20', 'Ano 25']
-            investimento_inicial = proposta_data.get('custo_total_projeto', 50000)
-            economia_mensal = proposta_data.get('economia_mensal_estimada', 75)
-            
-            print(f"investimento_inicial: {investimento_inicial}")
-            print(f"economia_mensal: {economia_mensal}")
-            
-            # Calcular economia acumulada ao longo dos anos
-            economia_acumulada = []
-            for i in range(len(anos)):
-                economia_acumulada.append(economia_mensal * 12 * (i + 1))
-            
-            print(f"economia_acumulada: {economia_acumulada}")
-            
-            # Criar gráfico de linha dupla usando base64
-            chart_base64_slide06 = generate_chart_base64(
-                'line',
-                economia_acumulada,
-                anos,
-                "Economia Acumulada vs Investimento",
-                ['#2ca02c']  # Verde para economia
-            )
-            
-            if chart_base64_slide06:
-                print("✅ Gráfico slide-06 gerado com sucesso!")
-                # Substituir apenas o src da imagem do slide-06 usando regex
-                import re
-                pattern = r'id="grafico-slide-06" src="[^"]*"'
-                replacement = f'id="grafico-slide-06" src="{chart_base64_slide06}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            else:
-                print("❌ Erro ao gerar gráfico de payback matplotlib")
-        else:
-            print("❌ Condição conta_atual_anual > 0 NÃO satisfeita")
-        
-        print("📊 === FIM DEBUG GRÁFICO SLIDE-06 (visualizar) ===")
-        
-        # ====== SLIDE 09 - GRÁFICO COMPARATIVO ======
-        print("📊 === DEBUG GRÁFICO SLIDE-09 (visualizar) ===")
-        print(f"conta_atual_anual: {conta_atual_anual}")
-        
-        # Gerar gráfico comparativo para slide-09 (Sem solar 25 anos x Investimento)
-        if conta_atual_anual > 0:
-            print("✅ Condição conta_atual_anual > 0 satisfeita para slide-09")
-
-            gasto_total_25 = parse_float(proposta_data.get('gasto_total_25_anos', 0), 0.0)
-            if gasto_total_25 <= 0:
-                # fallback simples
-                gasto_total_25 = float(conta_atual_anual) * 25.0
-
-            investimento = parse_float(
-                proposta_data.get('preco_venda',
-                                  proposta_data.get('preco_final',
-                                                    proposta_data.get('custo_total_projeto', 0))),
-                0.0
-            )
-
-            print(f"gasto_total_25: {gasto_total_25}")
-            print(f"investimento: {investimento}")
-
-            chart_base64_slide09 = generate_chart_base64(
-                'bar',
-                [gasto_total_25, investimento],
-                ["Sem energia solar (25 anos)", "Investimento (preço de venda)"],
-                "Comparativo Financeiro (25 anos)",
-                ['#DC2626', '#1E3A8A'],
-                figsize=(18, 10),
-                y_currency=True
-            )
-            
-            if chart_base64_slide09:
-                print("✅ Gráfico slide-09 gerado com sucesso!")
-                # Substituir apenas o src da imagem do slide-09 usando regex
-                import re
-                pattern = r'id="grafico-slide-09" src="[^"]*"'
-                replacement = f'id="grafico-slide-09" src="{chart_base64_slide09}"'
-                template_html = re.sub(pattern, replacement, template_html)
-            else:
-                print("❌ Erro ao gerar gráfico comparativo matplotlib")
-        else:
-            print("❌ Condição conta_atual_anual > 0 NÃO satisfeita para slide-09")
-        
-        print("📊 === FIM DEBUG GRÁFICO SLIDE-09 (visualizar) ===")
-        # Garantir gráficos oficiais também aqui: sempre preferir os do núcleo (consistência)
-        try:
-            template_html = apply_analise_financeira_graphs(template_html, proposta_data)
-        except Exception as e:
-            print(f"⚠️ Falha ao aplicar gráficos via analise_financeira no visualizar_proposta: {e}")
-        
-        return template_html
+            print(f"❌ Falha no process_template_html em visualizar_proposta: {e}")
+            return f"<html><body><h1>Erro ao carregar proposta</h1><pre>{str(e)}</pre></body></html>", 500
         
     except Exception as e:
         return f"<html><body><h1>Erro ao carregar proposta: {str(e)}</h1></body></html>", 500
@@ -3971,94 +3701,11 @@ def cleanup_old_charts():
     except Exception as e:
         print(f"❌ Erro ao limpar gráficos antigos: {e}")
 
-@app.route('/admin/firebase/delete-user', methods=['POST'])
-def admin_firebase_delete_user():
-    if not _require_admin_access():
-        return jsonify({'success': False, 'message': 'Não autorizado'}), 403
-    if not FIREBASE_ADMIN_AVAILABLE:
-        return jsonify({'success': False, 'message': 'Firebase Admin não configurado no servidor'}), 500
-    try:
-        data = request.get_json() or {}
-        uid = data.get('uid')
-        if not uid:
-            return jsonify({'success': False, 'message': 'UID obrigatório'}), 400
-        fb_auth.delete_user(uid)
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/admin/firebase/list-users', methods=['GET'])
-def admin_firebase_list_users():
-    """
-    Lista usuários do Firebase Auth (UID, email, display_name, phone, metadata).
-    Requer Firebase Admin configurado.
-    Fallback: lista usuários conhecidos em data/users_roles.json se Firebase indisponível.
-    """
-    if not _require_admin_access():
-        return jsonify({'success': False, 'message': 'Não autorizado'}), 403
-
-    users = []
-
-    # 1. Tentar buscar do Firebase Admin
-    if FIREBASE_ADMIN_AVAILABLE:
-        try:
-            page = fb_auth.list_users()
-            while page:
-                for u in page.users:
-                    users.append({
-                        'uid': u.uid,
-                        'email': u.email,
-                        'display_name': u.display_name,
-                        'phone_number': u.phone_number,
-                        'disabled': u.disabled,
-                        'email_verified': u.email_verified,
-                        'provider_ids': [p.provider_id for p in (u.provider_data or [])],
-                        'metadata': {
-                            'creation_time': getattr(u.user_metadata, 'creation_timestamp', None),
-                            'last_sign_in_time': getattr(u.user_metadata, 'last_sign_in_timestamp', None),
-                        }
-                    })
-                page = page.get_next_page()
-            return jsonify({'success': True, 'users': users})
-        except Exception as e:
-            print(f"⚠️ Erro ao listar usuários do Firebase: {e}")
-            # Fallback para lista local
-
-    # 2. Fallback: Usuários conhecidos localmente (roles)
-    try:
-        local_users = []
-        if ROLES_FILE.exists():
-            with open(ROLES_FILE, 'r', encoding='utf-8') as f:
-                roles_data = json.load(f)
-
-            for email, data in roles_data.items():
-                # Normalizar formato antigo (apenas string) vs novo (dict)
-                role = data if isinstance(data, str) else data.get('role', 'vendedor')
-                nome = "" if isinstance(data, str) else data.get('nome', '')
-
-                # Cria um usuário "mock" para exibição
-                local_users.append({
-                    'uid': f"local_{email}",  # UID fictício
-                    'email': email,
-                    'display_name': nome or email.split('@')[0],
-                    'phone_number': '',
-                    'disabled': False,
-                    'email_verified': True,
-                    'provider_ids': [],
-                    'metadata': {},
-                    'is_local': True  # Flag para frontend saber
-                })
-
-        print(f"ℹ️ Retornando {len(local_users)} usuários locais (fallback)")
-        return jsonify({'success': True, 'users': local_users, 'source': 'local_fallback'})
-
-    except Exception as e:
-        return jsonify({'success': False, 'message': f"Erro no fallback local: {str(e)}"}), 500
-
-@app.route('/admin/firebase/generate-reset-link', methods=['POST'])
-def admin_firebase_generate_reset_link():
-    # Desativado: criação/gestão de usuários deve ser feita manualmente no Firebase
-    return jsonify({'success': False, 'message': 'Desativado'}), 404
+"""
+Gestão de usuários é via Postgres:
+- /admin/users (CRUD)
+- /auth/login, /auth/me, /auth/change-password
+"""
 
 def _get_app_base_url() -> str:
     # Base pública usada nos links dos e-mails
@@ -4074,11 +3721,6 @@ def _send_smtp_email(to_email: str, subject: str, html_body: str, text_body: str
 def _send_sendgrid_email(to_email: str, subject: str, html_body: str, text_body: str | None = None) -> tuple[bool, str]:
     # Desativado: envio de e-mails não é realizado pelo servidor
     return False, "desativado"
-
-@app.route('/admin/firebase/send-invite', methods=['POST'])
-def admin_firebase_send_invite():
-    # Desativado: envio de convites/e-mails não é mais responsabilidade do app
-    return jsonify({'success': False, 'message': 'Desativado'}), 404
 
 # ===== Roles (controle de acesso pelo backend) =====
 @app.route('/auth/role', methods=['GET'])
