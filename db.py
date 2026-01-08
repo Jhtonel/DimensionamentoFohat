@@ -9,14 +9,31 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 load_dotenv()
+# Também suportar um arquivo local não-dot (gitignored) para dev sem export manual.
+try:
+    dev_env = Path(__file__).parent / "dev.env"
+    if dev_env.exists():
+        load_dotenv(dotenv_path=dev_env, override=False)
+except Exception:
+    pass
 # Railway pode expor diferentes nomes de variável para Postgres.
 DATABASE_URL = (
     os.getenv('DATABASE_URL')
     or os.getenv('POSTGRES_URL')
     or os.getenv('POSTGRESQL_URL')
     or os.getenv('RAILWAY_DATABASE_URL')
-    or 'sqlite:///./app.db'
 )
+
+# Modo DB-only (padrão): sem URL definida, falhar explicitamente.
+# Se você realmente quiser SQLite local, defina ALLOW_SQLITE=1.
+if not DATABASE_URL:
+    if os.getenv("ALLOW_SQLITE") in ("1", "true", "True"):
+        DATABASE_URL = 'sqlite:///./app.db'
+    else:
+        raise RuntimeError(
+            "DATABASE_URL não definido. Este projeto opera apenas com Postgres (Railway). "
+            "Defina DATABASE_URL/POSTGRESQL_URL no ambiente ou use ALLOW_SQLITE=1 (dev local apenas)."
+        )
 
 def _build_connect_args(url: str) -> dict:
     # SQLite needs check_same_thread flag

@@ -224,9 +224,10 @@ class SolaryumApiService {
     const queryParams = new URLSearchParams();
     queryParams.append('token', this.apiKey); // Token como query parameter
     
-    // Usar potência real quando fornecida; somente se não houver, aplicar mínimo de 2 kW
+    // Regra de negócio: o mínimo deve ser 2,4 kWp SEMPRE (mesmo quando o cálculo resultar em 1 kWp).
+    const potenciaMinimaKwp = 2.4;
     const potenciaInformada = parseFloat(dimensionamentoData.potencia_kw) || 0;
-    const potenciaParaApi = potenciaInformada > 0 ? potenciaInformada : Math.max(0, 2.0);
+    const potenciaParaApi = Math.max(potenciaInformada, potenciaMinimaKwp);
     queryParams.append('potenciaDoKit', potenciaParaApi);
     console.log('🔍 Potência original:', dimensionamentoData.potencia_kw);
     console.log('🔍 Potência enviada para API:', potenciaParaApi);

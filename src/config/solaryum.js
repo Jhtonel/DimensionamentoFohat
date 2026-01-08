@@ -5,9 +5,10 @@
 
 export const SOLARYUM_CONFIG = {
   // URL base da API
-  BASE_URL: import.meta.env.DEV 
-    ? `${window.location.protocol}//${window.location.hostname}:${window.location.port || '3003'}/api/solaryum`
-    : 'https://api-d1297.cloud.solaryum.com.br',  // URL direta em produção
+  // IMPORTANTE:
+  // - Em DEV, o Vite faz proxy em /api/solaryum (ver vite.config.js)
+  // - Em PROD (Railway), o backend Flask expõe /api/solaryum como proxy server-to-server
+  BASE_URL: `${window.location.origin}/api/solaryum`,
   
   // Chave da API (configurar via variável de ambiente)
   API_KEY: '1R6OlSTa', // Token atualizado

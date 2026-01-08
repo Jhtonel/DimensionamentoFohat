@@ -34,6 +34,7 @@ from dimensionamento_core import calcular_dimensionamento
 # import requests  # Removido para evitar erro de permissão em sandbox
 import urllib.request
 import urllib.error
+from urllib.parse import urljoin
 from datetime import date
 #
 # Firebase Admin (opcional, para gerenciar usuários do Auth)
@@ -2155,11 +2156,20 @@ def anexar_graficos_a_proposta(proposta_id):
         body = request.get_json() or {}
         graficos = body.get('graficos_base64') or {}
         metrics = body.get('metrics') or {}
-        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
-        if not proposta_file.exists():
-            return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
-        with open(proposta_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        # DB-first: atualizar payload no Postgres
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
         if isinstance(graficos, dict) and graficos:
             data['graficos_base64'] = graficos
         # Opcionalmente, sincroniza alguns campos úteis
@@ -2170,9 +2180,22 @@ def anexar_graficos_a_proposta(proposta_id):
                 data['economia_mensal_estimada'] = float(metrics['economia_mensal_estimada'])
         except Exception:
             pass
+        if USE_DB:
+            # sincronizar também colunas relevantes
+            try:
+                row.payload = data
+                if data.get('anos_payback') is not None:
+                    row.anos_payback = float(data.get('anos_payback') or 0)
+                if data.get('economia_mensal_estimada') is not None:
+                    row.economia_mensal_estimada = float(data.get('economia_mensal_estimada') or 0)
+                db.commit()
+            finally:
+                db.close()
+            return jsonify({"success": True, "message": "Gráficos anexados à proposta.", "source": "db"})
+
         with open(proposta_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        return jsonify({"success": True, "message": "Gráficos anexados à proposta."})
+        return jsonify({"success": True, "message": "Gráficos anexados à proposta.", "source": "file"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -2307,10 +2330,13 @@ def salvar_proposta():
             except Exception as _e:
                 print(f"⚠️ [salvar-proposta] Falha ao calcular KPIs no núcleo: {_e}")
         
-        # Salvar dados da proposta
-        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
-        with open(proposta_file, 'w', encoding='utf-8') as f:
-            json.dump(proposta_data, f, ensure_ascii=False, indent=2)
+        # Persistência:
+        # - Em Postgres (USE_DB): DB é fonte de verdade (não gravar em arquivo local).
+        # - Em modo arquivo (dev legado): manter JSON em propostas/.
+        if not USE_DB:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            with open(proposta_file, 'w', encoding='utf-8') as f:
+                json.dump(proposta_data, f, ensure_ascii=False, indent=2)
 
         # Persistir no banco de dados (best-effort)
         try:
@@ -2381,12 +2407,19 @@ def gerar_proposta_html(proposta_id):
         cleanup_old_charts()
         
         # Carregar dados da proposta
-        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
-        if not proposta_file.exists():
-            return f"<html><body><h1>Proposta não encontrada</h1></body></html>", 404
-        
-        with open(proposta_file, 'r', encoding='utf-8') as f:
-            proposta_data = json.load(f)
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return f"<html><body><h1>Proposta não encontrada</h1></body></html>", 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return f"<html><body><h1>Proposta não encontrada</h1></body></html>", 404
+            with open(proposta_file, 'r', encoding='utf-8') as f:
+                proposta_data = json.load(f)
         
         # Processar template usando função centralizada
         template_html = process_template_html(proposta_data)
@@ -2414,12 +2447,19 @@ def gerar_pdf(proposta_id):
         print(f"⚠️ AVISO: Retornando HTML temporariamente (WeasyPrint não disponível)")
         
         # Carregar dados da proposta
-        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
-        if not proposta_file.exists():
-            return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
-        
-        with open(proposta_file, 'r', encoding='utf-8') as f:
-            proposta_data = json.load(f)
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
+            with open(proposta_file, 'r', encoding='utf-8') as f:
+                proposta_data = json.load(f)
         
         # Processar template HTML usando função centralizada
         print(f"🔄 Gerando HTML para proposta {proposta_id}...")
@@ -2446,15 +2486,19 @@ def visualizar_proposta(proposta_id):
         print(f"📊 [visualizar_proposta] Views: {metrics['total_views']} total, {metrics['unique_views']} únicos")
         
         # Carregar dados da proposta
-        proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
-        if not proposta_file.exists():
-            return jsonify({
-                'success': False,
-                'message': 'Proposta não encontrada'
-            }), 404
-        
-        with open(proposta_file, 'r', encoding='utf-8') as f:
-            proposta_data = json.load(f)
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({'success': False, 'message': 'Proposta não encontrada'}), 404
+            with open(proposta_file, 'r', encoding='utf-8') as f:
+                proposta_data = json.load(f)
         
         # Usar o processador central para garantir substituição total de variáveis
         # e injeção dos gráficos/imagens em base64.
@@ -3181,6 +3225,69 @@ def serve_image(filename):
             return "Image not found", 404
     except Exception as e:
         return f"Error serving image: {str(e)}", 500
+
+# -----------------------------------------------------------------------------
+# Proxy Solaryum (produção) — replica o proxy do Vite (/api/solaryum)
+# -----------------------------------------------------------------------------
+SOLARYUM_BASE = "https://api-d1297.cloud.solaryum.com.br"
+
+@app.route('/api/solaryum/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+def proxy_solaryum(subpath):
+    """
+    Proxy server-to-server para a API Solaryum.
+    Motivo: em produção, chamadas diretas do browser podem retornar 400/CORS dependendo do Origin.
+    Este proxy aplica os mesmos headers que usamos no dev via vite.config.js.
+    """
+    try:
+        qs = request.query_string.decode('utf-8') if request.query_string else ''
+        target = urljoin(SOLARYUM_BASE + "/", subpath)
+        if qs:
+            target = f"{target}?{qs}"
+
+        # Preflight
+        if request.method == 'OPTIONS':
+            return ('', 204)
+
+        body = None
+        if request.method in ('POST', 'PUT', 'PATCH'):
+            body = request.get_data() or None
+
+        headers = {
+            'Accept': request.headers.get('Accept', 'text/plain'),
+            'Content-Type': request.headers.get('Content-Type', 'application/json'),
+            'Origin': SOLARYUM_BASE,
+            'Referer': f"{SOLARYUM_BASE}/swagger/index.html",
+            'User-Agent': request.headers.get('User-Agent', 'Mozilla/5.0'),
+        }
+
+        client_ip = request.headers.get('X-Forwarded-For') or request.remote_addr or ''
+        if client_ip:
+            headers['X-Forwarded-For'] = client_ip
+            headers['X-Real-IP'] = client_ip
+            headers['X-Client-IP'] = client_ip
+            headers['Client-IP'] = client_ip
+
+        req = urllib.request.Request(
+            target,
+            data=body,
+            headers=headers,
+            method=request.method
+        )
+
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            resp_body = resp.read()
+            ct = resp.headers.get('Content-Type', 'application/json')
+            return (resp_body, resp.status, {'Content-Type': ct})
+
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read()
+        except Exception:
+            err_body = str(e).encode('utf-8')
+        ct = getattr(e, 'headers', {}).get('Content-Type', 'text/plain') if getattr(e, 'headers', None) else 'text/plain'
+        return (err_body, e.code, {'Content-Type': ct})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/charts/<filename>')
 def serve_chart(filename):
