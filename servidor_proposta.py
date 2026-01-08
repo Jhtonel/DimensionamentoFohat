@@ -806,15 +806,18 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
     const brand = C.brand || {{}};
     const fmtBRL0 = new Intl.NumberFormat('pt-BR', {{ style:'currency', currency:'BRL', maximumFractionDigits:0 }});
     const fmtNum0 = new Intl.NumberFormat('pt-BR', {{ maximumFractionDigits:0 }});
+    
+    // Formatador compacto: R$ 10K, R$ 100K, etc.
+    function fmtCompact(v) {{
+      if (Math.abs(v) >= 1000000) return 'R$ ' + (v/1000000).toFixed(0) + 'M';
+      if (Math.abs(v) >= 1000) return 'R$ ' + (v/1000).toFixed(0) + 'K';
+      return 'R$ ' + v.toFixed(0);
+    }}
 
     function axisLabelEvery5(value, idx) {{
       const n = idx + 1;
-      if (idx === 0 || n === 25 || (n % 5 === 0)) return 'Ano ' + n;
+      if (n === 1 || n === 5 || n === 10 || n === 15 || n === 20 || n === 25) return 'Ano ' + n;
       return '';
-    }}
-
-    function baseGrid() {{
-      return {{ left: 56, right: 20, top: 18, bottom: 48, containLabel: true }};
     }}
 
     function render(elId, option) {{
@@ -823,7 +826,6 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
       try {{
         const chart = echarts.init(el, null, {{ renderer: 'svg' }});
         chart.setOption(option, true);
-        // Responsivo (para preview)
         window.addEventListener('resize', () => chart.resize(), {{ passive:true }});
         return chart;
       }} catch (e) {{
@@ -831,29 +833,33 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
       }}
     }}
 
-    // Slide 03 (bar)
+    // ========== Gráfico 1 - Slide 03 (Seu Gasto Atual - barras) ==========
     if (C.s03 && Array.isArray(C.s03.values) && C.s03.values.length) {{
-      const colors = ['#EF4444','#DC2626','#B91C1C','#991B1B','#7F1D1D','#450A0A'];
+      // Gradiente de vermelho mais suave e harmônico
+      const colors = ['#F97316','#EA580C','#DC2626','#B91C1C','#991B1B','#7F1D1D'];
       render(C.s03.el, {{
         backgroundColor: 'transparent',
-        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
-        grid: baseGrid(),
+        textStyle: {{ fontFamily: 'Poppins, Arial, sans-serif', color: brand.text }},
+        grid: {{ left: 16, right: 16, top: 36, bottom: 32, containLabel: true }},
         xAxis: {{
           type: 'category',
           data: C.s03.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 14, interval:0 }}
+          axisLabel: {{ color: brand.muted, fontSize: 13, interval:0, fontWeight: 500 }}
         }},
         yAxis: {{
           type: 'value',
           axisLine: {{ show:false }},
-          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 13, formatter: (v) => fmtBRL0.format(v) }}
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: fmtCompact }}
         }},
         tooltip: {{
           trigger: 'axis',
           axisPointer: {{ type:'shadow' }},
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: brand.grid,
+          textStyle: {{ color: brand.text }},
           formatter: (p) => {{
             const x = p?.[0]?.axisValueLabel ?? '';
             const v = p?.[0]?.data?.value ?? p?.[0]?.data ?? 0;
@@ -862,34 +868,38 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         }},
         series: [{{
           type: 'bar',
-          data: C.s03.values.map((v,i)=>({{ value:v, itemStyle: {{ color: colors[i] || brand.red }} }})),
-          barWidth: '58%',
-          label: {{ show:true, position:'top', fontSize: 14, fontWeight: 800, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
+          data: C.s03.values.map((v,i)=>({{ value:v, itemStyle: {{ color: colors[i] || brand.red, borderRadius: [4,4,0,0] }} }})),
+          barWidth: '52%',
+          barGap: '30%',
+          label: {{ show:true, position:'top', fontSize: 13, fontWeight: 700, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
         }}]
       }});
     }}
 
-    // Slide 04 (line)
+    // ========== Gráfico 2 - Slide 04 (Evolução da Conta - linha) ==========
     if (C.s04 && Array.isArray(C.s04.values) && C.s04.values.length) {{
       render(C.s04.el, {{
         backgroundColor: 'transparent',
-        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
-        grid: baseGrid(),
+        textStyle: {{ fontFamily: 'Poppins, Arial, sans-serif', color: brand.text }},
+        grid: {{ left: 12, right: 12, top: 24, bottom: 32, containLabel: true }},
         xAxis: {{
           type:'category',
           data: C.s04.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v, idx) => axisLabelEvery5(v, idx) }}
+          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, formatter: axisLabelEvery5 }}
         }},
         yAxis: {{
           type:'value',
           axisLine: {{ show:false }},
-          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v) => fmtBRL0.format(v) }}
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: fmtCompact }}
         }},
         tooltip: {{
           trigger:'axis',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: brand.grid,
+          textStyle: {{ color: brand.text }},
           formatter: (p)=> {{
             const idx = p?.[0]?.dataIndex ?? 0;
             const ano = idx + 1;
@@ -900,48 +910,64 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         series: [{{
           type:'line',
           data: C.s04.values,
-          smooth: true,
+          smooth: 0.3,
           symbol: 'circle',
-          symbolSize: 7,
+          symbolSize: 6,
           lineStyle: {{ width: 3, color: brand.blue }},
           itemStyle: {{ color: brand.blue }},
-          areaStyle: {{ color: 'rgba(30,58,138,0.10)' }}
+          areaStyle: {{ color: {{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{{offset:0,color:'rgba(30,58,138,0.25)'}},{{offset:1,color:'rgba(30,58,138,0.02)'}}] }} }},
+          markPoint: {{
+            symbol: 'circle',
+            symbolSize: 8,
+            data: [
+              {{ xAxis: 4, yAxis: C.s04.values[4], itemStyle: {{ color: brand.blue }} }},
+              {{ xAxis: 9, yAxis: C.s04.values[9], itemStyle: {{ color: brand.blue }} }},
+              {{ xAxis: 14, yAxis: C.s04.values[14], itemStyle: {{ color: brand.blue }} }},
+              {{ xAxis: 19, yAxis: C.s04.values[19], itemStyle: {{ color: brand.blue }} }},
+              {{ xAxis: 24, yAxis: C.s04.values[24], itemStyle: {{ color: brand.blue }} }}
+            ],
+            label: {{ show: false }}
+          }}
         }}]
       }});
     }}
 
-    // Slide 05 (dual bar)
+    // ========== Gráfico 3 - Slide 05 (Consumo x Geração - barras duplas) ==========
     if (C.s05 && Array.isArray(C.s05.labels) && C.s05.labels.length) {{
       render(C.s05.el, {{
         backgroundColor: 'transparent',
-        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
-        grid: {{ left: 52, right: 18, top: 18, bottom: 44, containLabel: true }},
+        textStyle: {{ fontFamily: 'Poppins, Arial, sans-serif', color: brand.text }},
+        grid: {{ left: 8, right: 8, top: 42, bottom: 28, containLabel: true }},
         legend: {{
-          top: 0,
-          right: 8,
-          textStyle: {{ color: brand.muted, fontSize: 12 }},
-          itemWidth: 14,
-          itemHeight: 10
+          top: 4,
+          left: 'center',
+          textStyle: {{ color: brand.muted, fontSize: 11, fontWeight: 500 }},
+          itemWidth: 12,
+          itemHeight: 10,
+          itemGap: 20
         }},
         xAxis: {{
           type:'category',
           data: C.s05.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, interval:0 }}
+          axisLabel: {{ color: brand.muted, fontSize: 11, interval:0, fontWeight: 500 }}
         }},
         yAxis: {{
           type:'value',
           axisLine: {{ show:false }},
-          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v)=>fmtNum0.format(v) }}
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: (v)=>fmtNum0.format(v) }}
         }},
         tooltip: {{
           trigger:'axis',
           axisPointer: {{ type:'shadow' }},
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: brand.grid,
+          textStyle: {{ color: brand.text }},
           formatter: (p)=> {{
             const x = p?.[0]?.axisValueLabel ?? '';
-            const lines = (p||[]).map(s => `${{s.marker}} ${{s.seriesName}}: <b>${{fmtNum0.format(s.data)}}</b>`);
+            const lines = (p||[]).map(s => `${{s.marker}} ${{s.seriesName}}: <b>${{fmtNum0.format(s.data)}} kWh</b>`);
             return `<b>${{x}}</b><br/>${{lines.join('<br/>')}}`;
           }}
         }},
@@ -950,42 +976,45 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             name: 'Consumo médio',
             type:'bar',
             data: (C.s05.consumo || []),
-            barWidth: '30%',
-            itemStyle: {{ color: brand.blue, opacity: 0.85 }}
+            barWidth: '32%',
+            itemStyle: {{ color: brand.blue, borderRadius: [3,3,0,0] }}
           }},
           {{
             name: 'Produção estimada',
             type:'bar',
             data: (C.s05.producao || []),
-            barWidth: '30%',
-            itemStyle: {{ color: brand.green, opacity: 0.85 }},
-            label: {{ show:true, position:'top', fontSize: 12, fontWeight: 800, color: brand.muted, formatter: (p)=>fmtNum0.format(p.value) }}
+            barWidth: '32%',
+            itemStyle: {{ color: brand.green, borderRadius: [3,3,0,0] }},
+            label: {{ show:true, position:'top', fontSize: 10, fontWeight: 700, color: brand.muted, formatter: (p)=>fmtNum0.format(p.value) }}
           }}
         ]
       }});
     }}
 
-    // Slide 06 (line - fluxo caixa acumulado)
+    // ========== Gráfico 4 - Slide 06 (Economia Acumulada - linha) ==========
     if (C.s06 && Array.isArray(C.s06.values) && C.s06.values.length) {{
       render(C.s06.el, {{
         backgroundColor: 'transparent',
-        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
-        grid: baseGrid(),
+        textStyle: {{ fontFamily: 'Poppins, Arial, sans-serif', color: brand.text }},
+        grid: {{ left: 12, right: 12, top: 24, bottom: 32, containLabel: true }},
         xAxis: {{
           type:'category',
           data: C.s06.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v, idx) => axisLabelEvery5(v, idx) }}
+          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, formatter: axisLabelEvery5 }}
         }},
         yAxis: {{
           type:'value',
           axisLine: {{ show:false }},
-          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v) => fmtBRL0.format(v) }}
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: fmtCompact }}
         }},
         tooltip: {{
           trigger:'axis',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: brand.grid,
+          textStyle: {{ color: brand.text }},
           formatter: (p)=> {{
             const idx = p?.[0]?.dataIndex ?? 0;
             const ano = idx + 1;
@@ -996,59 +1025,81 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         series: [{{
           type:'line',
           data: C.s06.values,
-          smooth: true,
+          smooth: 0.3,
           symbol: 'circle',
           symbolSize: 6,
           lineStyle: {{ width: 3, color: brand.green }},
           itemStyle: {{ color: brand.green }},
-          areaStyle: {{ color: 'rgba(5,150,105,0.10)' }}
+          areaStyle: {{ color: {{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{{offset:0,color:'rgba(5,150,105,0.25)'}},{{offset:1,color:'rgba(5,150,105,0.02)'}}] }} }},
+          markPoint: {{
+            symbol: 'circle',
+            symbolSize: 8,
+            data: [
+              {{ xAxis: 4, yAxis: C.s06.values[4], itemStyle: {{ color: brand.green }} }},
+              {{ xAxis: 9, yAxis: C.s06.values[9], itemStyle: {{ color: brand.green }} }},
+              {{ xAxis: 14, yAxis: C.s06.values[14], itemStyle: {{ color: brand.green }} }},
+              {{ xAxis: 19, yAxis: C.s06.values[19], itemStyle: {{ color: brand.green }} }},
+              {{ xAxis: 24, yAxis: C.s06.values[24], itemStyle: {{ color: brand.green }} }}
+            ],
+            label: {{ show: false }}
+          }}
         }}]
       }});
     }}
 
-    // Slide 09 (bar comparativo)
+    // ========== Gráfico 5 - Slide 09 (Comparativo Financeiro - barras) ==========
     if (C.s09 && Array.isArray(C.s09.values) && C.s09.values.length) {{
-      const cats = ['Sem energia solar\\n(25 anos)','Investimento\\n(preço de venda)'];
       render(C.s09.el, {{
         backgroundColor: 'transparent',
-        textStyle: {{ fontFamily: 'Arial, DejaVu Sans, sans-serif', color: brand.text }},
-        grid: {{ left: 56, right: 20, top: 18, bottom: 58, containLabel: true }},
+        textStyle: {{ fontFamily: 'Poppins, Arial, sans-serif', color: brand.text }},
+        grid: {{ left: 16, right: 16, top: 36, bottom: 48, containLabel: true }},
         xAxis: {{
           type:'category',
-          data: cats,
+          data: ['Gasto sem solar\\n(25 anos)', 'Investimento\\nno sistema'],
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, interval:0 }}
+          axisLabel: {{ 
+            color: brand.muted, 
+            fontSize: 12, 
+            fontWeight: 600,
+            interval: 0,
+            lineHeight: 16
+          }}
         }},
         yAxis: {{
           type:'value',
           axisLine: {{ show:false }},
-          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.8 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 12, formatter: (v)=>fmtBRL0.format(v) }}
+          splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
+          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: fmtCompact }}
         }},
         tooltip: {{
           trigger:'axis',
           axisPointer: {{ type:'shadow' }},
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: brand.grid,
+          textStyle: {{ color: brand.text }},
           formatter: (p)=> {{
             const x = p?.[0]?.axisValueLabel ?? '';
-            const v = p?.[0]?.data ?? 0;
-            return `<b>${{x.replace('\\n',' ')}}</b><br/>${{fmtBRL0.format(v)}}`;
+            const v = p?.[0]?.data?.value ?? p?.[0]?.data ?? 0;
+            return `<b>${{x.replace(/\\n/g,' ')}}</b><br/>${{fmtBRL0.format(v)}}`;
           }}
         }},
         series: [{{
           type:'bar',
           data: [
-            {{ value: C.s09.values[0] || 0, itemStyle: {{ color: brand.red }} }},
-            {{ value: C.s09.values[1] || 0, itemStyle: {{ color: brand.blue }} }},
+            {{ value: C.s09.values[0] || 0, itemStyle: {{ color: brand.red, borderRadius: [6,6,0,0] }} }},
+            {{ value: C.s09.values[1] || 0, itemStyle: {{ color: brand.green, borderRadius: [6,6,0,0] }} }}
           ],
-          barWidth: '54%',
-          label: {{ show:true, position:'top', fontSize: 14, fontWeight: 900, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
+          barWidth: '48%',
+          barGap: '40%',
+          label: {{ show:true, position:'top', fontSize: 15, fontWeight: 800, color: brand.text, formatter: (p)=>fmtBRL0.format(p.value) }}
         }}]
       }});
     }}
 
     window.__FOHAT_ECHARTS_READY__ = true;
   }} catch (e) {{
+    console.error('Erro ao renderizar gráficos:', e);
     window.__FOHAT_ECHARTS_READY__ = true;
   }}
 }})();
