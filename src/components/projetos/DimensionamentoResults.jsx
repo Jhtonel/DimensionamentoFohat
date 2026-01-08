@@ -214,58 +214,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     }
   };
 
-  // Carregar template quando o componente montar (apenas se não foi processado pelo servidor)
-  useEffect(() => {
-    // Não executar se o template já foi processado pelo servidor Python
-    if (templateContent && !templateContent.includes('{{')) {
-      return;
-    }
-    
-    const loadTemplate = async () => {
-      try {
-        const response = await fetch('/template.html');
-        let templateHtml = await response.text();
-        
-        // Converter imagens para base64
-        const fohatBase64 = await convertImageToBase64('/img/fohat.svg');
-        const logoBase64 = await convertImageToBase64('/img/logo.svg');
-        const comoFuncionaBase64 = await convertImageToBase64('/img/como-funciona.png');
-        
-        // Substituir URLs das imagens por base64
-        if (fohatBase64) {
-          templateHtml = templateHtml.replace(/url\('\/img\/fohat\.svg'\)/g, `url('${fohatBase64}')`);
-        }
-        if (logoBase64) {
-          templateHtml = templateHtml.replace(/src="\/img\/logo\.svg"/g, `src="${logoBase64}"`);
-        }
-        if (comoFuncionaBase64) {
-          templateHtml = templateHtml.replace(/src="\/img\/como-funciona\.png"/g, `src="${comoFuncionaBase64}"`);
-        }
-        
-        // Substituir variáveis básicas (apenas as que não foram processadas pelo servidor)
-        const clienteSelecionado = clientes.find(c => c.id === formData?.cliente_id);
-        templateHtml = templateHtml.replace(/{{cliente_nome}}/g, clienteSelecionado?.nome || 'Cliente');
-        // Preferir endereço informado na aba Dados Básicos e usar formato resumido
-        const enderecoResumido = formatEnderecoResumido(formData?.endereco_completo || clienteSelecionado?.endereco_completo || '', formData?.cidade || '');
-        templateHtml = templateHtml.replace(/{{cliente_endereco}}/g, enderecoResumido);
-        templateHtml = templateHtml.replace(/{{cliente_telefone}}/g, clienteSelecionado?.telefone || 'Telefone não informado');
-        templateHtml = templateHtml.replace(/{{potencia_sistema_kwp}}/g, dadosSeguros.potencia_sistema_kwp?.toFixed(2) || '0.00');
-        templateHtml = templateHtml.replace(/{{preco_final}}/g, dadosSeguros.preco_final?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 0,00');
-        templateHtml = templateHtml.replace(/{{vendedor_nome}}/g, vendedorDados.nome);
-        templateHtml = templateHtml.replace(/{{vendedor_cargo}}/g, vendedorDados.cargo);
-        templateHtml = templateHtml.replace(/{{vendedor_telefone}}/g, vendedorDados.telefone);
-        templateHtml = templateHtml.replace(/{{vendedor_email}}/g, vendedorDados.email);
-        templateHtml = templateHtml.replace(/{{data_proposta}}/g, new Date().toLocaleDateString('pt-BR'));
-        
-        setTemplateContent(templateHtml);
-      } catch (error) {
-        console.error('Erro ao carregar template:', error);
-        setTemplateContent('<p>Erro ao carregar proposta</p>');
-      }
-    };
-    
-    loadTemplate();
-  }, [formData, clientes, dadosSeguros, configs, templateContent]);
+  // Nota: o PDF deve usar SEMPRE o HTML processado pelo backend (com variáveis + imagens + gráficos).
+  // Evitamos carregar o template cru do /public aqui para não sobrescrever o HTML do servidor.
 
   const salvarProposta = async () => {
     if (isGeneratingPDF || propostaSalva) return;
@@ -501,7 +451,20 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
   // Função para gerar PDF diretamente
   const gerarPDF = async () => {
-    if (!templateContent) {
+    let htmlForPdf = templateContent;
+    // Fonte da verdade: backend (evita placeholders {{}} e garante base64 em imagens/gráficos)
+    if (propostaId) {
+      try {
+        const htmlData = await propostaService.gerarPropostaHTML(propostaId);
+        if (htmlData && htmlData.html_content) {
+          htmlForPdf = htmlData.html_content;
+          setTemplateContent(htmlData.html_content);
+        }
+      } catch (e) {
+        // segue com htmlForPdf do estado como fallback
+      }
+    }
+    if (!htmlForPdf) {
       alert('Template não carregado. Tente novamente.');
       return;
     }
@@ -509,6 +472,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     setIsGeneratingPDF(true);
     
     try {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const withTimeout = async (promise, ms, label) => {
+        return await Promise.race([
+          promise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(label || `Timeout após ${ms}ms`)), ms)
+          ),
+        ]);
+      };
+
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -520,7 +493,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Criar elemento temporário para renderizar o template
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = templateContent;
+      tempDiv.innerHTML = htmlForPdf;
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '-9999px';
@@ -529,12 +502,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       // Garantir carregamento de fontes (ex.: Google Fonts) antes do render do canvas
       try {
         if (document?.fonts?.ready) {
-          await document.fonts.ready;
+          await withTimeout(document.fonts.ready, 15000, 'Timeout ao carregar fontes');
         }
       } catch (_) {}
 
       // Processar cada slide
       const slides = tempDiv.querySelectorAll('.page');
+      if (!slides || slides.length === 0) {
+        throw new Error('Nenhum slide encontrado no HTML da proposta. Tente gerar novamente.');
+      }
 
       for (let i = 0; i < slides.length; i++) {
         const slide = slides[i];
@@ -551,23 +527,28 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             } catch (_) {}
             try {
               if (img.decode) {
-                await img.decode();
+                await withTimeout(img.decode(), 5000, 'Timeout ao decodificar imagem');
                 return;
               }
             } catch (_) {}
-            await new Promise((resolve) => {
-              if (img.complete) return resolve();
-              img.onload = resolve;
-              img.onerror = resolve;
-            });
+            await withTimeout(
+              new Promise((resolve) => {
+                if (img.complete) return resolve();
+                img.onload = resolve;
+                img.onerror = resolve;
+              }),
+              5000,
+              'Timeout ao carregar imagem'
+            );
           }));
         }
 
         // Esperar 2 frames para layout/paint estabilizar antes do html2canvas
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-        const canvas = await html2canvas(slide, {
-          scale: Math.max(2, window.devicePixelRatio || 2),
+        const canvas = await withTimeout(html2canvas(slide, {
+          // reduzir um pouco para evitar travas/memória; ainda fica bem nítido
+          scale: Math.max(1.6, (window.devicePixelRatio || 2)),
           useCORS: true,
           allowTaint: false,
           backgroundColor: '#ffffff',
@@ -575,7 +556,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           height: slide.offsetHeight,
           imageTimeout: 15000,
           removeContainer: true
-        });
+        }), 30000, `Timeout ao renderizar slide ${i + 1}/${slides.length}`);
 
         const imgData = canvas.toDataURL('image/png');
         const imgWidth = canvas.width;
@@ -600,7 +581,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       }
 
       // Remover elemento temporário
-      document.body.removeChild(tempDiv);
+      try { document.body.removeChild(tempDiv); } catch (_) {}
 
       // Baixar PDF
       const fileName = `Proposta_Solar_${propostaData?.potencia_sistema || '0.00'}kWp_${propostaData?.cidade || 'Projeto'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;

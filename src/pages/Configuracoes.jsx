@@ -13,6 +13,10 @@ export default function Configuracoes() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  const hasPropostaConfigs =
+    propostaConfigs &&
+    (propostaConfigs?.chave === "proposta_configs" || propostaConfigs?.id === "proposta_configs");
+
   const instalacaoFaixas = [
     { key: "instalacao_faixa_1_5_base", label: "1–5" },
     { key: "instalacao_faixa_6_10_base", label: "6–10" },
@@ -22,21 +26,22 @@ export default function Configuracoes() {
   ];
 
   const renderInstalacaoPorFaixa = () => {
-    // Mantemos +10% de segurança como padrão de cálculo, mas UI mostra apenas faixa + preço final.
-    const pct = Number(propostaConfigs.instalacao_percentual_seguranca ?? 10) || 10;
+    if (!hasPropostaConfigs) return null;
+    // % de segurança vem do Postgres; sem defaults em UI
+    const pct = Number(propostaConfigs.instalacao_percentual_seguranca);
+    const pctSafe = Number.isFinite(pct) ? pct : 0;
+    const round2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
     const calc = (base) => {
       const b = Number(base || 0) || 0;
-      const add = b * (pct / 100);
+      const add = b * (pctSafe / 100);
       const fin = b + add;
-      const r2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
-      return { base: r2(b), add: r2(add), fin: r2(fin) };
+      return { base: round2(b), add: round2(add), fin: round2(fin) };
     };
     const inv = (final) => {
       const fin = Number(final || 0) || 0;
-      const denom = 1 + (pct / 100);
+      const denom = 1 + (pctSafe / 100);
       const base = denom > 0 ? fin / denom : fin;
-      const r2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
-      return { base: r2(base), fin: r2(fin) };
+      return { base, fin: round2(fin) }; // base com precisão maior (evita drift)
     };
 
     return (
@@ -47,16 +52,12 @@ export default function Configuracoes() {
             <div className="px-3 py-2">Final (R$/placa)</div>
           </div>
           {instalacaoFaixas.map((f) => {
-            const baseValue =
-              propostaConfigs?.[f.key] ??
-              ({
-                instalacao_faixa_1_5_base: 400,
-                instalacao_faixa_6_10_base: 199.31,
-                instalacao_faixa_11_20_base: 150,
-                instalacao_faixa_21_40_base: 140,
-                instalacao_faixa_41_80_base: 125,
-              }[f.key] ?? 0);
-            const { fin } = calc(baseValue);
+            const baseValue = propostaConfigs?.[f.key] ?? 0;
+            const finalKey = String(f.key).replace(/_base$/, "_final");
+            const finStoredRaw = propostaConfigs?.[finalKey];
+            const finStored = finStoredRaw == null ? null : round2(finStoredRaw);
+            const finComputed = calc(baseValue).fin;
+            const fin = finStored != null ? finStored : finComputed;
             return (
               <div key={f.key} className="grid grid-cols-2 gap-0 border-t border-blue-100 text-sm">
                 <div className="px-3 py-2 text-gray-700">{f.label}</div>
@@ -67,12 +68,14 @@ export default function Configuracoes() {
                     value={fin}
                     onChange={(e) => {
                       const nextFinal = parseFloat(e.target.value);
-                      const { base: nextBase } = inv(nextFinal);
+                      const nextFinal2 = round2(nextFinal);
+                      const { base: nextBaseRaw } = inv(nextFinal2);
                       setPropostaConfigs((prev) => ({
                         ...prev,
-                        // garantir que pct exista mesmo que nunca tenha sido salvo
-                        instalacao_percentual_seguranca: prev?.instalacao_percentual_seguranca ?? 10,
-                        [f.key]: nextBase,
+                        // sem defaults: apenas atualizar base por faixa
+                        [finalKey]: nextFinal2,
+                        // manter base com mais precisão para cálculos, sem arredondar a 2 casas
+                        [f.key]: Number.isFinite(nextBaseRaw) ? nextBaseRaw : prev?.[f.key],
                       }));
                     }}
                   />
@@ -105,36 +108,9 @@ export default function Configuracoes() {
         }
         setPropostaConfigs(normalized);
       } else {
-        const newPropostaConfig = {
-          chave: "proposta_configs",
-          tipo: "proposta",
-          aumento_anual_energia: 4.1,
-          margem_base: 25,
-          comissao_vendedor_padrao: 5,
-          // Instalação por placa (por faixa) + segurança
-          instalacao_percentual_seguranca: 10,
-          instalacao_faixa_1_5_base: 400,
-          instalacao_faixa_6_10_base: 199.31,
-          instalacao_faixa_11_20_base: 150,
-          instalacao_faixa_21_40_base: 140,
-          instalacao_faixa_41_80_base: 125,
-          custo_ca_aterramento_por_placa: 100,
-          custo_placas_sinalizacao: 60,
-          percentual_obra_instalacao: 10,
-          percentual_despesas_gerais: 10,
-          percentual_despesas_diretoria: 1,
-          percentual_impostos: 3.3,
-          percentual_divisao_lucro: 40,
-          percentual_fundo_caixa: 20,
-          // Tabela Fohat (homologação por faixa)
-          homologacao_ate_10_kwp: 500,
-          homologacao_ate_25_kwp: 1000,
-          homologacao_ate_50_kwp: 1500,
-          homologacao_ate_75_kwp: 2000,
-          // Compatibilidade com chave antiga
-          homologacao_ate_20_kwp: 1000
-        };
-        setPropostaConfigs(newPropostaConfig);
+        // Sem defaults: isso deve estar sempre configurado no painel admin (Postgres).
+        setPropostaConfigs({});
+        setLoadError("Configuração 'proposta_configs' não encontrada no Postgres. Faça login como admin/gestor e salve as configurações.");
       }
     } catch (e) {
       console.error("Erro ao carregar configurações:", e);
@@ -146,6 +122,9 @@ export default function Configuracoes() {
   const handleSavePropostaConfigs = async () => {
     setLoading(true);
     try {
+      if (!hasPropostaConfigs) {
+        throw new Error("Configuração 'proposta_configs' não carregada. Recarregue a página e verifique seu acesso.");
+      }
       // Garantir compatibilidade: persistir também a chave antiga (ate_20) com o valor do ate_25
       const payload = {
         ...propostaConfigs,
@@ -313,7 +292,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.margem_base || 25}
+                        value={hasPropostaConfigs ? (propostaConfigs.margem_base ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, margem_base: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -322,7 +301,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.comissao_vendedor_padrao || 5}
+                        value={hasPropostaConfigs ? (propostaConfigs.comissao_vendedor_padrao ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, comissao_vendedor_padrao: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -340,7 +319,7 @@ export default function Configuracoes() {
                       <Label>Custo CA/Aterramento por Placa (R$)</Label>
                       <Input
                         type="number"
-                        value={propostaConfigs.custo_ca_aterramento_por_placa || 100}
+                        value={hasPropostaConfigs ? (propostaConfigs.custo_ca_aterramento_por_placa ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_ca_aterramento_por_placa: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -348,7 +327,7 @@ export default function Configuracoes() {
                       <Label>Custo Placas Sinalização (R$)</Label>
                       <Input
                         type="number"
-                        value={propostaConfigs.custo_placas_sinalizacao || 60}
+                        value={hasPropostaConfigs ? (propostaConfigs.custo_placas_sinalizacao ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, custo_placas_sinalizacao: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -363,7 +342,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.percentual_despesas_gerais || 10}
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_despesas_gerais ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_despesas_gerais: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -372,7 +351,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.percentual_despesas_diretoria || 1}
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_despesas_diretoria ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_despesas_diretoria: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -381,7 +360,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.percentual_impostos || 3.3}
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_impostos ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_impostos: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -396,7 +375,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.percentual_divisao_lucro || 40}
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_divisao_lucro ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_divisao_lucro: parseFloat(e.target.value) }))}
                       />
                     </div>
@@ -405,7 +384,7 @@ export default function Configuracoes() {
                       <Input
                         type="number"
                         step="0.1"
-                        value={propostaConfigs.percentual_fundo_caixa || 20}
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_fundo_caixa ?? "") : ""}
                         onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_fundo_caixa: parseFloat(e.target.value) }))}
                       />
                     </div>

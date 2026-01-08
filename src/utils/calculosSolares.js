@@ -370,6 +370,7 @@ export function calcularInstalacaoPorPlaca(quantidadePaineis, configs = {}) {
   const safePct = Number.isFinite(pct) ? pct : 10;
 
   const legacy = Number(configs?.custo_instalacao_por_placa ?? 200);
+  const round2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
 
   const bases = {
     f1_5: Number(configs?.instalacao_faixa_1_5_base ?? 400),
@@ -378,6 +379,25 @@ export function calcularInstalacaoPorPlaca(quantidadePaineis, configs = {}) {
     f21_40: Number(configs?.instalacao_faixa_21_40_base ?? 140),
     f41_80: Number(configs?.instalacao_faixa_41_80_base ?? 125),
     facima80: Number(configs?.instalacao_faixa_acima_80_base ?? (configs?.instalacao_faixa_41_80_base ?? 125)),
+  };
+
+  const finals = {
+    f1_5: configs?.instalacao_faixa_1_5_final,
+    f6_10: configs?.instalacao_faixa_6_10_final,
+    f11_20: configs?.instalacao_faixa_11_20_final,
+    f21_40: configs?.instalacao_faixa_21_40_final,
+    f41_80: configs?.instalacao_faixa_41_80_final,
+    facima80: configs?.instalacao_faixa_acima_80_final,
+  };
+
+  const faixaKey = () => {
+    if (!q) return null;
+    if (q <= 5) return "f1_5";
+    if (q <= 10) return "f6_10";
+    if (q <= 20) return "f11_20";
+    if (q <= 40) return "f21_40";
+    if (q <= 80) return "f41_80";
+    return "facima80";
   };
 
   const pickBase = () => {
@@ -400,11 +420,26 @@ export function calcularInstalacaoPorPlaca(quantidadePaineis, configs = {}) {
     return Number.isFinite(bases.facima80) ? bases.facima80 : legacy;
   };
 
-  const base = pickBase();
-  const adicional = base * (safePct / 100);
-  const valorFinal = base + adicional;
-  // arredondar para 2 casas como moeda
-  const round2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+  const fk = faixaKey();
+
+  // Se existir valor final por faixa salvo explicitamente (sem drift), ele é a fonte da verdade
+  const finalOverrideRaw = fk ? finals[fk] : null;
+  const finalOverride = finalOverrideRaw == null ? null : round2(finalOverrideRaw);
+
+  let base = pickBase();
+  let adicional = 0;
+  let valorFinal = 0;
+
+  if (finalOverride != null) {
+    valorFinal = finalOverride;
+    const denom = 1 + (safePct / 100);
+    base = denom > 0 ? (valorFinal / denom) : valorFinal;
+    adicional = valorFinal - base;
+  } else {
+    adicional = base * (safePct / 100);
+    valorFinal = base + adicional;
+  }
+
   return {
     quantidade: q,
     percentual_seguranca: safePct,
