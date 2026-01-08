@@ -2418,6 +2418,56 @@ def debug_slide10(proposta_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
+@app.route('/debug/slide10-render/<proposta_id>', methods=['GET'])
+def debug_slide10_render(proposta_id):
+    """
+    Diagnóstico: roda o process_template_html completo e extrai apenas os valores
+    renderizados no Slide 10 (sem retornar HTML inteiro e sem PII).
+    """
+    try:
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                proposta_data = json.load(f)
+
+        html = process_template_html(proposta_data)
+
+        # Extrair apenas dados do Slide 10
+        # - valores dos destaques
+        # - contagem de itens de parcelas renderizados
+        m_avista = re.search(r'<div class="destaque-valor">\\s*([^<]+?)\\s*</div>', html)
+        # segunda ocorrência é a do financiamento (class azul). capturar pela classe azul
+        m_menor = re.search(r'<div class="destaque-valor azul">\\s*([^<]+?)\\s*</div>', html)
+        n_items = len(re.findall(r'class="parcela-item"', html))
+
+        # Contagem por seção (cartão e financiamento) dentro do slide 10 (melhor esforço)
+        slide10 = ""
+        m_slide = re.search(r'<section id="slide-10"[\\s\\S]*?</section>', html)
+        if m_slide:
+            slide10 = m_slide.group(0)
+        n_items_slide10 = len(re.findall(r'class="parcela-item"', slide10)) if slide10 else 0
+
+        return jsonify({
+            "success": True,
+            "avista_render": (m_avista.group(1).strip() if m_avista else None),
+            "menor_render": (m_menor.group(1).strip() if m_menor else None),
+            "parcelas_itens_total": n_items,
+            "parcelas_itens_slide10": n_items_slide10,
+            "placeholders_restantes": len(re.findall(r'\\{\\{[^}]+\\}\\}', slide10)) if slide10 else None,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/analise/gerar-graficos', methods=['POST'])
 def analise_gerar_graficos():
     """
