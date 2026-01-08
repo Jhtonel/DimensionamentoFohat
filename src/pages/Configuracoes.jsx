@@ -23,7 +23,16 @@ export default function Configuracoes() {
     // Carregar configurações de proposta
     const propostaConfig = configsData.find(c => c.chave === "proposta_configs");
     if (propostaConfig) {
-      setPropostaConfigs(propostaConfig);
+      // Compatibilidade: se vier config antiga (até 20), expor também o campo novo (até 25)
+      const normalized = { ...propostaConfig };
+      if (normalized.homologacao_ate_25_kwp == null && normalized.homologacao_ate_20_kwp != null) {
+        normalized.homologacao_ate_25_kwp = normalized.homologacao_ate_20_kwp;
+      }
+      // Se não existir "até 5", usar o mesmo de "até 10" (mantém consistência com a tabela)
+      if (normalized.homologacao_ate_5_kwp == null && normalized.homologacao_ate_10_kwp != null) {
+        normalized.homologacao_ate_5_kwp = normalized.homologacao_ate_10_kwp;
+      }
+      setPropostaConfigs(normalized);
     } else {
       const newPropostaConfig = {
         chave: "proposta_configs",
@@ -40,11 +49,14 @@ export default function Configuracoes() {
         percentual_impostos: 3.3,
         percentual_divisao_lucro: 40,
         percentual_fundo_caixa: 20,
-        homologacao_ate_5_kwp: 465,
-        homologacao_ate_10_kwp: 565,
-        homologacao_ate_20_kwp: 765,
-        homologacao_ate_50_kwp: 865,
-        homologacao_ate_75_kwp: 1065
+        // Tabela Fohat (homologação por faixa)
+        homologacao_ate_5_kwp: 500,
+        homologacao_ate_10_kwp: 500,
+        homologacao_ate_25_kwp: 1000,
+        homologacao_ate_50_kwp: 1500,
+        homologacao_ate_75_kwp: 2000,
+        // Compatibilidade com chave antiga
+        homologacao_ate_20_kwp: 1000
       };
       setPropostaConfigs(newPropostaConfig);
     }
@@ -53,10 +65,15 @@ export default function Configuracoes() {
   const handleSavePropostaConfigs = async () => {
     setLoading(true);
     try {
-      if (propostaConfigs.id) {
-        await Configuracao.update(propostaConfigs.id, propostaConfigs);
+      // Garantir compatibilidade: persistir também a chave antiga (ate_20) com o valor do ate_25
+      const payload = {
+        ...propostaConfigs,
+        homologacao_ate_20_kwp: propostaConfigs.homologacao_ate_25_kwp ?? propostaConfigs.homologacao_ate_20_kwp
+      };
+      if (payload.id) {
+        await Configuracao.update(payload.id, payload);
       } else {
-        await Configuracao.create(propostaConfigs);
+        await Configuracao.create(payload);
       }
       alert('Configurações de proposta salvas com sucesso!');
     } catch (error) {
@@ -149,15 +166,18 @@ export default function Configuracoes() {
                       />
                     </div>
                     <div>
-                      <Label>até 20 kWp (R$)</Label>
+                      <Label>10,1 até 25 kWp (R$)</Label>
                       <Input
                         type="number"
-                        value={propostaConfigs.homologacao_ate_20_kwp ?? 0}
-                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_20_kwp: parseFloat(e.target.value) }))}
+                        value={(propostaConfigs.homologacao_ate_25_kwp ?? propostaConfigs.homologacao_ate_20_kwp) ?? 0}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          setPropostaConfigs(prev => ({ ...prev, homologacao_ate_25_kwp: v, homologacao_ate_20_kwp: v }));
+                        }}
                       />
                     </div>
                     <div>
-                      <Label>até 50 kWp (R$)</Label>
+                      <Label>25,1 até 50 kWp (R$)</Label>
                       <Input
                         type="number"
                         value={propostaConfigs.homologacao_ate_50_kwp ?? 0}
@@ -165,7 +185,7 @@ export default function Configuracoes() {
                       />
                     </div>
                     <div>
-                      <Label>até 75 kWp (R$)</Label>
+                      <Label>50,1 até 75 kWp (R$)</Label>
                       <Input
                         type="number"
                         value={propostaConfigs.homologacao_ate_75_kwp ?? 0}

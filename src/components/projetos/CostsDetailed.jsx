@@ -59,14 +59,14 @@ export default function CostsDetailed({
       equipamentos: custoEquipamentos,
       instalacao: (quantidadePlacas || 0) * 200,
       caAterramento: (quantidadePlacas || 0) * 100,
-      homologacao: 400,
+      homologacao: 500,
       placasSinalizacao: 60,
       despesasGerais: ((quantidadePlacas || 0) * 200) * 0.1, // 10% sobre instalação
       total:
         (custoEquipamentos || 0) +
         ((quantidadePlacas || 0) * 200) +
         ((quantidadePlacas || 0) * 100) +
-        400 +
+        500 +
         60 +
         (((quantidadePlacas || 0) * 200) * 0.1),
     };

@@ -1646,12 +1646,18 @@ export default function NovoProjeto() {
   };
 
   const calcularCustoHomologacao = (potenciaKwp) => {
-    if (potenciaKwp <= 5) return 465;
-    if (potenciaKwp <= 10) return 565;
-    if (potenciaKwp <= 20) return 765;
-    if (potenciaKwp <= 50) return 865;
-    if (potenciaKwp <= 75) return 1065;
-    return 1265;
+    // Tabela Fohat (homologação por faixa)
+    // Até 10 kWp: R$ 500
+    // 10,1 a 25 kWp: R$ 1.000
+    // 25,1 a 50 kWp: R$ 1.500
+    // 50,1 a 75 kWp: R$ 2.000
+    // Obs.: mantemos "até 5" por compatibilidade (mesmo valor do "até 10")
+    if (potenciaKwp <= 5) return 500;
+    if (potenciaKwp <= 10) return 500;
+    if (potenciaKwp <= 25) return 1000;
+    if (potenciaKwp <= 50) return 1500;
+    if (potenciaKwp <= 75) return 2000;
+    return 2000;
   };
 
   // Nova função para calcular custo operacional com os valores atualizados

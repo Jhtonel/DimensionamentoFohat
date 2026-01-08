@@ -308,19 +308,30 @@ export function calcularProjecaoFinanceira({
  */
 export function calcularCustoHomologacao(potenciaKwp, faixas = {}) {
   const defaultFaixas = {
-    ate5: 465,
-    ate10: 565,
-    ate20: 765,
-    ate50: 865,
-    ate75: 1065,
-    acima75: 1265
+    // Padrão (Fohat) — conforme tabela:
+    // Até 10 kWp: R$ 500
+    // 10,1 a 25 kWp: R$ 1.000
+    // 25,1 a 50 kWp: R$ 1.500
+    // 50,1 a 75 kWp: R$ 2.000
+    // Obs.: Mantemos "até 5" por compatibilidade (mesmo valor do "até 10").
+    ate5: 500,
+    ate10: 500,
+    ate25: 1000,
+    ate50: 1500,
+    ate75: 2000,
+    // Não informado na tabela; manter monotônico (>= ate75)
+    acima75: 2000
   };
   
   const f = { ...defaultFaixas, ...faixas };
+  // Compatibilidade com configs antigas (ate20)
+  if ((f.ate25 === undefined || f.ate25 === null) && (f.ate20 !== undefined && f.ate20 !== null)) {
+    f.ate25 = f.ate20;
+  }
   
   if (potenciaKwp <= 5) return f.ate5;
   if (potenciaKwp <= 10) return f.ate10;
-  if (potenciaKwp <= 20) return f.ate20;
+  if (potenciaKwp <= 25) return f.ate25;
   if (potenciaKwp <= 50) return f.ate50;
   if (potenciaKwp <= 75) return f.ate75;
   return f.acima75;
