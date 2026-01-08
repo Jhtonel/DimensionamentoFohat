@@ -1505,13 +1505,31 @@ def process_template_html(proposta_data):
         # ====== FORMAS DE PAGAMENTO (Slide 10) ======
         try:
             preco_final_pagamento = float(proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)) or 0)
-            pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
-            template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
-            template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
-            template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
-            template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
+            print(f"💰 [SLIDE10] Preço para pagamento: {preco_final_pagamento}")
+            
+            if preco_final_pagamento > 0:
+                pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
+                template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
+                template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
+                template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
+                template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
+                print(f"✅ [SLIDE10] Parcelas calculadas com sucesso")
+            else:
+                # Valores padrão se não tiver preço
+                template_html = template_html.replace('{{parcelas_cartao}}', '<div class="parcela-item"><span class="parcela-numero">Consulte</span><span class="parcela-valor">valores</span></div>')
+                template_html = template_html.replace('{{parcelas_financiamento}}', '<div class="parcela-item"><span class="parcela-numero">Consulte</span><span class="parcela-valor">valores</span></div>')
+                template_html = template_html.replace('{{valor_avista_cartao}}', 'Consulte')
+                template_html = template_html.replace('{{menor_parcela_financiamento}}', 'Consulte')
+                print(f"⚠️ [SLIDE10] Preço zerado, usando valores placeholder")
         except Exception as e:
-            print(f"⚠️ Erro ao processar formas de pagamento: {e}")
+            print(f"❌ [SLIDE10] Erro ao processar formas de pagamento: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback - substituir com valores vazios para não mostrar as variáveis
+            template_html = template_html.replace('{{parcelas_cartao}}', '')
+            template_html = template_html.replace('{{parcelas_financiamento}}', '')
+            template_html = template_html.replace('{{valor_avista_cartao}}', 'R$ 0,00')
+            template_html = template_html.replace('{{menor_parcela_financiamento}}', 'R$ 0,00')
         
         return template_html
         
@@ -2067,7 +2085,13 @@ def _load_formas_pagamento():
                     """)
                     row = cur.fetchone()
                     if row:
-                        return row[0]
+                        value = row[0]
+                        # Se for string, parsear como JSON
+                        if isinstance(value, str):
+                            value = json.loads(value)
+                        # Validar se tem as chaves necessárias
+                        if isinstance(value, dict) and value.get("pagseguro"):
+                            return value
             finally:
                 db_pool.putconn(conn)
     except Exception as e:
@@ -2125,27 +2149,35 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     if formas_pagamento is None:
         formas_pagamento = _load_formas_pagamento()
     
+    print(f"💳 [PAGAMENTO] Valor total: {valor_total}, Formas: {type(formas_pagamento)}")
+    
+    # Garantir que temos os dados padrão se necessário
+    if not formas_pagamento or not formas_pagamento.get("pagseguro"):
+        print("⚠️ [PAGAMENTO] Usando taxas padrão")
+        formas_pagamento = DEFAULT_FORMAS_PAGAMENTO
+    
     def fmt_currency(val):
         return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     
     # Parcelas de cartão (taxa simples sobre o valor)
     parcelas_cartao_html = ""
-    for item in formas_pagamento.get("pagseguro", [])[:6]:  # Mostrar apenas 6 opções
+    pagseguro_list = formas_pagamento.get("pagseguro", DEFAULT_FORMAS_PAGAMENTO["pagseguro"])
+    print(f"💳 [PAGAMENTO] PagSeguro: {len(pagseguro_list)} opções")
+    
+    for item in pagseguro_list[:6]:  # Mostrar apenas 6 opções
         parcelas = item.get("parcelas", 1)
         taxa = item.get("taxa", 0)
         valor_com_taxa = valor_total * (1 + taxa / 100)
         valor_parcela = valor_com_taxa / parcelas
-        parcelas_cartao_html += f'''
-            <div class="parcela-item">
-              <span class="parcela-numero">{parcelas}x de</span>
-              <span class="parcela-valor">{fmt_currency(valor_parcela)}</span>
-            </div>
-        '''
+        parcelas_cartao_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
     
     # Parcelas de financiamento (juros compostos - Price)
     parcelas_financiamento_html = ""
     menor_parcela = float('inf')
-    for item in formas_pagamento.get("financiamento", []):
+    financiamento_list = formas_pagamento.get("financiamento", DEFAULT_FORMAS_PAGAMENTO["financiamento"])
+    print(f"🏦 [PAGAMENTO] Financiamento: {len(financiamento_list)} opções")
+    
+    for item in financiamento_list:
         parcelas = item.get("parcelas", 1)
         taxa_mensal = item.get("taxa", 0) / 100
         
@@ -2158,15 +2190,10 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         if valor_parcela < menor_parcela:
             menor_parcela = valor_parcela
         
-        parcelas_financiamento_html += f'''
-            <div class="parcela-item">
-              <span class="parcela-numero">{parcelas}x de</span>
-              <span class="parcela-valor">{fmt_currency(valor_parcela)}</span>
-            </div>
-        '''
+        parcelas_financiamento_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
     
     # Valor à vista no cartão (1x com taxa)
-    primeira_taxa = formas_pagamento.get("pagseguro", [{"taxa": 3.16}])[0].get("taxa", 3.16)
+    primeira_taxa = pagseguro_list[0].get("taxa", 3.16) if pagseguro_list else 3.16
     valor_avista = valor_total * (1 + primeira_taxa / 100)
     
     return {
