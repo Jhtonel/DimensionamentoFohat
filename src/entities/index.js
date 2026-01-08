@@ -541,55 +541,42 @@ class Configuracao extends BaseEntity {
 
   static async list() {
     // Hoje usamos Configuracao.list principalmente para proposta_configs (tela de Configurações)
-    try {
-      const serverUrl = this.getServerUrl();
-      const resp = await fetch(`${serverUrl}/config/proposta-configs?t=${Date.now()}`, {
-        headers: { ...this._getAuthHeaders() }
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        const cfg = json?.config;
-        if (cfg && typeof cfg === 'object') {
-          return [cfg];
-        }
-        return [];
-      }
-    } catch (_) {}
-    // fallback: memória (não persistente)
-    return super.list();
+    const serverUrl = this.getServerUrl();
+    const resp = await fetch(`${serverUrl}/config/proposta-configs?t=${Date.now()}`, {
+      headers: { ...this._getAuthHeaders() }
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || json?.success === false) {
+      throw new Error(json?.message || `Falha ao carregar configurações (${resp.status})`);
+    }
+    const cfg = json?.config;
+    if (cfg && typeof cfg === 'object') return [cfg];
+    return [];
   }
 
   static async create(data) {
-    try {
-      const serverUrl = this.getServerUrl();
-      const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
-        body: JSON.stringify(data || {})
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao salvar configuração');
-      return json?.config || data;
-    } catch (e) {
-      return super.create(data);
-    }
+    const serverUrl = this.getServerUrl();
+    const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+      body: JSON.stringify(data || {})
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json?.success) throw new Error(json?.message || `Falha ao salvar configuração (${resp.status})`);
+    return json?.config || data;
   }
 
   static async update(id, data) {
     // id é ignorado pois o endpoint é fixo (proposta_configs)
-    try {
-      const serverUrl = this.getServerUrl();
-      const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
-        body: JSON.stringify(data || {})
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao salvar configuração');
-      return json?.config || data;
-    } catch (e) {
-      return super.update(id, data);
-    }
+    const serverUrl = this.getServerUrl();
+    const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+      body: JSON.stringify(data || {})
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json?.success) throw new Error(json?.message || `Falha ao salvar configuração (${resp.status})`);
+    return json?.config || data;
   }
 
   // Método para buscar todas as concessionárias do backend (dados ANEEL)

@@ -2,6 +2,7 @@ import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { propostaService } from '../../services/propostaService.js';
 import { Configuracao } from '../../entities/index.js';
+import { calcularInstalacaoPorPlaca } from '../../utils/calculosSolares.js';
 
 // UI base usada no projeto
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card.jsx';
@@ -55,20 +56,22 @@ export default function CostsDetailed({
     const quantidadePlacas = quantidadesCalculadas?.paineis || 0;
     const potenciaKwp = Number(formData?.potencia_kw || formData?.potencia_kwp || 0) || 0;
     const custoEquipamentos = kitSelecionado?.precoTotal || resumoCalculos?.custoEquipamentos || 0;
+    const fallbackInst = calcularInstalacaoPorPlaca(quantidadePlacas || 0, {});
+    const fallbackInstTotal = (quantidadePlacas || 0) * (fallbackInst?.final_por_placa || 0);
     const custoOp = resumoCalculos?.custoOp || {
       equipamentos: custoEquipamentos,
-      instalacao: (quantidadePlacas || 0) * 200,
+      instalacao: fallbackInstTotal,
       caAterramento: (quantidadePlacas || 0) * 100,
       homologacao: 500,
       placasSinalizacao: 60,
-      despesasGerais: ((quantidadePlacas || 0) * 200) * 0.1, // 10% sobre instalação
+      despesasGerais: fallbackInstTotal * 0.1, // 10% sobre instalação (fallback)
       total:
         (custoEquipamentos || 0) +
-        ((quantidadePlacas || 0) * 200) +
+        fallbackInstTotal +
         ((quantidadePlacas || 0) * 100) +
         500 +
         60 +
-        (((quantidadePlacas || 0) * 200) * 0.1),
+        (fallbackInstTotal * 0.1),
     };
 
     const precoVenda = Number(resumoCalculos?.precoVenda || formData?.preco_venda || formData?.preco_final || 0) || 0;

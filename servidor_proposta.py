@@ -431,7 +431,8 @@ def _require_admin_access_app() -> bool:
     """
     Admin baseado no nosso banco:
     - aceita ROLE_ADMIN_SECRET (compat)
-    - ou JWT do app com user.role == admin
+    - ou JWT do app com user.role == admin/gestor
+    - ou e-mail presente em ADMIN_EMAILS
     """
     secret = (os.environ.get("ROLE_ADMIN_SECRET") or "").strip()
     if secret and _require_role_admin_secret():
@@ -439,11 +440,19 @@ def _require_admin_access_app() -> bool:
     email = _get_request_email_from_app_jwt()
     if not email:
         return False
+    # Override por env (produção)
+    try:
+        admin_emails = _parse_env_emails("ADMIN_EMAILS")
+        if email in admin_emails:
+            return True
+    except Exception:
+        pass
     try:
         db = SessionLocal()
         u = db.query(UserDB).filter(UserDB.email == email).first()
         db.close()
-        return bool(u and (u.role or "").strip().lower() == "admin")
+        role = (u.role or "").strip().lower() if u else ""
+        return bool(u and role in ("admin", "gestor"))
     except Exception:
         return False
 
@@ -2103,9 +2112,10 @@ def get_proposta_configs():
     try:
         if not USE_DB:
             return jsonify({"success": True, "config": None, "source": "file"}), 200
-        # Admin-only (tela de configurações é restrita)
-        if not _require_admin_access_app():
-            return jsonify({"success": False, "message": "Não autorizado"}), 403
+        # Qualquer usuário autenticado pode ler (usado nos cálculos do projeto)
+        me = _require_auth()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
         db = SessionLocal()
         row = db.get(ConfigDB, "proposta_configs")
         db.close()

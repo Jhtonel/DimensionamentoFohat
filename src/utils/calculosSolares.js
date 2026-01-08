@@ -321,7 +321,17 @@ export function calcularCustoHomologacao(potenciaKwp, faixas = {}) {
     acima75: 2000
   };
   
-  const f = { ...defaultFaixas, ...faixas };
+  // Aceitar tanto o schema novo do app (homologacao_ate_XX_kwp) quanto o antigo (ateXX)
+  const mapped = { ...faixas };
+  if (mapped && typeof mapped === "object") {
+    if (mapped.homologacao_ate_10_kwp != null && mapped.ate10 == null) mapped.ate10 = mapped.homologacao_ate_10_kwp;
+    if (mapped.homologacao_ate_25_kwp != null && mapped.ate25 == null) mapped.ate25 = mapped.homologacao_ate_25_kwp;
+    if (mapped.homologacao_ate_20_kwp != null && mapped.ate20 == null) mapped.ate20 = mapped.homologacao_ate_20_kwp;
+    if (mapped.homologacao_ate_50_kwp != null && mapped.ate50 == null) mapped.ate50 = mapped.homologacao_ate_50_kwp;
+    if (mapped.homologacao_ate_75_kwp != null && mapped.ate75 == null) mapped.ate75 = mapped.homologacao_ate_75_kwp;
+  }
+
+  const f = { ...defaultFaixas, ...mapped };
   // Compatibilidade com configs antigas (ate20)
   if ((f.ate25 === undefined || f.ate25 === null) && (f.ate20 !== undefined && f.ate20 !== null)) {
     f.ate25 = f.ate20;
@@ -335,14 +345,90 @@ export function calcularCustoHomologacao(potenciaKwp, faixas = {}) {
 }
 
 /**
+ * Calcula o custo de instalação por placa usando faixas + percentual de segurança.
+ *
+ * Padrão (conforme tabela enviada):
+ * - 1–5:   base 400,00  (+10%) => 440,00
+ * - 6–10:  base 199,31  (+10%) => 219,24
+ * - 11–20: base 150,00  (+10%) => 165,00
+ * - 21–40: base 140,00  (+10%) => 154,00
+ * - 41–80: base 125,00  (+10%) => 137,50
+ *
+ * Campos suportados em configs:
+ * - instalacao_percentual_seguranca
+ * - instalacao_faixa_1_5_base
+ * - instalacao_faixa_6_10_base
+ * - instalacao_faixa_11_20_base
+ * - instalacao_faixa_21_40_base
+ * - instalacao_faixa_41_80_base
+ * - instalacao_faixa_acima_80_base (opcional)
+ * - custo_instalacao_por_placa (fallback legado)
+ */
+export function calcularInstalacaoPorPlaca(quantidadePaineis, configs = {}) {
+  const q = Math.max(0, Number(quantidadePaineis || 0) || 0);
+  const pct = Number(configs?.instalacao_percentual_seguranca ?? 10);
+  const safePct = Number.isFinite(pct) ? pct : 10;
+
+  const legacy = Number(configs?.custo_instalacao_por_placa ?? 200);
+
+  const bases = {
+    f1_5: Number(configs?.instalacao_faixa_1_5_base ?? 400),
+    f6_10: Number(configs?.instalacao_faixa_6_10_base ?? 199.31),
+    f11_20: Number(configs?.instalacao_faixa_11_20_base ?? 150),
+    f21_40: Number(configs?.instalacao_faixa_21_40_base ?? 140),
+    f41_80: Number(configs?.instalacao_faixa_41_80_base ?? 125),
+    facima80: Number(configs?.instalacao_faixa_acima_80_base ?? (configs?.instalacao_faixa_41_80_base ?? 125)),
+  };
+
+  const pickBase = () => {
+    if (!q) return 0;
+    // Se o projeto estiver usando só a config antiga, respeitar
+    const hasNew =
+      configs?.instalacao_faixa_1_5_base != null ||
+      configs?.instalacao_faixa_6_10_base != null ||
+      configs?.instalacao_faixa_11_20_base != null ||
+      configs?.instalacao_faixa_21_40_base != null ||
+      configs?.instalacao_faixa_41_80_base != null ||
+      configs?.instalacao_faixa_acima_80_base != null;
+    if (!hasNew && Number.isFinite(legacy)) return legacy;
+
+    if (q <= 5) return Number.isFinite(bases.f1_5) ? bases.f1_5 : legacy;
+    if (q <= 10) return Number.isFinite(bases.f6_10) ? bases.f6_10 : legacy;
+    if (q <= 20) return Number.isFinite(bases.f11_20) ? bases.f11_20 : legacy;
+    if (q <= 40) return Number.isFinite(bases.f21_40) ? bases.f21_40 : legacy;
+    if (q <= 80) return Number.isFinite(bases.f41_80) ? bases.f41_80 : legacy;
+    return Number.isFinite(bases.facima80) ? bases.facima80 : legacy;
+  };
+
+  const base = pickBase();
+  const adicional = base * (safePct / 100);
+  const valorFinal = base + adicional;
+  // arredondar para 2 casas como moeda
+  const round2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+  return {
+    quantidade: q,
+    percentual_seguranca: safePct,
+    base_por_placa: round2(base),
+    adicional_seguranca_por_placa: round2(adicional),
+    final_por_placa: round2(valorFinal),
+  };
+}
+
+/**
  * Calcula custo de instalação
  * 
  * @param {number} quantidadePaineis - Número de painéis
- * @param {number} custoPorPainel - Custo de instalação por painel
+ * @param {number|Object} custoPorPainel - Custo (legado) por painel OU objeto configs (novo)
  * @returns {number} Custo total de instalação
  */
 export function calcularCustoInstalacao(quantidadePaineis, custoPorPainel = 200) {
-  return quantidadePaineis * custoPorPainel;
+  const q = Math.max(0, Number(quantidadePaineis || 0) || 0);
+  if (custoPorPainel && typeof custoPorPainel === 'object') {
+    const info = calcularInstalacaoPorPlaca(q, custoPorPainel);
+    return q * (info.final_por_placa || 0);
+  }
+  const v = Number(custoPorPainel || 0) || 0;
+  return q * v;
 }
 
 /**
@@ -405,7 +491,7 @@ export function dimensionarSistema({
   
   // Cálculos de custo
   const custoEquipamentos = potenciaReal * custoKitPorKwp;
-  const custoInstalacao = calcularCustoInstalacao(quantidadePaineis, configs.custo_instalacao_por_placa || 200);
+  const custoInstalacao = calcularCustoInstalacao(quantidadePaineis, configs);
   const custoHomologacao = calcularCustoHomologacao(potenciaReal, configs);
   const custoCA = calcularCustoCA(quantidadePaineis, configs.custo_ca_aterramento_por_placa || 100);
   const custoPlaquinhas = configs.custo_placas_sinalizacao || 60;

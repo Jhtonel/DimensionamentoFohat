@@ -19,7 +19,7 @@ import solaryumApi from "../services/solaryumApi";
 import { propostaService } from "../services/propostaService";
 import { getIrradianciaByCity } from "../utils/irradianciaUtils";
 import { useProjectCosts } from "../hooks/useProjectCosts";
-import { dimensionarSistema, calcularProjecaoFinanceira, CONSTANTES } from "../utils/calculosSolares";
+import { dimensionarSistema, calcularProjecaoFinanceira, CONSTANTES, calcularInstalacaoPorPlaca, calcularCustoHomologacao as calcularCustoHomologacaoUtils } from "../utils/calculosSolares";
 import DimensionamentoResults from "../components/projetos/DimensionamentoResults.jsx";
 import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes.jsx";
 import CostsDetailed from "../components/projetos/CostsDetailed.jsx";
@@ -1646,25 +1646,20 @@ export default function NovoProjeto() {
   };
 
   const calcularCustoHomologacao = (potenciaKwp) => {
-    // Tabela Fohat (homologação por faixa)
-    // Até 10 kWp: R$ 500
-    // 10,1 a 25 kWp: R$ 1.000
-    // 25,1 a 50 kWp: R$ 1.500
-    // 50,1 a 75 kWp: R$ 2.000
-    if (potenciaKwp <= 10) return 500;
-    if (potenciaKwp <= 25) return 1000;
-    if (potenciaKwp <= 50) return 1500;
-    if (potenciaKwp <= 75) return 2000;
-    return 2000;
+    const propostaCfg = configs?.proposta_configs || {};
+    return calcularCustoHomologacaoUtils(Number(potenciaKwp || 0), propostaCfg);
   };
 
   // Nova função para calcular custo operacional com os valores atualizados
   const calcularCustoOperacional = (quantidadePlacas, potenciaKwp, custoEquipamentos) => {
-    const instalacao = quantidadePlacas * 200; // R$200/placa
-    const caAterramento = quantidadePlacas * 100; // R$100/placa
+    const propostaCfg = configs?.proposta_configs || {};
+    const infoInst = calcularInstalacaoPorPlaca(quantidadePlacas, propostaCfg);
+    const instalacao = (quantidadePlacas || 0) * (infoInst?.final_por_placa || 0);
+    const caAterramento = (quantidadePlacas || 0) * (Number(propostaCfg?.custo_ca_aterramento_por_placa ?? 100) || 100); // R$/placa
     const homologacao = calcularCustoHomologacao(potenciaKwp);
-    const placasSinalizacao = 60; // R$60/projeto
-    const despesasGerais = instalacao * 0.1; // 10% da instalação
+    const placasSinalizacao = Number(propostaCfg?.custo_placas_sinalizacao ?? 60) || 60; // R$/projeto
+    const despesasGeraisPct = Number(propostaCfg?.percentual_despesas_gerais ?? 10) || 10;
+    const despesasGerais = instalacao * (despesasGeraisPct / 100);
 
     return {
       equipamentos: custoEquipamentos,
@@ -1673,6 +1668,8 @@ export default function NovoProjeto() {
       homologacao,
       placasSinalizacao,
       despesasGerais,
+      instalacao_por_placa: infoInst?.final_por_placa || 0,
+      instalacao_percentual_seguranca: infoInst?.percentual_seguranca ?? (propostaCfg?.instalacao_percentual_seguranca ?? 10),
       total: custoEquipamentos + instalacao + caAterramento + homologacao + placasSinalizacao + despesasGerais
     };
   };
@@ -3077,6 +3074,17 @@ export default function NovoProjeto() {
                                   <div className="text-right">Custo Total</div>
                                 </div>
                                 
+                                {(() => {
+                                  const propostaCfg = configs?.proposta_configs || {};
+                                  const fmtQty = (n) =>
+                                    (Number(n || 0) || 0).toLocaleString("pt-BR", {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    });
+                                  const caUnit = Number(propostaCfg?.custo_ca_aterramento_por_placa ?? 100) || 100;
+                                  const sinalUnit = Number(propostaCfg?.custo_placas_sinalizacao ?? 60) || 60;
+                                  return (
+                                    <>
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">
                                   <div>Equipamentos</div>
                                   <div className="text-right">{formatCurrency(custoEquipamentos)}</div>
@@ -3086,15 +3094,15 @@ export default function NovoProjeto() {
                                 
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">
                                   <div>Instalação</div>
-                                  <div className="text-right">R$ 200,00</div>
-                                  <div className="text-right">{quantidadePlacas},00</div>
+                                  <div className="text-right">{formatCurrency(custoOp.instalacao_por_placa || 0)}</div>
+                                  <div className="text-right">{fmtQty(quantidadePlacas)}</div>
                                   <div className="text-right font-semibold">{formatCurrency(custoOp.instalacao)}</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">
                                   <div>CA e Aterramento</div>
-                                  <div className="text-right">R$ 100,00</div>
-                                  <div className="text-right">{quantidadePlacas},00</div>
+                                  <div className="text-right">{formatCurrency(caUnit)}</div>
+                                  <div className="text-right">{fmtQty(quantidadePlacas)}</div>
                                   <div className="text-right font-semibold">{formatCurrency(custoOp.caAterramento)}</div>
                                 </div>
                                 
@@ -3107,8 +3115,8 @@ export default function NovoProjeto() {
                                 
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">
                                   <div>Placas Sinalização</div>
-                                  <div className="text-right">R$ 20,00</div>
-                                  <div className="text-right">3,00</div>
+                                  <div className="text-right">{formatCurrency(sinalUnit)}</div>
+                                  <div className="text-right">1,00</div>
                                   <div className="text-right font-semibold">{formatCurrency(custoOp.placasSinalizacao)}</div>
                                 </div>
                                 
@@ -3125,6 +3133,9 @@ export default function NovoProjeto() {
                                   <div className="text-right">-</div>
                                   <div className="text-right">{formatCurrency(custoOp.total)}</div>
                                 </div>
+                                    </>
+                                  );
+                                })()}
                               </>
                             );
                           })()}
@@ -3151,16 +3162,17 @@ export default function NovoProjeto() {
                             const comissaoVendedor = formData.comissao_vendedor || 5;
                             const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
                             
-                            // Cálculos baseados no Excel
+                            // Cálculos baseados no Excel (agora respeitando configs)
+                            const propostaCfg = configs?.proposta_configs || {};
                             const kitFotovoltaico = custoEquipamentos;
                             const comissao = precoVenda * (comissaoVendedor / 100);
                             const recebido = precoVenda - kitFotovoltaico - comissao;
                             const despesasObra = custoOp.instalacao + custoOp.caAterramento + custoOp.despesasGerais;
-                            const despesasDiretoria = precoVenda * 0.01; // 1%
-                            const impostos = precoVenda * 0.033; // 3.3%
+                            const despesasDiretoria = precoVenda * ((Number(propostaCfg?.percentual_despesas_diretoria ?? 1) || 1) / 100);
+                            const impostos = precoVenda * ((Number(propostaCfg?.percentual_impostos ?? 3.3) || 3.3) / 100);
                             const lldi = recebido - despesasObra - despesasDiretoria - impostos;
-                            const divisaoLucro = lldi * 0.4; // 40%
-                            const fundoCaixa = lldi * 0.2; // 20%
+                            const divisaoLucro = lldi * ((Number(propostaCfg?.percentual_divisao_lucro ?? 40) || 40) / 100);
+                            const fundoCaixa = lldi * ((Number(propostaCfg?.percentual_fundo_caixa ?? 20) || 20) / 100);
                             
                             return (
                               <>
@@ -3468,7 +3480,9 @@ export default function NovoProjeto() {
                                   <span className="font-semibold">{formatCurrency(custoOp.equipamentos)}</span>
                           </div>
                           <div className="flex justify-between">
-                                  <span className="text-gray-600">Instalação (R$200/placa):</span>
+                                  <span className="text-gray-600">
+                                    Instalação ({formatCurrency(custoOp.instalacao_por_placa || 0)}/placa{custoOp.instalacao_percentual_seguranca != null ? ` +${Number(custoOp.instalacao_percentual_seguranca)}% seg.` : ''}):
+                                  </span>
                                   <span className="font-semibold">{formatCurrency(custoOp.instalacao)}</span>
                           </div>
                           <div className="flex justify-between">
