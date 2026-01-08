@@ -1928,7 +1928,10 @@
     box-shadow:0 8px 24px rgba(0,0,0,0.3);
     backdrop-filter:blur(5px);
     min-width:400px;
+    position:relative;
+    overflow:hidden;
   }
+  .slide-01-client > *{ position:relative; z-index:1; }
 
   .slide-01-client h2{
     font-size:32px;
@@ -1959,6 +1962,44 @@
     z-index:2;
     border-top:1px solid rgba(255,255,255,0.3);
     backdrop-filter:blur(10px);
+    overflow:hidden;
+  }
+  .slide-01-footer > *{ position:relative; z-index:1; }
+
+  /* PDF/Puppeteer: `backdrop-filter` nem sempre renderiza no print.
+     Fallback robusto: cria um “plano de fundo” dentro do card e aplica blur com `filter`. */
+  @media print{
+    .slide-01-client,
+    .slide-01-footer{
+      -webkit-backdrop-filter:none !important;
+      backdrop-filter:none !important;
+    }
+
+    .slide-01-client::before,
+    .slide-01-footer::before{
+      content:"";
+      position:absolute;
+      inset:-24px;
+      z-index:0;
+      background-color: var(--brand-primary);
+      background-image: url('img/fohat.svg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      /* ajuda a manter alinhamento do fundo no PDF */
+      background-attachment: fixed;
+      filter: blur(14px) saturate(1.08) contrast(1.05);
+      transform: scale(1.08);
+      opacity: 0.92;
+    }
+
+    /* Mantém o “vidro” por cima do blur */
+    .slide-01-client{
+      background: rgba(255,255,255,0.10) !important;
+    }
+    .slide-01-footer{
+      background: rgba(0,0,0,0.35) !important;
+    }
   }
 
   .slide-01-vendedor{
