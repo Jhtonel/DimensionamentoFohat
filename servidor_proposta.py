@@ -1119,7 +1119,10 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
 
         # Tema Fohat (consistente entre todos os gráficos)
         THEME = {
-            "bg": "#ffffff",
+            # Fundo do gráfico deve ser TRANSPARENTE (o card do template define a superfície)
+            "bg": "none",
+            # Fundo “sólido” para caixas/legendas (para manter legibilidade)
+            "panel_bg": "#ffffff",
             "text": "#0f172a",          # slate-900
             "muted": "#334155",         # slate-700
             "grid": "#e2e8f0",          # slate-200
@@ -1149,9 +1152,9 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             'figure.titlesize': int(28 * scale_factor)
         })
         
-        # Fundo branco evita “transparência” estranha no HTML/PDF e melhora contraste
-        fig, ax = plt.subplots(figsize=figsize, facecolor=THEME["bg"])
-        ax.set_facecolor(THEME["bg"])
+        # Fundo transparente para o template controlar o “card”.
+        fig, ax = plt.subplots(figsize=figsize, facecolor='none')
+        ax.set_facecolor('none')
         # Reduzir margens internas (usar quase 100% da área) com respiro pro eixo X
         fig.subplots_adjust(left=0.07, right=0.995, top=0.97, bottom=0.16)
         
@@ -1268,7 +1271,7 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
                             color=THEME["text"],
                             bbox=dict(
                                 boxstyle='round,pad=0.35',
-                                facecolor=THEME["bg"],
+                                facecolor=THEME["panel_bg"],
                                 edgecolor=THEME["grid"],
                                 alpha=0.96,
                                 linewidth=1
@@ -1299,7 +1302,7 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             # Configurar legenda com estilo melhorado
             legend = ax.legend(loc='upper right', frameon=True, fancybox=True, 
                              shadow=True, framealpha=0.9)
-            legend.get_frame().set_facecolor('white')
+            legend.get_frame().set_facecolor(THEME["panel_bg"])
             legend.get_frame().set_edgecolor(THEME["grid"])
             
             # Adicionar rótulos SOMENTE nas barras de produção (requisito)
@@ -1342,17 +1345,17 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         except Exception:
             pass
         
-        # Converter para base64 com alta qualidade (fundo branco para ficar consistente no HTML/PDF)
+        # Converter para base64 com alta qualidade (fundo transparente)
         buffer = io.BytesIO()
         plt.savefig(
             buffer,
             format='png',
             dpi=240,
             bbox_inches='tight',
-            facecolor=THEME["bg"],
+            facecolor='none',
             edgecolor='none',
-            pad_inches=0.06,
-            transparent=False
+            pad_inches=0.0,
+            transparent=True
         )
         buffer.seek(0)
         img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')

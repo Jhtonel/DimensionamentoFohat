@@ -505,10 +505,12 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    background:linear-gradient(180deg, var(--n-50) 0%, var(--surface) 100%);
+    /* O gráfico (PNG) agora vem com fundo transparente. Mantemos o card “limpo”. */
+    background:transparent;
     border:1px solid var(--border-soft);
     border-radius:14px;
-    padding:14px;
+    /* Sem padding para o gráfico ocupar 100% do espaço do card */
+    padding:0;
     overflow:hidden;
   }
   .chart-media img{

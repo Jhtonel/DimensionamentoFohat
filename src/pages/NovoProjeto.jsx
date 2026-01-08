@@ -731,10 +731,51 @@ export default function NovoProjeto() {
       return [...kits]; // Retorna cópia sem ordenação
     }
 
+    const getTipoInversorKit = (kit) => {
+      try {
+        const inversores = (kit?.componentes || []).filter((c) => c?.agrupamento === "Inversor");
+        const joined = inversores
+          .map((c) => `${c?.descricao || ""} ${c?.marca || ""} ${c?.modelo || ""}`.toLowerCase())
+          .join(" ");
+        if (joined.includes("micro")) return "micro";
+        if (joined.includes("híbrido") || joined.includes("hibrido")) return "hibrido";
+        return "string";
+      } catch {
+        return "string";
+      }
+    };
+
+    const calcularScoreCustoBeneficio = (kit) => {
+      const preco = Number(kit?.precoTotal || 0);
+      const potencia = Number(kit?.potencia || 0);
+      const area = Number(kit?.area || 0);
+      if (!preco || !potencia) return Number.POSITIVE_INFINITY;
+
+      const precoPorKwp = preco / potencia; // menor é melhor
+      const areaPorKwp = area > 0 ? (area / potencia) : 0; // menor é melhor (quando disponível)
+
+      const tipoInv = getTipoInversorKit(kit);
+      // Prioridade micro inversor (benefício de otimização/sombreamento/monitoramento)
+      // - micro: score menor (melhor)
+      // - hibrido: levemente penalizado (geralmente mais caro)
+      const fatorTipo =
+        tipoInv === "micro" ? 0.82 :
+        tipoInv === "hibrido" ? 1.06 :
+        1.0;
+
+      // Normalização suave da área (não domina quando não existe)
+      const fatorArea = areaPorKwp > 0 ? (1 + Math.min(0.08, areaPorKwp / 100)) : 1;
+
+      return precoPorKwp * fatorTipo * fatorArea;
+    };
+
     return [...kits].sort((a, b) => {
       const precoA = a.precoTotal || 0;
       const precoB = b.precoTotal || 0;
 
+      if (tipoOrdenacao === 'custo_beneficio') {
+        return calcularScoreCustoBeneficio(a) - calcularScoreCustoBeneficio(b);
+      }
       if (tipoOrdenacao === 'preco_menor_maior') {
         return precoA - precoB;
       } else if (tipoOrdenacao === 'preco_maior_menor') {
@@ -770,6 +811,17 @@ export default function NovoProjeto() {
     console.log('📊 Kits após ordenação:', kitsOrdenados.length);
     console.log('✅ Filtros aplicados com sucesso');
   };
+
+  // Top 3 “melhor custo-benefício” (independente da ordenação atual)
+  const top3CustoBeneficioIds = useMemo(() => {
+    try {
+      const base = Array.isArray(kitsFiltrados) ? kitsFiltrados : Array.isArray(produtosDisponiveis) ? produtosDisponiveis : [];
+      const ordenados = aplicarOrdenacao(base, "custo_beneficio");
+      return (ordenados || []).slice(0, 3).map((k) => k?.id).filter(Boolean);
+    } catch (_) {
+      return [];
+    }
+  }, [kitsFiltrados, produtosDisponiveis]);
 
   // Função para limpar todos os filtros
   const limparTodosFiltros = () => {
@@ -2746,7 +2798,7 @@ export default function NovoProjeto() {
                           {/* Filtro por Ordenação */}
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Ordenar por Preço
+                              Ordenar
                             </label>
                             <Select
                               value={filtrosSelecionados.ordenacao || ""}
@@ -2759,6 +2811,7 @@ export default function NovoProjeto() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="padrao">Ordenação padrão</SelectItem>
+                                <SelectItem value="custo_beneficio">Melhor custo-benefício (prioriza Micro)</SelectItem>
                                 <SelectItem value="preco_menor_maior">Menor para Maior</SelectItem>
                                 <SelectItem value="preco_maior_menor">Maior para Menor</SelectItem>
                               </SelectContent>
@@ -2786,30 +2839,44 @@ export default function NovoProjeto() {
                           </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {produtosDisponiveis.map((kit) => (
-                        <Card 
-                          key={kit.id}
-                          className={`cursor-pointer transition-all duration-200 ${
-                            kitSelecionado?.id === kit.id
-                              ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
-                              : selecionandoKit
-                              ? 'border-yellow-400 bg-yellow-50 shadow-md ring-1 ring-yellow-200'
-                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:bg-gray-50'
-                          }`}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            // Evitar seleção duplicada
-                            if (kitSelecionado?.id === kit.id) {
-                              console.log('⚠️ Kit já selecionado, ignorando clique');
-                              return;
-                            }
-                            
-                            // Usar função robusta para seleção
-                            await selecionarKit(kit);
-                          }}
-                        >
+                        {produtosDisponiveis.map((kit) => {
+                          const rank = top3CustoBeneficioIds.indexOf(kit?.id);
+                          const isTop = rank !== -1;
+                          const rankLabel = isTop ? `TOP ${rank + 1}` : null;
+                          const highlightClass = isTop
+                            ? (rank === 0
+                              ? 'border-emerald-500 bg-emerald-50/60 shadow-lg ring-2 ring-emerald-200'
+                              : rank === 1
+                              ? 'border-emerald-400 bg-emerald-50/40 shadow-md ring-1 ring-emerald-100'
+                              : 'border-emerald-300 bg-emerald-50/30 shadow-sm ring-1 ring-emerald-100/60')
+                            : '';
+
+                          return (
+                            <Card 
+                              key={kit.id}
+                              className={`cursor-pointer transition-all duration-200 ${
+                                kitSelecionado?.id === kit.id
+                                  ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                                  : selecionandoKit
+                                  ? 'border-yellow-400 bg-yellow-50 shadow-md ring-1 ring-yellow-200'
+                                  : isTop
+                                  ? highlightClass
+                                  : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:bg-gray-50'
+                              }`}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                // Evitar seleção duplicada
+                                if (kitSelecionado?.id === kit.id) {
+                                  console.log('⚠️ Kit já selecionado, ignorando clique');
+                                  return;
+                                }
+                                
+                                // Usar função robusta para seleção
+                                await selecionarKit(kit);
+                              }}
+                            >
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-lg">
@@ -2818,6 +2885,11 @@ export default function NovoProjeto() {
                                   <span className="ml-2 text-yellow-600 text-sm">⏳ Selecionando...</span>
                                 )}
                               </CardTitle>
+                              {rankLabel && kitSelecionado?.id !== kit.id && (
+                                <Badge className={rank === 0 ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}>
+                                  {rankLabel}
+                                </Badge>
+                              )}
                               {kitSelecionado?.id === kit.id && (
                                 <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                                   <Check className="w-4 h-4 text-white" />
@@ -2908,7 +2980,8 @@ export default function NovoProjeto() {
                         </div>
                       </CardContent>
                     </Card>
-                      ))}
+                          );
+                        })}
                     </div>
                     )}
 
