@@ -1593,9 +1593,12 @@ def process_template_html(proposta_data):
             payload_avista = proposta_data.get('valor_avista_cartao')
             payload_menor = proposta_data.get('menor_parcela_financiamento')
 
+            payload_cartao_count = payload_cartao.count('parcela-item') if payload_cartao else 0
             has_payload_pagamento = bool(payload_cartao.strip() or payload_fin.strip() or payload_avista or payload_menor)
 
-            if has_payload_pagamento:
+            # Se o payload veio de uma versão antiga (ex.: cartão só com 6 opções),
+            # recalcular para garantir 1x..18x.
+            if has_payload_pagamento and not (payload_cartao_count and payload_cartao_count < 18 and preco_final_real > 0):
                 template_html = template_html.replace('{{parcelas_cartao}}', payload_cartao)
                 template_html = template_html.replace('{{parcelas_financiamento}}', payload_fin)
                 template_html = template_html.replace('{{valor_avista_cartao}}', str(payload_avista or 'R$ 0,00'))
@@ -2322,16 +2325,35 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         formas_pagamento = DEFAULT_FORMAS_PAGAMENTO
     
     # Parcelas de cartão (taxa simples sobre o valor)
+    # Requisito: sempre exibir 1x até 18x e caber no slide.
     parcelas_cartao_html = ""
     pagseguro_list = formas_pagamento.get("pagseguro", DEFAULT_FORMAS_PAGAMENTO["pagseguro"])
     print(f"💳 [PAGAMENTO] PagSeguro: {len(pagseguro_list)} opções")
-    
-    for item in pagseguro_list[:6]:  # Mostrar apenas 6 opções
-        parcelas = _to_int(item.get("parcelas", 1), default=1)
-        taxa = _to_float(item.get("taxa", 0), default=0.0)
+
+    # Montar mapa 1..18: defaults + override do config (se existir)
+    default_ps = DEFAULT_FORMAS_PAGAMENTO.get("pagseguro") or []
+    default_map = {}
+    for it in default_ps:
+        p = _to_int((it or {}).get("parcelas", 0), default=0)
+        if 1 <= p <= 18:
+            default_map[p] = it
+
+    cfg_map = {}
+    if isinstance(pagseguro_list, list):
+        for it in pagseguro_list:
+            p = _to_int((it or {}).get("parcelas", 0), default=0)
+            if 1 <= p <= 18:
+                cfg_map[p] = it
+
+    for parcelas in range(1, 19):
+        it = cfg_map.get(parcelas) or default_map.get(parcelas) or {"parcelas": parcelas, "taxa": 0}
+        taxa = _to_float((it or {}).get("taxa", 0), default=0.0)
         valor_com_taxa = valor_total * (1 + taxa / 100)
-        valor_parcela = valor_com_taxa / parcelas
-        parcelas_cartao_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
+        valor_parcela = (valor_com_taxa / parcelas) if parcelas > 0 else 0.0
+        parcelas_cartao_html += (
+            f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span>'''
+            f'''<span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
+        )
     
     # Parcelas de financiamento (juros compostos - Price)
     parcelas_financiamento_html = ""
@@ -2355,7 +2377,7 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         parcelas_financiamento_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
     
     # Valor à vista no cartão (1x com taxa)
-    primeira_taxa = _to_float(pagseguro_list[0].get("taxa", 3.16), default=3.16) if pagseguro_list else 3.16
+    primeira_taxa = _to_float((cfg_map.get(1) or default_map.get(1) or {}).get("taxa", 3.16), default=3.16)
     valor_avista = valor_total * (1 + primeira_taxa / 100)
     
     return {

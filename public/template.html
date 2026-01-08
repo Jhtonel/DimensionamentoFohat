@@ -1847,8 +1847,9 @@
 
   .parcelas-grid{
     display:grid;
-    grid-template-columns:repeat(2, 1fr);
-    gap:8px;
+    /* 1..18x no cartão => 18 itens; 3 colunas garante 6 linhas e cabe no slide */
+    grid-template-columns:repeat(3, 1fr);
+    gap:6px;
     flex:1;
   }
 
@@ -1856,27 +1857,27 @@
     display:flex;
     justify-content:space-between;
     align-items:center;
-    padding:10px 12px;
+    padding:6px 8px;
     background:var(--n-50);
     border-radius:8px;
-    font-size:13px;
+    font-size:12px;
   }
 
   .parcela-numero{
     color:#374151;
     font-weight:600;
-    font-size:13px;
+    font-size:12px;
   }
 
   .parcela-valor{
     font-weight:700;
     color:#111827;
-    font-size:14px;
+    font-size:12px;
   }
 
   .forma-pagamento-destaque{
-    margin-top:16px;
-    padding:16px;
+    margin-top:12px;
+    padding:12px;
     background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     border-radius:12px;
     border:1px solid #86efac;
@@ -1896,7 +1897,7 @@
   }
 
   .destaque-valor{
-    font-size:26px;
+    font-size:22px;
     font-weight:800;
     color:#15803d;
   }
