@@ -1504,36 +1504,72 @@ def process_template_html(proposta_data):
         
         # ====== FORMAS DE PAGAMENTO (Slide 10) ======
         try:
-            # Função para parsear valores que podem estar como string formatada (ex: "R$ 10.174,00")
-            def parse_preco(val):
+            # Função para parsear valores que podem estar como string formatada
+            def parse_preco_valor(val):
                 if val is None:
                     return 0.0
                 if isinstance(val, (int, float)):
                     return float(val)
                 if isinstance(val, str):
-                    # Remover formatação brasileira
                     s = val.strip()
-                    for token in ['R$', 'r$', ' ']:
+                    # Remover prefixos de moeda
+                    for token in ['R$', 'r$', 'RS', 'rs', ' ']:
                         s = s.replace(token, '')
-                    # Converter formato brasileiro para float
-                    s = s.replace('.', '').replace(',', '.')
+                    s = s.strip()
+                    if not s:
+                        return 0.0
+                    # Detectar formato (brasileiro ou americano)
+                    # Se tem vírgula E ponto, verificar qual vem por último
+                    if ',' in s and '.' in s:
+                        if s.rfind(',') > s.rfind('.'):
+                            # Formato brasileiro: 10.174,00 -> 10174.00
+                            s = s.replace('.', '').replace(',', '.')
+                        else:
+                            # Formato americano: 10,174.00 -> 10174.00
+                            s = s.replace(',', '')
+                    elif ',' in s:
+                        # Só vírgula: pode ser BR (1.234,56) ou separador de milhares (1,234)
+                        parts = s.split(',')
+                        if len(parts) == 2 and len(parts[1]) == 2:
+                            # Provavelmente decimal brasileiro
+                            s = s.replace(',', '.')
+                        else:
+                            # Separador de milhares
+                            s = s.replace(',', '')
+                    # Ponto sozinho já é decimal
                     try:
                         return float(s)
                     except:
                         return 0.0
                 return 0.0
             
-            # Tentar obter o preço de várias fontes possíveis
-            preco_final_pagamento = 0
-            for key in ['preco_venda', 'preco_final', 'custo_total_projeto', 'investimento_inicial']:
-                val = proposta_data.get(key)
-                if val:
-                    preco_final_pagamento = parse_preco(val)
-                    if preco_final_pagamento > 0:
-                        print(f"💰 [SLIDE10] Preço encontrado em '{key}': {preco_final_pagamento}")
-                        break
+            # Tentar extrair o valor do HTML já processado (mais confiável!)
+            preco_final_pagamento = 0.0
             
-            print(f"💰 [SLIDE10] Preço final para pagamento: {preco_final_pagamento}")
+            # Procurar valor no campo {{preco_final}} que já foi substituído anteriormente
+            # O formato é "R$ 10,174.00" (formatação Python com vírgula como separador de milhares)
+            match = re.search(r'class="valor"[^>]*>\s*R\$\s*([\d,]+\.?\d*)', template_html)
+            if match:
+                preco_str = match.group(1)
+                preco_final_pagamento = parse_preco_valor(preco_str)
+                print(f"💰 [SLIDE10] Preço extraído do HTML: {preco_str} -> {preco_final_pagamento}")
+            
+            # Fallback: buscar no proposta_data
+            if preco_final_pagamento == 0:
+                chaves_preco = [
+                    'preco_venda', 'preco_final', 'custo_total_projeto', 
+                    'investimento_inicial', 'valor_total', 'custo_total'
+                ]
+                for key in chaves_preco:
+                    val = proposta_data.get(key)
+                    if val is not None:
+                        parsed = parse_preco_valor(val)
+                        if parsed > 0:
+                            preco_final_pagamento = parsed
+                            print(f"💰 [SLIDE10] Preço de proposta_data['{key}']: {preco_final_pagamento}")
+                            break
+            
+            print(f"💰 [SLIDE10] Preço final para pagamento: R$ {preco_final_pagamento:,.2f}")
             
             if preco_final_pagamento > 0:
                 pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
@@ -1543,12 +1579,13 @@ def process_template_html(proposta_data):
                 template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
                 print(f"✅ [SLIDE10] Parcelas calculadas com sucesso")
             else:
+                # Log completo do proposta_data para debug
+                print(f"⚠️ [SLIDE10] Preço zerado! Dump de proposta_data keys: {list(proposta_data.keys())}")
                 # Valores padrão se não tiver preço
                 template_html = template_html.replace('{{parcelas_cartao}}', '<div class="parcela-item"><span class="parcela-numero">Consulte</span><span class="parcela-valor">valores</span></div>')
                 template_html = template_html.replace('{{parcelas_financiamento}}', '<div class="parcela-item"><span class="parcela-numero">Consulte</span><span class="parcela-valor">valores</span></div>')
                 template_html = template_html.replace('{{valor_avista_cartao}}', 'Consulte')
                 template_html = template_html.replace('{{menor_parcela_financiamento}}', 'Consulte')
-                print(f"⚠️ [SLIDE10] Preço zerado, usando valores placeholder")
         except Exception as e:
             print(f"❌ [SLIDE10] Erro ao processar formas de pagamento: {e}")
             import traceback
