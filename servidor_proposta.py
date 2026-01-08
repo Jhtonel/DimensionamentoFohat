@@ -1134,6 +1134,14 @@ def process_template_html(proposta_data):
                 # Remover prefixos de moeda
                 for token in ['R$', 'r$', 'RS', 'rs', ' ']:
                     s = s.replace(token, '')
+                # Remover qualquer whitespace (inclui NBSP, thin spaces etc.)
+                # Ex: "R$\xa035.000,00" quebra float() se não normalizar.
+                try:
+                    import re
+                    s = re.sub(r'\s+', '', s)
+                except Exception:
+                    # fallback simples: split remove qualquer whitespace reconhecido pelo Python
+                    s = ''.join(s.split())
                 s = s.strip()
                 if not s:
                     return 0.0
@@ -2218,24 +2226,57 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     Calcula o valor das parcelas para cada opção de pagamento.
     Retorna HTML formatado para inserir no template.
     """
-    # Garantir que valor_total é um número válido
-    try:
-        valor_total = float(valor_total or 0)
-    except:
-        valor_total = 0.0
-    
     if formas_pagamento is None:
         formas_pagamento = _load_formas_pagamento()
     
+    def fmt_currency(val):
+        return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _to_float(v, default=0.0):
+        try:
+            if v is None:
+                return default
+            if isinstance(v, (int, float)):
+                return float(v)
+            if isinstance(v, str):
+                s = v.strip()
+                for token in ['R$', 'r$', 'RS', 'rs']:
+                    s = s.replace(token, '')
+                # normalizar whitespaces (inclui NBSP)
+                try:
+                    import re
+                    s = re.sub(r'\s+', '', s)
+                except Exception:
+                    s = ''.join(s.split())
+                # aceitar "3,16" ou "3.16"
+                if ',' in s and '.' in s:
+                    if s.rfind(',') > s.rfind('.'):
+                        s = s.replace('.', '').replace(',', '.')
+                    else:
+                        s = s.replace(',', '')
+                elif ',' in s:
+                    s = s.replace('.', '').replace(',', '.')
+                return float(s)
+            return float(v)
+        except Exception:
+            return default
+
+    def _to_int(v, default=1):
+        try:
+            iv = int(round(_to_float(v, default=float(default))))
+            return iv if iv > 0 else default
+        except Exception:
+            return default
+
+    # Garantir que valor_total é um número válido (aceita string com moeda/virgula/NBSP)
+    valor_total = _to_float(valor_total, default=0.0)
+
     print(f"💳 [PAGAMENTO] Valor total: {valor_total}, Formas: {type(formas_pagamento)}")
-    
+
     # Garantir que temos os dados padrão se necessário
     if not formas_pagamento or not formas_pagamento.get("pagseguro"):
         print("⚠️ [PAGAMENTO] Usando taxas padrão")
         formas_pagamento = DEFAULT_FORMAS_PAGAMENTO
-    
-    def fmt_currency(val):
-        return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     
     # Parcelas de cartão (taxa simples sobre o valor)
     parcelas_cartao_html = ""
@@ -2243,8 +2284,8 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     print(f"💳 [PAGAMENTO] PagSeguro: {len(pagseguro_list)} opções")
     
     for item in pagseguro_list[:6]:  # Mostrar apenas 6 opções
-        parcelas = item.get("parcelas", 1)
-        taxa = item.get("taxa", 0)
+        parcelas = _to_int(item.get("parcelas", 1), default=1)
+        taxa = _to_float(item.get("taxa", 0), default=0.0)
         valor_com_taxa = valor_total * (1 + taxa / 100)
         valor_parcela = valor_com_taxa / parcelas
         parcelas_cartao_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
@@ -2256,8 +2297,8 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     print(f"🏦 [PAGAMENTO] Financiamento: {len(financiamento_list)} opções")
     
     for item in financiamento_list:
-        parcelas = item.get("parcelas", 1)
-        taxa_mensal = item.get("taxa", 0) / 100
+        parcelas = _to_int(item.get("parcelas", 1), default=1)
+        taxa_mensal = _to_float(item.get("taxa", 0), default=0.0) / 100
         
         if taxa_mensal > 0:
             # Fórmula Price
@@ -2271,7 +2312,7 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         parcelas_financiamento_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
     
     # Valor à vista no cartão (1x com taxa)
-    primeira_taxa = pagseguro_list[0].get("taxa", 3.16) if pagseguro_list else 3.16
+    primeira_taxa = _to_float(pagseguro_list[0].get("taxa", 3.16), default=3.16) if pagseguro_list else 3.16
     valor_avista = valor_total * (1 + primeira_taxa / 100)
     
     return {
