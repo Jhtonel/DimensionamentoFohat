@@ -1586,13 +1586,27 @@ def process_template_html(proposta_data):
             # Usar o preco_final_real calculado no início da função (já validado e robusto)
             print(f"💳 [SLIDE10] Usando preco_final_real: R$ {preco_final_real:,.2f}")
             
-            if preco_final_real > 0:
+            # Priorizar valores persistidos no payload (pré-calculados no /salvar-proposta)
+            payload_cartao = (proposta_data.get('parcelas_cartao') or '') if isinstance(proposta_data.get('parcelas_cartao'), str) else ''
+            payload_fin = (proposta_data.get('parcelas_financiamento') or '') if isinstance(proposta_data.get('parcelas_financiamento'), str) else ''
+            payload_avista = proposta_data.get('valor_avista_cartao')
+            payload_menor = proposta_data.get('menor_parcela_financiamento')
+
+            has_payload_pagamento = bool(payload_cartao.strip() or payload_fin.strip() or payload_avista or payload_menor)
+
+            if has_payload_pagamento:
+                template_html = template_html.replace('{{parcelas_cartao}}', payload_cartao)
+                template_html = template_html.replace('{{parcelas_financiamento}}', payload_fin)
+                template_html = template_html.replace('{{valor_avista_cartao}}', str(payload_avista or 'R$ 0,00'))
+                template_html = template_html.replace('{{menor_parcela_financiamento}}', str(payload_menor or 'R$ 0,00'))
+                print("✅ [SLIDE10] Usando valores persistidos no payload (pré-calculados).")
+            elif preco_final_real > 0:
                 pagamento_data = calcular_parcelas_pagamento(preco_final_real)
                 template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
                 template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
                 template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
                 template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
-                print(f"✅ [SLIDE10] Parcelas calculadas com sucesso")
+                print("✅ [SLIDE10] Parcelas calculadas com sucesso (on-the-fly).")
             else:
                 # Log completo do proposta_data para debug
                 print(f"⚠️ [SLIDE10] Preço zerado! Dump de proposta_data keys: {list(proposta_data.keys())}")
@@ -2684,6 +2698,19 @@ def salvar_proposta():
                 proposta_data['preco_final'] = _pv
         except Exception:
             pass
+
+        # ====== FORMAS DE PAGAMENTO (pré-cálculo e persistência no payload) ======
+        # Garantia: Slide 10 sempre renderiza parcelas e destaques mesmo em cenários
+        # onde a geração do HTML/PDF esteja rodando com payload diferente ou taxas incompletas.
+        try:
+            valor_base_pagamento = proposta_data.get('preco_venda', proposta_data.get('preco_final', 0))
+            pagamento_data = calcular_parcelas_pagamento(valor_base_pagamento)
+            proposta_data['parcelas_cartao'] = pagamento_data.get('parcelas_cartao', '') or ''
+            proposta_data['parcelas_financiamento'] = pagamento_data.get('parcelas_financiamento', '') or ''
+            proposta_data['valor_avista_cartao'] = pagamento_data.get('valor_avista_cartao', 'R$ 0,00') or 'R$ 0,00'
+            proposta_data['menor_parcela_financiamento'] = pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00') or 'R$ 0,00'
+        except Exception as e:
+            print(f"⚠️ [salvar-proposta] Falha ao pré-calcular Slide 10 (formas de pagamento): {e}")
         
         # Fallback robusto: se KPIs vierem vazios, calcular pelo núcleo único
         try:
