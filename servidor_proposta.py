@@ -1503,6 +1503,11 @@ def process_template_html(proposta_data):
             except Exception:
                 _gap = 0.0
             template_html = template_html.replace('{{gasto_acumulado_payback}}', format_brl(_gap))
+        
+        # IMPORTANTE: Aplicar os gráficos ECharts (injetar JavaScript + dados)
+        # Esta chamada injeta o script do ECharts e os dados JSON para renderização dos gráficos
+        template_html = apply_analise_financeira_graphs(template_html, proposta_data)
+        
         return template_html
         
     except Exception as e:
