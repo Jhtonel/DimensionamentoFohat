@@ -470,9 +470,17 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     setIsGeneratingPDF(true);
     try {
       const blob = await baixarPdfPuppeteer(propostaId);
-      const fileName = `Proposta_${(propostaData?.cidade || 'Projeto')}_${new Date()
-        .toLocaleDateString("pt-BR")
-        .replace(/\//g, "-")}.pdf`;
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, "0");
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const yy = String(now.getFullYear()).slice(-2);
+        const clienteNomeRaw = (propostaData?.cliente_nome || "CLIENTE").trim();
+        const clienteNomeSafe = clienteNomeRaw
+          .replace(/[\\/:*?"<>|]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        // Obs: "/" não é permitido em nome de arquivo -> usamos DD-MM-YY
+        const fileName = `${clienteNomeSafe} - ${dd}-${mm}-${yy} - FOHAT ENERGIA SOLAR.pdf`;
       saveAs(blob, fileName);
     } catch (e) {
       alert("Erro ao gerar PDF: " + (e?.message || e));

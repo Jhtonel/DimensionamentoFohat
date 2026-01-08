@@ -370,7 +370,6 @@
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden;
   }
 
   .cenario-atual-texto{
@@ -467,6 +466,60 @@
     margin-top:4px;
   }
 
+  /* =============================================================================
+     PADRÃO VISUAL: Cards de Gráficos (mesma posição, mesmo “card”, mesma legibilidade)
+     ============================================================================= */
+  .chart-card{
+    background:var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius:16px;
+    box-shadow:var(--shadow-md);
+    padding:18px 18px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    height:100%;
+    min-height:0;
+  }
+  .chart-card .grafico-header{
+    margin:0;
+    text-align:left;
+  }
+  .chart-card .grafico-titulo{
+    margin:0;
+    padding:0;
+    font-size:18px;
+    font-weight:800;
+    color:var(--brand-primary);
+    letter-spacing:0.2px;
+  }
+  .chart-card .grafico-subtitulo{
+    margin:4px 0 0 0;
+    font-size:14px;
+    color:var(--text-muted);
+    font-weight:500;
+  }
+  .chart-media{
+    flex:1;
+    min-height:340px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(180deg, var(--n-50) 0%, var(--surface) 100%);
+    border:1px solid var(--border-soft);
+    border-radius:14px;
+    padding:14px;
+    overflow:hidden;
+  }
+  .chart-media img{
+    width:100% !important;
+    height:100% !important;
+    display:block !important;
+    object-fit:contain !important;
+    image-rendering:auto;
+    filter:contrast(1.05);
+  }
+
   /* Slide 03 - Gráfico de Barras do Cenário Atual */
   .cenario-atual-grafico{
     display:flex;
@@ -477,99 +530,12 @@
     overflow:visible; /* evitar corte do título e do gráfico */
   }
 
-  .cenario-atual-grafico .grafico-container{
-    flex:0 0 auto;
-    display:flex;
-    flex-direction:column;
-    gap:0px;
-    padding:0px;
-    background:transparent;
-    border-radius:0px;
-    height:auto;
-    margin:0px;
-    max-width:100%;
-    overflow:visible;
-  }
+  .cenario-atual-grafico .grafico-container{ width:100%; }
 
-  .cenario-atual-grafico .eixo-y{
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-right:8px;
-  }
+  .cenario-atual-grafico .grafico-barras{ flex:1; min-height:340px; }
 
-  .cenario-atual-grafico .valor-eixo{
-    font-size:11px;
-    color:var(--n-600);
-    font-weight:500;
-  }
-
-  .cenario-atual-grafico .grafico-barras{
-    display:block;
-    background:var(--n-50);
-    border-radius:12px;
-    padding:20px;
-    position: relative;
-    flex: 1;
-    height: 100%;
-    overflow:visible; /* evita cortar labels do gráfico */
-  }
-
-/* CSS específico para cada gráfico */
-#grafico-slide-03 {
-  width: 100%;
-  height: auto;
-  max-height: 100%;
-  border-radius: 8px;
-  display: block;
-  object-fit: contain;
-  margin: 0 auto;
-  background: transparent;
-}
-
-#grafico-slide-04 {
-  width: 100%;
-  height: auto;
-  max-height: 100%;
-  border-radius: 8px;
-  display: block;
-  object-fit: contain;
-  margin: 0 auto;
-  min-height: 300px;
-}
-
-#grafico-slide-05 {
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
-  display: block;
-  object-fit: contain;
-  margin: 0 auto;
-  min-height: 300px;
-}
-
-#grafico-slide-09 {
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
-  display: block;
-  object-fit: contain;
-  margin: 0 auto;
-  min-height: 300px;
-  max-height: 400px;
-}
-
-#grafico-slide-06 {
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
-  display: block;
-  object-fit: contain;
-  margin: 0 auto;
-  min-height: 300px;
-}
+  /* Ajuste por slide (altura mínima) */
+  #slide-09 .chart-media{ min-height:320px; }
 
   .barra-ano{
     display:flex;
@@ -680,29 +646,18 @@
   }
 
   .grafico-linha-container .grafico-linha{
-    flex:0 0 auto;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    margin-top:16px;
-    padding:20px;
-    background:linear-gradient(180deg, var(--n-50) 0%, var(--surface) 100%);
-    border-radius:12px;
-    min-height:250px;
-    height:auto;
-    overflow:visible; /* evita cortar labels e mantém dentro da coluna */
-    border:1px solid var(--border-soft);
-    box-shadow:var(--shadow-sm);
+    flex:1;
+    margin-top:0;
+    padding:0;
+    background:transparent;
+    border-radius:0;
+    min-height:0;
+    overflow:hidden;
+    border:none;
+    box-shadow:none;
   }
 
-  /* Placeholder de gráficos (melhor contraste) */
-  .grafico-linha-container img,
-  .cenario-atual-grafico img,
-  .grafico-consumo-geracao img,
-  .grafico-payback img,
-  .grafico-comparativo img{
-    filter:contrast(1.05);
-  }
+  /* (contraste já aplicado em .chart-media img) */
 
   .grafico-linha-container .eixo-y{
     grid-row:1;
@@ -787,7 +742,6 @@
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden;
   }
 
   .energia-solar-texto{
@@ -826,20 +780,19 @@
   }
 
   .grafico-header{
-    text-align:center;
-    margin-top:8px;
-    margin-bottom:16px;
+    text-align:left;
+    margin:0;
   }
 
   .grafico-titulo{
     font-size:18px;
-    font-weight:700;
-    color:var(--n-800);
-    margin:0 0 8px 0;
-    padding:12px 20px;
-    background:var(--n-100);
-    border-radius:8px;
-    border-bottom:3px solid var(--brand-primary);
+    font-weight:800;
+    color:var(--brand-primary);
+    margin:0;
+    padding:0;
+    background:transparent;
+    border-radius:0;
+    border-bottom:none;
   }
 
   .grafico-subtitulo{
@@ -881,12 +834,9 @@
   /* Slide 05 - Gráfico de Barras Duplas Consumo x Geração */
   .grafico-consumo-geracao .grafico-barras-duplas{
     flex:1;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    padding:20px;
-    background:var(--n-50);
-    border-radius:12px;
+    padding:0;
+    background:transparent;
+    border-radius:0;
   }
 
   .grafico-barras-duplas .eixo-y{
@@ -966,7 +916,6 @@
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden;
   }
 
   .payback-info{
@@ -1550,7 +1499,6 @@
     height:100%;
     padding:0 8px;
     max-width:100%;
-    overflow:hidden;
     align-self:stretch;
     gap:24px;
   }
@@ -2148,12 +2096,12 @@
         </div>
         
         <div class="cenario-atual-grafico">
-          <div class="grafico-container">
+          <div class="chart-card grafico-container">
             <div class="grafico-header">
               <h4 class="grafico-titulo">Seu Gasto Atual</h4>
             </div>
-            <div class="grafico-barras">
-              <img id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Evolução da Conta de Luz" style="display: block; width: 100%; height: 100%; object-fit: contain;">
+            <div class="chart-media grafico-barras">
+              <img id="grafico-slide-03" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTAzPC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Evolução da Conta de Luz">
             </div>
           </div>
         </div>
@@ -2201,12 +2149,12 @@
         </div>
       </div>
 
-        <div class="grafico-linha-container">
+        <div class="chart-card grafico-linha-container">
           <div class="grafico-header">
             <h4 class="grafico-titulo">Evolução da Conta de Luz (25 anos)</h4>
           </div>
-          <div class="grafico-linha">
-            <img id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Linha - Evolução da Conta de Luz" style="display: block;">
+          <div class="chart-media grafico-linha">
+            <img id="grafico-slide-04" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA0PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Linha - Evolução da Conta de Luz">
           </div>
         </div>
       </div>
@@ -2240,12 +2188,12 @@
           </div>
         </div>
         
-        <div class="grafico-consumo-geracao">
+        <div class="chart-card grafico-consumo-geracao">
           <div class="grafico-header">
             <h4 class="grafico-titulo">Consumo x Geração (kWh/mês)</h4>
           </div>
-          <div class="grafico-barras-duplas">
-            <img id="grafico-slide-05" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA1PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Barras Duplas - Consumo x Geração" style="display: block;">
+          <div class="chart-media grafico-barras-duplas">
+            <img id="grafico-slide-05" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA1PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Barras Duplas - Consumo x Geração">
           </div>
       </div>
     </div>
@@ -2283,13 +2231,14 @@
         </div>
       </div>
 
-        <div class="grafico-payback">
+        <div class="chart-card grafico-payback">
           <div class="grafico-header">
             <h4 class="grafico-titulo">Economia Acumulada vs Investimento</h4>
             <p class="grafico-subtitulo">Comparação ao longo dos anos</p>
           </div>
-          
-            <img id="grafico-slide-06" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA2PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Economia Acumulada vs Investimento" style="display: block;">
+          <div class="chart-media">
+            <img id="grafico-slide-06" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA2PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico de Economia Acumulada vs Investimento">
+          </div>
         </div>
       </div>
     </div>
@@ -2490,12 +2439,13 @@
         </div>
 
         <!-- Gráfico de Comparativo -->
-        <div class="grafico-comparativo">
-          <h4 class="grafico-titulo">Comparativo Financeiro (25 anos)</h4>
-          <div class="grafico-container">
-            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento" style="display: block;">
+        <div class="chart-card grafico-comparativo">
+          <div class="grafico-header">
+            <h4 class="grafico-titulo">Comparativo Financeiro (25 anos)</h4>
           </div>
-
+          <div class="chart-media">
+            <img id="grafico-slide-09" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdyw6FmaWNvIFNsaWRlLTA5PC90ZXh0Pgo8L3N2Zz4K" alt="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento">
+          </div>
         </div>
       </div>
     </div>

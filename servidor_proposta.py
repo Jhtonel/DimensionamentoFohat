@@ -3058,9 +3058,12 @@ def gerar_pdf_puppeteer(proposta_id):
         html = process_template_html(proposta_data)
         pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=90)
 
-        nome = (proposta_data or {}).get("cliente_nome") or "Proposta"
-        safe_nome = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(nome))[:60]
-        filename = f"Proposta_{safe_nome}_{proposta_id}.pdf"
+        nome = (proposta_data or {}).get("cliente_nome") or "CLIENTE"
+        safe_nome = re.sub(r"[\\/:*?\"<>|]+", " ", str(nome)).strip()
+        safe_nome = re.sub(r"\s+", " ", safe_nome).strip()[:80] or "CLIENTE"
+        # Obs: "/" não é permitido em nome de arquivo -> usamos DD-MM-YY
+        dt = datetime.now().strftime("%d-%m-%y")
+        filename = f"{safe_nome} - {dt} - FOHAT ENERGIA SOLAR.pdf"
 
         return send_file(
             io.BytesIO(pdf_bytes),
