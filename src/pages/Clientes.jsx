@@ -628,7 +628,7 @@ export default function Clientes() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                           {projeto.url_proposta && (
                             <Button
                               variant="ghost"
@@ -659,6 +659,25 @@ export default function Clientes() {
                               <Edit className="w-4 h-4" />
                             </Button>
                           </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              if (window.confirm(`Excluir o projeto "${projeto.nome_projeto || 'Sem nome'}"?\n\nEsta ação não pode ser desfeita.`)) {
+                                try {
+                                  await Projeto.delete(projeto.id);
+                                  loadData();
+                                } catch (error) {
+                                  console.error('Erro ao excluir projeto:', error);
+                                  alert('Erro ao excluir projeto');
+                                }
+                              }
+                            }}
+                            className="text-red-500 hover:bg-red-50 hover:text-red-600 h-8 w-8"
+                            title="Excluir Projeto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>

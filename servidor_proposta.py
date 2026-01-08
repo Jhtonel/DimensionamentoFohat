@@ -887,7 +887,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
           data: C.s04.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, formatter: axisLabelEvery5 }}
+          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, interval: 0, formatter: axisLabelEvery5 }}
         }},
         yAxis: {{
           type:'value',
@@ -1002,7 +1002,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
           data: C.s06.labels,
           axisTick: {{ show:false }},
           axisLine: {{ lineStyle: {{ color: brand.grid }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, formatter: axisLabelEvery5 }}
+          axisLabel: {{ color: brand.muted, fontSize: 11, fontWeight: 500, interval: 0, formatter: axisLabelEvery5 }}
         }},
         yAxis: {{
           type:'value',
