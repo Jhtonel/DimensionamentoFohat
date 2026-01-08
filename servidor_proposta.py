@@ -2020,8 +2020,11 @@ def popular_taxas_padrao():
 
 # Default payment options
 DEFAULT_FORMAS_PAGAMENTO = {
+    "debito": [
+        {"tipo": "Débito", "taxa": 1.09},  # VISA/MASTER
+    ],
     "pagseguro": [
-        {"parcelas": 1, "taxa": 3.16},
+        {"parcelas": 1, "taxa": 3.16, "nome": "Crédito à Vista"},
         {"parcelas": 2, "taxa": 4.57},
         {"parcelas": 3, "taxa": 5.38},
         {"parcelas": 4, "taxa": 6.18},
