@@ -1504,8 +1504,36 @@ def process_template_html(proposta_data):
         
         # ====== FORMAS DE PAGAMENTO (Slide 10) ======
         try:
-            preco_final_pagamento = float(proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)) or 0)
-            print(f"💰 [SLIDE10] Preço para pagamento: {preco_final_pagamento}")
+            # Função para parsear valores que podem estar como string formatada (ex: "R$ 10.174,00")
+            def parse_preco(val):
+                if val is None:
+                    return 0.0
+                if isinstance(val, (int, float)):
+                    return float(val)
+                if isinstance(val, str):
+                    # Remover formatação brasileira
+                    s = val.strip()
+                    for token in ['R$', 'r$', ' ']:
+                        s = s.replace(token, '')
+                    # Converter formato brasileiro para float
+                    s = s.replace('.', '').replace(',', '.')
+                    try:
+                        return float(s)
+                    except:
+                        return 0.0
+                return 0.0
+            
+            # Tentar obter o preço de várias fontes possíveis
+            preco_final_pagamento = 0
+            for key in ['preco_venda', 'preco_final', 'custo_total_projeto', 'investimento_inicial']:
+                val = proposta_data.get(key)
+                if val:
+                    preco_final_pagamento = parse_preco(val)
+                    if preco_final_pagamento > 0:
+                        print(f"💰 [SLIDE10] Preço encontrado em '{key}': {preco_final_pagamento}")
+                        break
+            
+            print(f"💰 [SLIDE10] Preço final para pagamento: {preco_final_pagamento}")
             
             if preco_final_pagamento > 0:
                 pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
@@ -2146,6 +2174,12 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     Calcula o valor das parcelas para cada opção de pagamento.
     Retorna HTML formatado para inserir no template.
     """
+    # Garantir que valor_total é um número válido
+    try:
+        valor_total = float(valor_total or 0)
+    except:
+        valor_total = 0.0
+    
     if formas_pagamento is None:
         formas_pagamento = _load_formas_pagamento()
     

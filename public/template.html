@@ -1835,12 +1835,13 @@
   .forma-pagamento-titulo{
     font-size:18px;
     font-weight:700;
-    color:var(--n-900);
+    color:#111827;
   }
 
   .forma-pagamento-subtitulo{
     font-size:12px;
-    color:var(--n-500);
+    color:#374151;
+    font-weight:500;
     margin-top:2px;
   }
 
@@ -1862,13 +1863,15 @@
   }
 
   .parcela-numero{
-    color:var(--n-600);
-    font-weight:500;
+    color:#374151;
+    font-weight:600;
+    font-size:13px;
   }
 
   .parcela-valor{
     font-weight:700;
-    color:var(--n-900);
+    color:#111827;
+    font-size:14px;
   }
 
   .forma-pagamento-destaque{
@@ -1886,25 +1889,27 @@
   }
 
   .destaque-label{
-    font-size:12px;
-    color:var(--n-600);
+    font-size:13px;
+    color:#374151;
+    font-weight:600;
     margin-bottom:4px;
   }
 
   .destaque-valor{
-    font-size:24px;
+    font-size:26px;
     font-weight:800;
-    color:#16a34a;
+    color:#15803d;
   }
 
   .destaque-valor.azul{
-    color:#1d4ed8;
+    color:#1e40af;
   }
 
   .forma-pagamento-aviso{
     margin-top:12px;
     font-size:11px;
-    color:var(--n-500);
+    color:#6b7280;
+    font-style:italic;
     text-align:center;
   }
 
@@ -1922,14 +1927,15 @@
   }
 
   .pagamento-resumo-texto h4{
-    font-size:20px;
+    font-size:22px;
     font-weight:700;
     margin-bottom:4px;
+    color:#ffffff;
   }
 
   .pagamento-resumo-texto p{
-    font-size:14px;
-    opacity:0.9;
+    font-size:15px;
+    color:rgba(255,255,255,0.95);
   }
 
   .pagamento-resumo-valor{
@@ -1938,12 +1944,16 @@
 
   .pagamento-resumo-valor .label{
     font-size:13px;
-    opacity:0.8;
+    color:#fbbf24;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
   }
 
   .pagamento-resumo-valor .valor{
-    font-size:32px;
+    font-size:36px;
     font-weight:800;
+    color:#ffffff;
     grid-row:2;
     display:flex;
     justify-content:space-between;
@@ -2698,10 +2708,6 @@
           <div class="forma-pagamento-destaque">
             <div class="destaque-label">À vista no cartão</div>
             <div class="destaque-valor">{{valor_avista_cartao}}</div>
-          </div>
-
-          <div class="forma-pagamento-aviso">
-            * Sujeito à aprovação de crédito
           </div>
         </div>
 
