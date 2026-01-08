@@ -1,8 +1,6 @@
 flask
 flask-cors
 gunicorn
-matplotlib
-numpy
 SQLAlchemy
 psycopg2-binary
 python-dotenv

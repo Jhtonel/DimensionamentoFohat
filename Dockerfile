@@ -10,12 +10,9 @@ RUN npm run build
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 
-# Dependências mínimas para matplotlib/numpy/pandas em ambiente slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    libfreetype6 \
-    libpng16-16 \
     fonts-dejavu-core \
     # Puppeteer/Chromium (PDF idêntico ao template)
     chromium \
