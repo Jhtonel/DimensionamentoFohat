@@ -813,15 +813,99 @@ export default function NovoProjeto() {
   };
 
   // Top 3 “melhor custo-benefício” (independente da ordenação atual)
+  const kitsRecomendadosMicro = useMemo(() => {
+    const base = Array.isArray(produtosDisponiveis) ? produtosDisponiveis : [];
+    if (base.length === 0) return [];
+
+    const BRANDS = ["foxess", "hoymiles", "deye"];
+
+    const getInversorJoined = (kit) => {
+      try {
+        const inversores = (kit?.componentes || []).filter((c) => c?.agrupamento === "Inversor");
+        return inversores
+          .map((c) => `${c?.descricao || ""} ${c?.marca || ""} ${c?.modelo || ""}`.toLowerCase())
+          .join(" ");
+      } catch {
+        return "";
+      }
+    };
+
+    const getPainelInfo = (kit) => {
+      try {
+        const paineis = (kit?.componentes || []).filter((c) => c?.agrupamento === "Painel");
+        let qtd = 0;
+        let watts = 0;
+        let n = 0;
+        for (const p of paineis) {
+          const q = Number(p?.quantidade || 0) || 0;
+          const w = Number(p?.potencia || 0) || 0;
+          qtd += q;
+          if (w > 0) {
+            watts += w;
+            n += 1;
+          }
+        }
+        const avgW = n > 0 ? (watts / n) : 0;
+        return { qtdPaineis: qtd, potenciaPainelW: avgW };
+      } catch {
+        return { qtdPaineis: 0, potenciaPainelW: 0 };
+      }
+    };
+
+    const isMicroPreferido = (kit) => {
+      const inv = getInversorJoined(kit);
+      if (!inv.includes("micro")) return false;
+      return BRANDS.some((b) => inv.includes(b));
+    };
+
+    // Score com foco em "custo benefício em placas":
+    // menor custo por placa (com leve bônus para placas mais potentes).
+    const scorePorPlaca = (kit) => {
+      const preco = Number(kit?.precoTotal || 0);
+      const { qtdPaineis, potenciaPainelW } = getPainelInfo(kit);
+      if (!preco || !qtdPaineis) return Number.POSITIVE_INFINITY;
+      const basePorPlaca = preco / qtdPaineis;
+      const refW = 550; // referência
+      const fatorPotencia = potenciaPainelW > 0 ? (refW / potenciaPainelW) : 1;
+      return basePorPlaca * fatorPotencia;
+    };
+
+    const candidatos = base.filter(isMicroPreferido);
+    const ordenados = [...candidatos].sort((a, b) => scorePorPlaca(a) - scorePorPlaca(b));
+    const top = ordenados.slice(0, 3);
+
+    // fallback: se não tiver 3 micro (Foxess/Hoymiles/Deye), completa com custo-benefício geral
+    if (top.length < 3) {
+      const already = new Set(top.map((k) => k?.id).filter(Boolean));
+      const extra = aplicarOrdenacao(base, "custo_beneficio").filter((k) => k?.id && !already.has(k.id));
+      for (const k of extra) {
+        top.push(k);
+        if (top.length >= 3) break;
+      }
+    }
+
+    return top.filter(Boolean);
+  }, [produtosDisponiveis, aplicarOrdenacao]);
+
+  const idsKitsRecomendadosMicro = useMemo(() => {
+    return new Set((kitsRecomendadosMicro || []).map((k) => k?.id).filter(Boolean));
+  }, [kitsRecomendadosMicro]);
+
+  const produtosDisponiveisLista = useMemo(() => {
+    const base = Array.isArray(produtosDisponiveis) ? produtosDisponiveis : [];
+    if (!idsKitsRecomendadosMicro || idsKitsRecomendadosMicro.size === 0) return base;
+    return base.filter((k) => !idsKitsRecomendadosMicro.has(k?.id));
+  }, [produtosDisponiveis, idsKitsRecomendadosMicro]);
+
   const top3CustoBeneficioIds = useMemo(() => {
     try {
-      const base = Array.isArray(kitsFiltrados) ? kitsFiltrados : Array.isArray(produtosDisponiveis) ? produtosDisponiveis : [];
+      const base = Array.isArray(produtosDisponiveisLista) ? produtosDisponiveisLista : [];
       const ordenados = aplicarOrdenacao(base, "custo_beneficio");
       return (ordenados || []).slice(0, 3).map((k) => k?.id).filter(Boolean);
     } catch (_) {
       return [];
     }
-  }, [kitsFiltrados, produtosDisponiveis]);
+  }, [produtosDisponiveisLista, aplicarOrdenacao]);
 
   // Função para limpar todos os filtros
   const limparTodosFiltros = () => {
@@ -2838,8 +2922,74 @@ export default function NovoProjeto() {
                         </Button>
                           </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {produtosDisponiveis.map((kit) => {
+                      <div className="space-y-6">
+                        {/* Topo: 3 kits destacados (micro: Foxess/Hoymiles/Deye) */}
+                        {Array.isArray(kitsRecomendadosMicro) && kitsRecomendadosMicro.length > 0 && (
+                          <div className="rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 to-white p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-900">
+                                  Kits recomendados (Micro: Foxess / Hoymiles / Deye)
+                                </h4>
+                                <p className="text-xs text-slate-600">
+                                  Seleção automática priorizando micro-inversor e melhor custo-benefício por placa.
+                                </p>
+                              </div>
+                              <Badge className="bg-sky-600 text-white">TOP 3</Badge>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {kitsRecomendadosMicro.slice(0, 3).map((kit, idx) => (
+                                <Card
+                                  key={`reco-${kit.id}`}
+                                  className={`cursor-pointer transition-all duration-200 ${
+                                    kitSelecionado?.id === kit.id
+                                      ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                                      : idx === 0
+                                      ? 'border-emerald-500 bg-emerald-50/60 shadow-lg ring-2 ring-emerald-200'
+                                      : 'border-emerald-200 bg-white shadow-sm hover:shadow-md hover:border-emerald-300'
+                                  }`}
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (kitSelecionado?.id === kit.id) return;
+                                    await selecionarKit(kit);
+                                  }}
+                                >
+                                  <CardHeader className="pb-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <CardTitle className="text-sm leading-tight">
+                                        {kit.nome}
+                                      </CardTitle>
+                                      <Badge className={idx === 0 ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}>
+                                        #{idx + 1}
+                                      </Badge>
+                                    </div>
+                                  </CardHeader>
+                                  <CardContent className="pt-0">
+                                    <div className="flex items-center justify-between text-sm">
+                                      <span className="text-gray-600">Potência:</span>
+                                      <span className="font-semibold">{kit.potencia}kW</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm mt-1">
+                                      <span className="text-gray-600">Preço Total:</span>
+                                      <span className="font-bold text-emerald-700">{formatCurrency(kit.precoTotal)}</span>
+                                    </div>
+                                    <div className="mt-3 text-xs text-slate-600">
+                                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 border border-emerald-200">
+                                        Micro-inversor recomendado
+                                      </span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lista principal (sem duplicar os 3 recomendados) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {produtosDisponiveisLista.map((kit) => {
                           const rank = top3CustoBeneficioIds.indexOf(kit?.id);
                           const isTop = rank !== -1;
                           const rankLabel = isTop ? `TOP ${rank + 1}` : null;
@@ -2982,7 +3132,8 @@ export default function NovoProjeto() {
                     </Card>
                           );
                         })}
-                    </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Botão flutuante para avançar para a aba de custos */}
