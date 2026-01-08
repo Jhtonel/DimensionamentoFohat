@@ -6,4 +6,5 @@ numpy
 SQLAlchemy
 psycopg2-binary
 python-dotenv
+PyJWT[crypto]==2.8.0
 

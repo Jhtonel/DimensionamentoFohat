@@ -36,6 +36,7 @@ import urllib.request
 import urllib.error
 from urllib.parse import urljoin
 from datetime import date
+import jwt
 #
 # Firebase Admin (opcional, para gerenciar usuários do Auth)
 FIREBASE_ADMIN_AVAILABLE = False
@@ -277,13 +278,54 @@ def _get_request_email_from_firebase() -> str | None:
     Tenta extrair o e-mail do requester a partir do Firebase ID token (Authorization: Bearer ...).
     Retorna None se não houver token válido ou Firebase Admin indisponível.
     """
-    if not FIREBASE_ADMIN_AVAILABLE:
-        return None
     token = _get_bearer_token()
     if not token:
         return None
+    # 1) Prefer Firebase Admin se disponível (mais robusto)
+    if FIREBASE_ADMIN_AVAILABLE:
+        try:
+            decoded = fb_auth.verify_id_token(token)
+            email = (decoded.get("email") or "").strip().lower()
+            return email or None
+        except Exception:
+            pass
+    # 2) Fallback: validar JWT do Firebase via chaves públicas (sem service account)
     try:
-        decoded = fb_auth.verify_id_token(token)
+        project_id = (os.environ.get("FIREBASE_PROJECT_ID") or "fohat-energia").strip()
+        issuer = f"https://securetoken.google.com/{project_id}"
+
+        # cache simples de certs
+        global _FIREBASE_CERTS_CACHE  # type: ignore
+        try:
+            _FIREBASE_CERTS_CACHE
+        except Exception:
+            _FIREBASE_CERTS_CACHE = {"ts": 0, "keys": {}}
+
+        now = time.time()
+        cache_ttl = 3600  # 1h
+        if (now - float(_FIREBASE_CERTS_CACHE.get("ts", 0) or 0)) > cache_ttl or not _FIREBASE_CERTS_CACHE.get("keys"):
+            certs_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+            with urllib.request.urlopen(certs_url, timeout=20) as resp:
+                body = resp.read().decode("utf-8")
+                keys = json.loads(body) if body else {}
+                if isinstance(keys, dict):
+                    _FIREBASE_CERTS_CACHE = {"ts": now, "keys": keys}
+
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid")
+        keys = _FIREBASE_CERTS_CACHE.get("keys") or {}
+        cert_pem = keys.get(kid) if kid else None
+        if not cert_pem:
+            return None
+
+        decoded = jwt.decode(
+            token,
+            cert_pem,
+            algorithms=["RS256"],
+            audience=project_id,
+            issuer=issuer,
+            options={"require": ["exp", "iat", "aud", "iss"]},
+        )
         email = (decoded.get("email") or "").strip().lower()
         return email or None
     except Exception:
