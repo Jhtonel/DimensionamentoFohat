@@ -2527,17 +2527,22 @@ def gerar_proposta_html(proposta_id):
         return f"<html><body><h1>Erro ao gerar proposta HTML: {str(e)}</h1></body></html>", 500
 
 
-def _render_pdf_with_puppeteer(html: str, timeout_s: int = 90) -> bytes:
+def _render_pdf_with_puppeteer(html: str, timeout_s: int = 60) -> bytes:
     """
     Renderiza o HTML em PDF usando Puppeteer (Chromium headless) via Node.
     Retorna bytes do PDF.
     """
+    import time
+    start = time.time()
+    print(f"📄 [PDF] Iniciando renderização...")
+    
     renderer = Path(__file__).parent / "pdf_renderer" / "render_pdf.js"
     if not renderer.exists():
         raise RuntimeError("pdf_renderer/render_pdf.js não encontrado.")
 
     env = os.environ.copy()
     env.setdefault("CHROMIUM_PATH", "/usr/bin/chromium")
+    env.setdefault("PUPPETEER_EXECUTABLE_PATH", "/usr/bin/chromium")
 
     try:
         proc = subprocess.run(
@@ -2550,12 +2555,19 @@ def _render_pdf_with_puppeteer(html: str, timeout_s: int = 90) -> bytes:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        print(f"❌ [PDF] Timeout após {timeout_s}s")
         raise RuntimeError("Timeout ao gerar PDF (Puppeteer).")
 
+    elapsed = time.time() - start
+    stderr_log = (proc.stderr or b"").decode("utf-8", errors="ignore")
+    if stderr_log:
+        print(f"📄 [PDF] Puppeteer log: {stderr_log[:500]}")
+    
     if proc.returncode != 0 or not proc.stdout:
-        err = (proc.stderr or b"").decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Falha ao gerar PDF (Puppeteer). rc={proc.returncode} err={err[:800]}")
+        print(f"❌ [PDF] Falha rc={proc.returncode}")
+        raise RuntimeError(f"Falha ao gerar PDF (Puppeteer). rc={proc.returncode} err={stderr_log[:800]}")
 
+    print(f"✅ [PDF] Renderizado em {elapsed:.1f}s ({len(proc.stdout)} bytes)")
     return proc.stdout
 
 
@@ -2597,7 +2609,7 @@ def gerar_pdf_puppeteer(proposta_id):
                 proposta_data = json.load(f)
 
         html = process_template_html(proposta_data)
-        pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=90)
+        pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=60)
 
         nome = (proposta_data or {}).get("cliente_nome") or "CLIENTE"
         safe_nome = re.sub(r"[\\/:*?\"<>|]+", " ", str(nome)).strip()

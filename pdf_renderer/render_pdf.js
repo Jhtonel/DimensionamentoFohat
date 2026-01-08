@@ -9,10 +9,6 @@ function readStdin() {
   });
 }
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function main() {
   const html = await readStdin();
   if (!html || !html.trim()) {
@@ -25,6 +21,7 @@ async function main() {
     process.env.PUPPETEER_EXECUTABLE_PATH ||
     "/usr/bin/chromium";
 
+  console.error("Starting Chromium...");
   const browser = await puppeteer.launch({
     executablePath,
     args: [
@@ -32,40 +29,59 @@ async function main() {
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--disable-translate",
+      "--no-first-run",
+      "--single-process",
       "--font-render-hinting=none",
     ],
     headless: "new",
   });
 
   try {
+    console.error("Creating page...");
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
+    
+    // Desabilitar recursos desnecessários
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const type = req.resourceType();
+      if (type === 'image' || type === 'stylesheet' || type === 'font') {
+        req.continue();
+      } else if (type === 'script') {
+        req.continue();
+      } else {
+        req.continue();
+      }
+    });
 
-    // Render HTML - usar domcontentloaded em vez de networkidle0 (mais rápido)
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1.5 });
+
+    console.error("Setting HTML content...");
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 20000 });
     
-    // Aguardar um pouco para scripts executarem
-    await delay(500);
+    // Aguardar scripts executarem
+    console.error("Waiting for scripts...");
+    await new Promise(r => setTimeout(r, 800));
     
-    // Aguardar fontes carregarem
-    try {
-      await page.evaluate(() => document.fonts?.ready);
-    } catch (_) {}
-    
-    // Aguardar ECharts renderizar (com timeout curto)
+    // Aguardar ECharts (com timeout curto)
     try {
       await page.waitForFunction(
         "window.__FOHAT_ECHARTS_READY__ === true",
-        { timeout: 10000 }
+        { timeout: 5000 }
       );
+      console.error("ECharts ready!");
     } catch (_) {
-      // Se timeout, continua mesmo assim
-      console.error("ECharts ready timeout - continuing anyway");
+      console.error("ECharts timeout - continuing...");
     }
     
-    // Delay final para layout estabilizar
-    await delay(300);
+    // Delay final
+    await new Promise(r => setTimeout(r, 200));
 
+    console.error("Generating PDF...");
     const pdf = await page.pdf({
       format: "A4",
       landscape: true,
@@ -74,6 +90,7 @@ async function main() {
       margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
     });
 
+    console.error("PDF generated successfully!");
     process.stdout.write(Buffer.from(pdf));
   } finally {
     await browser.close();
