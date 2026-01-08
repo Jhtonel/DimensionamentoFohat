@@ -237,15 +237,13 @@ def calcular_decomposicao_tarifa(tarifa_total: float, consumo_kwh: float, ano: i
 # ------------------------
 def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     """
-    KPIs alinhados com Lei 14.300/2022:
-      - economia_mensal_real: economia REAL considerando apenas parcelas compensáveis
-      - economia_mensal_bruta: economia se 100% fosse compensável (para comparação)
-      - custo_residual_mensal: TUSD Fio B que sempre será pago
-      - conta_atual_anual: consumo (R$ ou kWh*tarifa) * 12
-      - payback_meses: calculado com economia REAL + custos de manutenção
-      - payback_anos: payback_meses / 12
-      - gasto_acumulado_payback: conta_atual_anual * payback_anos
-      - decomposicao_tarifa: detalhamento TE, TUSD compensável, TUSD Fio B, impostos
+    KPIs conforme Lei 14.300/2022 - Marco Legal da Geração Distribuída.
+    
+    Todos os cálculos consideram:
+    - Economia REAL (apenas componentes compensáveis: TE + TUSD parcial + impostos)
+    - TUSD Fio B (não compensável - cresce até 2029)
+    - Custos de manutenção (1% ao ano)
+    - Degradação do sistema (0.75% ao ano)
     """
     consumo_reais = _to_float(payload.get('consumo_mensal_reais', 0), 0.0)
     consumo_kwh = _to_float(payload.get('consumo_mensal_kwh', 0), 0.0)
@@ -257,17 +255,11 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     if consumo_kwh <= 0 and consumo_reais > 0 and tarifa > 0:
         consumo_kwh = consumo_reais / tarifa
 
-    # Economia mensal BRUTA (se 100% fosse compensável - modelo antigo)
-    if consumo_reais > 0:
-        economia_mensal_bruta = consumo_reais
-    else:
-        economia_mensal_bruta = consumo_kwh * tarifa
-
     # Calcular decomposição da tarifa conforme Lei 14.300
     decomposicao = calcular_decomposicao_tarifa(tarifa, consumo_kwh, ano_referencia)
     
-    # ECONOMIA REAL (Lei 14.300) - apenas componentes compensáveis
-    economia_mensal_real = decomposicao["economia_real"]
+    # ECONOMIA MENSAL (Lei 14.300) - apenas componentes compensáveis
+    economia_mensal = decomposicao["economia_real"]
     custo_residual_mensal = decomposicao["custo_residual"]
     
     # Conta atual anual (sem solar)
@@ -277,26 +269,21 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     # Custo anual de manutenção (1% do investimento)
     custo_manutencao_anual = preco_venda * CUSTO_MANUTENCAO_ANUAL_PERCENTUAL
     
-    # Economia líquida anual (economia real - manutenção - custo residual TUSD Fio B)
-    economia_liquida_anual = (economia_mensal_real * 12) - custo_manutencao_anual - (custo_residual_mensal * 12)
+    # Economia líquida anual (economia - manutenção - TUSD Fio B)
+    economia_liquida_anual = (economia_mensal * 12) - custo_manutencao_anual - (custo_residual_mensal * 12)
     economia_liquida_mensal = economia_liquida_anual / 12 if economia_liquida_anual > 0 else 0
 
-    # PAYBACK REAL (considerando economia líquida)
-    payback_meses_real = (preco_venda / economia_liquida_mensal) if economia_liquida_mensal > 0 else 0.0
-    payback_anos_real = payback_meses_real / 12.0 if payback_meses_real > 0 else 0.0
-    payback_anos_real = round(payback_anos_real, 1)
-    payback_meses_real = int(round(payback_meses_real))
-    
-    # Payback otimista (sem considerar custos - para comparação)
-    payback_meses_otimista = (preco_venda / economia_mensal_real) if economia_mensal_real > 0 else 0.0
-    payback_anos_otimista = payback_meses_otimista / 12.0 if payback_meses_otimista > 0 else 0.0
-    payback_anos_otimista = round(payback_anos_otimista, 1)
+    # PAYBACK (considerando economia líquida)
+    payback_meses = (preco_venda / economia_liquida_mensal) if economia_liquida_mensal > 0 else 0.0
+    payback_anos = payback_meses / 12.0 if payback_meses > 0 else 0.0
+    payback_anos = round(payback_anos, 1)
+    payback_meses = int(round(payback_meses))
 
-    gasto_acumulado_payback = conta_atual_anual * payback_anos_real if (conta_atual_anual > 0 and payback_anos_real > 0) else 0.0
+    gasto_acumulado_payback = conta_atual_anual * payback_anos if (conta_atual_anual > 0 and payback_anos > 0) else 0.0
     
     # Economia detalhada por componente (mensal)
     economia_te_mensal = decomposicao["te"]["total"]
-    economia_tusd_compensavel_mensal = decomposicao["tusd_compensavel"]["total"]
+    economia_tusd_mensal = decomposicao["tusd_compensavel"]["total"]
     economia_pis_mensal = decomposicao["pis"]["total"]
     economia_cofins_mensal = decomposicao["cofins"]["total"]
     economia_icms_mensal = decomposicao["icms"]["total"]
@@ -304,59 +291,47 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     
     # Economia detalhada por componente (anual)
     economia_te_anual = economia_te_mensal * 12
-    economia_tusd_compensavel_anual = economia_tusd_compensavel_mensal * 12
+    economia_tusd_anual = economia_tusd_mensal * 12
     economia_pis_anual = economia_pis_mensal * 12
     economia_cofins_anual = economia_cofins_mensal * 12
     economia_icms_anual = economia_icms_mensal * 12
     economia_impostos_anual = economia_impostos_mensal * 12
     
-    # Economia em 25 anos (simplificada, sem inflação)
-    economia_25_anos_bruta = economia_mensal_bruta * 12 * 25
-    economia_25_anos_real = economia_mensal_real * 12 * 25
+    # Economia em 25 anos
+    economia_25_anos = economia_mensal * 12 * 25
     economia_impostos_25_anos = economia_impostos_mensal * 12 * 25
-    
-    # Custo total de TUSD Fio B em 25 anos (sempre pago)
     custo_tusd_fio_b_25_anos = custo_residual_mensal * 12 * 25
 
     return {
-        # Economia conforme Lei 14.300
-        "economia_mensal_real": round(economia_mensal_real, 2),
-        "economia_mensal_bruta": round(economia_mensal_bruta, 2),
+        # Economia Lei 14.300
+        "economia_mensal": round(economia_mensal, 2),
+        "economia_mensal_estimada": round(economia_mensal, 2),  # Alias
         "economia_liquida_mensal": round(economia_liquida_mensal, 2),
         "custo_residual_mensal": round(custo_residual_mensal, 2),
         "custo_manutencao_mensal": round(custo_manutencao_anual / 12, 2),
         
         # Valores anuais
-        "economia_anual_real": round(economia_mensal_real * 12, 2),
-        "economia_anual_bruta": round(economia_mensal_bruta * 12, 2),
+        "economia_anual": round(economia_mensal * 12, 2),
+        "economia_anual_estimada": round(economia_mensal * 12, 2),  # Alias
         "economia_liquida_anual": round(economia_liquida_anual, 2),
         "custo_residual_anual": round(custo_residual_mensal * 12, 2),
         "custo_manutencao_anual": round(custo_manutencao_anual, 2),
-        
-        # Compatibilidade com modelo anterior
-        "economia_mensal_estimada": round(economia_mensal_real, 2),
-        "economia_anual_estimada": round(economia_mensal_real * 12, 2),
         "conta_atual_anual": conta_atual_anual,
         "preco_venda": preco_venda,
         
         # Payback
-        "payback_meses": payback_meses_real,
-        "payback_meses_real": payback_meses_real,
-        "payback_meses_otimista": int(round(payback_meses_otimista)),
-        "anos_payback": payback_anos_real,
-        "anos_payback_real": payback_anos_real,
-        "anos_payback_otimista": payback_anos_otimista,
+        "payback_meses": payback_meses,
+        "anos_payback": payback_anos,
         "gasto_acumulado_payback": gasto_acumulado_payback,
         
         # Decomposição da tarifa (Lei 14.300)
         "decomposicao_tarifa": decomposicao,
         "percentual_economia": decomposicao["percentual_economia"],
-        "ano_referencia_lei14300": ano_referencia,
+        "ano_referencia": ano_referencia,
         
         # Economia por componente (mensal)
         "economia_te_mensal": round(economia_te_mensal, 2),
-        "economia_tusd_compensavel_mensal": round(economia_tusd_compensavel_mensal, 2),
-        "economia_tusd_mensal": round(economia_tusd_compensavel_mensal, 2),  # Compatibilidade
+        "economia_tusd_mensal": round(economia_tusd_mensal, 2),
         "economia_pis_mensal": round(economia_pis_mensal, 2),
         "economia_cofins_mensal": round(economia_cofins_mensal, 2),
         "economia_icms_mensal": round(economia_icms_mensal, 2),
@@ -364,17 +339,14 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
         
         # Economia por componente (anual)
         "economia_te_anual": round(economia_te_anual, 2),
-        "economia_tusd_compensavel_anual": round(economia_tusd_compensavel_anual, 2),
-        "economia_tusd_anual": round(economia_tusd_compensavel_anual, 2),  # Compatibilidade
+        "economia_tusd_anual": round(economia_tusd_anual, 2),
         "economia_pis_anual": round(economia_pis_anual, 2),
         "economia_cofins_anual": round(economia_cofins_anual, 2),
         "economia_icms_anual": round(economia_icms_anual, 2),
         "economia_impostos_anual": round(economia_impostos_anual, 2),
         
         # Economia em 25 anos
-        "economia_25_anos_bruta": round(economia_25_anos_bruta, 2),
-        "economia_25_anos_real": round(economia_25_anos_real, 2),
-        "economia_25_anos_simplificada": round(economia_25_anos_real, 2),  # Compatibilidade
+        "economia_25_anos": round(economia_25_anos, 2),
         "economia_impostos_25_anos": round(economia_impostos_25_anos, 2),
         "custo_tusd_fio_b_25_anos": round(custo_tusd_fio_b_25_anos, 2),
     }
@@ -483,17 +455,15 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
     
     # Listas para cálculos detalhados
     economia_te_anual_r: List[float] = []
-    economia_tusd_compensavel_anual_r: List[float] = []
+    economia_tusd_anual_r: List[float] = []
     custo_tusd_fio_b_anual_r: List[float] = []  # TUSD Fio B (não compensável)
     economia_pis_anual_r: List[float] = []
     economia_cofins_anual_r: List[float] = []
     economia_icms_anual_r: List[float] = []
     economia_impostos_anual_r: List[float] = []
     
-    # Economia real (Lei 14.300) - apenas componentes compensáveis
+    # Economia (Lei 14.300) - apenas componentes compensáveis
     economia_anual_real_r: List[float] = []
-    # Economia bruta (se 100% fosse compensável - para comparação)
-    economia_anual_bruta_r: List[float] = []
     
     # Custos operacionais
     custo_manutencao_anual_r: List[float] = []
@@ -520,18 +490,14 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
         # Produção do ano em kWh
         prod_kwh = producao_anual_kwh[i]
         
-        # Economia bruta (se 100% compensável)
-        eco_bruta = prod_kwh * tarifa_r_kwh[i]
-        economia_anual_bruta_r.append(round(eco_bruta, 2))
-        
-        # ECONOMIA REAL (Lei 14.300) - apenas componentes compensáveis
+        # ECONOMIA (Lei 14.300) - apenas componentes compensáveis
         # TE: 100% compensável
         eco_te = prod_kwh * te_kwh * fator_impostos  # TE + impostos sobre TE
         economia_te_anual_r.append(round(eco_te / fator_impostos * fator_impostos, 2))
         
         # TUSD compensável
         eco_tusd_comp = prod_kwh * tusd_compensavel_kwh * fator_impostos
-        economia_tusd_compensavel_anual_r.append(round(eco_tusd_comp / fator_impostos * fator_impostos, 2))
+        economia_tusd_anual_r.append(round(eco_tusd_comp, 2))
         
         # TUSD Fio B (NÃO compensável - custo que permanece)
         custo_fio_b = prod_kwh * tusd_fio_b_kwh * fator_impostos
@@ -566,10 +532,6 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
         else:
             custo_inv = 0
         custo_substituicao_inversor_r.append(round(custo_inv, 2))
-    
-    # Compatibilidade com modelo anterior
-    economia_tusd_anual_r = economia_tusd_compensavel_anual_r
-    producao_anual_r: List[float] = economia_anual_bruta_r  # Para compatibilidade
     
     # Custo anual COM solar (taxa mínima + TUSD Fio B não compensável + manutenção)
     custo_anual_com_solar_r: List[float] = [
@@ -619,21 +581,17 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
     # Totais acumulados
     economia_impostos_acumulada_r: List[float] = []
     economia_real_acumulada_r: List[float] = []
-    economia_bruta_acumulada_r: List[float] = []
     custo_tusd_fio_b_acumulado_r: List[float] = []
     
     acc_imp = 0.0
     acc_real = 0.0
-    acc_bruta = 0.0
     acc_fio_b = 0.0
     for i in range(horizonte_anos):
         acc_imp += economia_impostos_anual_r[i]
         acc_real += economia_anual_real_r[i]
-        acc_bruta += economia_anual_bruta_r[i]
         acc_fio_b += custo_tusd_fio_b_anual_r[i]
         economia_impostos_acumulada_r.append(round(acc_imp, 2))
         economia_real_acumulada_r.append(round(acc_real, 2))
-        economia_bruta_acumulada_r.append(round(acc_bruta, 2))
         custo_tusd_fio_b_acumulado_r.append(round(acc_fio_b, 2))
 
     return {
@@ -645,25 +603,22 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
         "custo_anual_sem_solar_r": custo_anual_sem_solar_r,
         "custo_acumulado_sem_solar_r": custo_acumulado_sem_solar_r,
         "producao_anual_kwh": producao_anual_kwh,
-        "producao_anual_r": producao_anual_r,
         "producao_mensal_kwh_ano1": producao_mensal_kwh_ano1,
         "producao_mensal_r_ano1": producao_mensal_r_ano1,
         "taxa_distribuicao_anual_r": taxa_distribuicao_anual_r,
         "custo_anual_com_solar_r": custo_anual_com_solar_r,
         "custo_acumulado_com_solar_r": custo_acumulado_com_solar_r,
+        # Economia (Lei 14.300)
         "economia_anual_r": economia_anual_r,
-        "fluxo_caixa_anual_r": fluxo_caixa_anual_r,
-        "fluxo_caixa_acumulado_r": fluxo_caixa_acumulado_r,
-        # Lei 14.300/2022 - Decomposição detalhada
         "economia_anual_real_r": economia_anual_real_r,
-        "economia_anual_bruta_r": economia_anual_bruta_r,
         "economia_liquida_anual_r": economia_liquida_anual_r,
         "economia_real_acumulada_r": economia_real_acumulada_r,
-        "economia_bruta_acumulada_r": economia_bruta_acumulada_r,
+        # Fluxo de caixa
+        "fluxo_caixa_anual_r": fluxo_caixa_anual_r,
+        "fluxo_caixa_acumulado_r": fluxo_caixa_acumulado_r,
         # Decomposição da economia por componente
         "economia_te_anual_r": economia_te_anual_r,
-        "economia_tusd_compensavel_anual_r": economia_tusd_compensavel_anual_r,
-        "economia_tusd_anual_r": economia_tusd_anual_r,  # Compatibilidade
+        "economia_tusd_anual_r": economia_tusd_anual_r,
         "custo_tusd_fio_b_anual_r": custo_tusd_fio_b_anual_r,
         "custo_tusd_fio_b_acumulado_r": custo_tusd_fio_b_acumulado_r,
         "economia_pis_anual_r": economia_pis_anual_r,

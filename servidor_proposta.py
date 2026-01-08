@@ -723,7 +723,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             except Exception:
                 irr_vec = [media] * 12
 
-        # Calcular tabelas pelo núcleo
+        # Calcular tabelas pelo núcleo (Lei 14.300/2022)
         core = calcular_dimensionamento({
             "consumo_mensal_kwh": consumo_kwh,
             "consumo_mensal_reais": consumo_reais,
@@ -732,29 +732,48 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             "preco_venda": preco_venda,
             "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
             "irradiancia_mensal_kwh_m2_dia": irr_vec,
+            "ano_instalacao": 2026,  # Lei 14.300
         })
         tabelas = core.get("tabelas") or {}
+        metrics = core.get("metrics") or {}
 
         # --------------------------
-        # ECharts (SVG) — datasets
+        # ECharts (SVG) — datasets (Lei 14.300/2022)
         # --------------------------
+        # Todos os dados vêm do núcleo que já aplica:
+        # - Degradação do sistema (0.75%/ano)
+        # - TUSD Fio B (não compensável)
+        # - Custos de manutenção (1%/ano)
+        # - Substituição do inversor (ano 12)
         cas = tabelas.get("custo_acumulado_sem_solar_r") or []
         ca = tabelas.get("custo_anual_sem_solar_r") or []
-        fca = tabelas.get("fluxo_caixa_acumulado_r") or []
+        fca = tabelas.get("fluxo_caixa_acumulado_r") or []  # Fluxo com Lei 14.300
         consumo_mes = (tabelas.get("consumo_mensal_kwh") or [0])[0] if tabelas else 0
         prod_mes = (tabelas.get("producao_mensal_kwh_ano1") or [])
 
         meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-        # Slide 03 — acumulado sem solar (1,5,10,15,20,25)
+        
+        # ==============================================
+        # GRÁFICOS DA PROPOSTA (Lei 14.300/2022)
+        # Todos os dados já incluem:
+        # - TUSD Fio B (não compensável)
+        # - Degradação do sistema (0.75%/ano)
+        # - Custos de manutenção (1%/ano)
+        # - Substituição do inversor (ano 12)
+        # ==============================================
+        
+        # Slide 03 — Cenário atual: gasto acumulado sem solar (anos 1,5,10,15,20,25)
         idxs = [0, 4, 9, 14, 19, 24]
         s03_vals = [float(cas[i]) for i in idxs] if len(cas) >= 25 else []
         s03_labs = [f"Ano {i+1}" for i in idxs]
 
-        # Slide 04 — custo anual sem solar (25 anos)
+        # Slide 04 — Evolução da conta: custo anual sem solar (25 anos)
+        # Com reajuste de tarifa de 5% ao ano
         s04_vals = [float(v) for v in ca] if ca else []
         s04_labs = [f"Ano {i+1}" for i in range(len(s04_vals))]
 
-        # Slide 05 — consumo vs produção (kWh/mês)
+        # Slide 05 — Consumo vs Produção (kWh/mês - Ano 1)
+        # Produção já considera o Performance Ratio de 82%
         consumo_vec = [float(consumo_mes)] * 12 if float(consumo_mes or 0) > 0 else [0.0] * 12
         prod_vec = [float(v) for v in (prod_mes[:12] if prod_mes else [])]
         if not prod_vec or len(prod_vec) != 12:
@@ -764,11 +783,14 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             else:
                 prod_vec = [0.0] * 12
 
-        # Slide 06 — fluxo de caixa acumulado (25 anos)
+        # Slide 06 — Payback: fluxo de caixa acumulado (25 anos)
+        # LEI 14.300: Inclui TUSD Fio B, manutenção, degradação
+        # O ponto onde cruza zero é o payback real
         s06_vals = [float(v) for v in fca] if fca else []
         s06_labs = [f"Ano {i+1}" for i in range(len(s06_vals))]
 
-        # Slide 09 — comparativo 25 anos (sem solar vs investimento)
+        # Slide 09 — Comparativo financeiro (25 anos)
+        # Compara gasto total sem solar vs investimento inicial
         gasto_total_25 = float(cas[-1]) if cas else 0.0
         investimento = float(preco_venda or 0.0)
         s09_vals = [gasto_total_25, investimento]
@@ -1239,8 +1261,9 @@ def process_template_html(proposta_data):
                     0.0
                 ),
                 "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
+                "ano_instalacao": 2026,  # Lei 14.300
             }
-            print(f"🧮 [ECON25] core_payload -> consumo_kwh={core_payload['consumo_mensal_kwh']}, "
+            print(f"🧮 [ECON25] core_payload (Lei 14.300) -> consumo_kwh={core_payload['consumo_mensal_kwh']}, "
                   f"consumo_r$={core_payload['consumo_mensal_reais']}, tarifa={core_payload['tarifa_energia']}, "
                   f"potencia={core_payload['potencia_sistema']}, preco_venda={core_payload['preco_venda']}, "
                   f"irr_media={core_payload['irradiacao_media']}")
@@ -2050,7 +2073,7 @@ def analise_gerar_graficos():
         if potencia_kwp <= 0:
             return jsonify({"success": False, "message": "Potência do sistema (kWp) inválida."}), 400
 
-        # Usar o núcleo único de dimensionamento
+        # Usar o núcleo único de dimensionamento (Lei 14.300/2022)
         core_payload = {
             "consumo_mensal_reais": consumo_reais,
             "consumo_mensal_kwh": consumo_kwh,
@@ -2059,6 +2082,7 @@ def analise_gerar_graficos():
             "preco_venda": preco_venda,
             "irradiacao_media": _to_float(body.get('irradiacao_media', 5.15), 5.15),
             "irradiancia_mensal_kwh_m2_dia": irr_vec,
+            "ano_instalacao": 2026,  # Lei 14.300
         }
         core = calcular_dimensionamento(core_payload)
         metrics = core.get("metrics") or {}
@@ -2352,7 +2376,7 @@ def salvar_proposta():
         except Exception:
             needs_kpis = True
         if needs_kpis:
-            print("ℹ️ [salvar-proposta] KPIs ausentes -> calculando via núcleo.")
+            print("ℹ️ [salvar-proposta] KPIs ausentes -> calculando via núcleo (Lei 14.300).")
             core_payload = {
                 "consumo_mensal_reais": data.get('consumo_mensal_reais', 0),
                 "consumo_mensal_kwh": proposta_data.get('consumo_mensal_kwh', 0),
@@ -2360,6 +2384,7 @@ def salvar_proposta():
                 "potencia_sistema": proposta_data.get('potencia_sistema', 0),
                 "preco_venda": proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)),
                 "irradiacao_media": proposta_data.get('irradiacao_media', 5.15),
+                "ano_instalacao": 2026,  # Lei 14.300
             }
             try:
                 core = calcular_dimensionamento(core_payload)
