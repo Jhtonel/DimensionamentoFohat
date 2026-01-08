@@ -491,6 +491,43 @@ export default function CostsDetailed({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Nova tabela: Economia de Impostos por Ano */}
+                  {(t.economia_impostos_anual_r && t.economia_impostos_anual_r.length > 0) && (
+                    <div className="overflow-auto border rounded border-amber-200">
+                      <div className="bg-amber-50 p-2 font-medium text-amber-800 text-sm">
+                        💰 Economia de Impostos por Ano (PIS + COFINS + ICMS)
+                      </div>
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-amber-50">
+                          <tr>
+                            <th className="p-2 text-left">Ano</th>
+                            <th className="p-2 text-right">Eco. TE</th>
+                            <th className="p-2 text-right">Eco. TUSD</th>
+                            <th className="p-2 text-right">Eco. PIS</th>
+                            <th className="p-2 text-right">Eco. COFINS</th>
+                            <th className="p-2 text-right">Eco. ICMS</th>
+                            <th className="p-2 text-right">Total Impostos</th>
+                            <th className="p-2 text-right">Acum. Impostos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(t.ano || []).map((_, idx) => (
+                            <tr key={`imp-${idx}`} className={idx % 2 ? 'bg-white' : 'bg-amber-50/30'}>
+                              <td className="p-2">{t.ano[idx]}</td>
+                              <td className="p-2 text-right">{formatCurrency(t.economia_te_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right">{formatCurrency(t.economia_tusd_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right">{formatCurrency(t.economia_pis_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right">{formatCurrency(t.economia_cofins_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right">{formatCurrency(t.economia_icms_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right font-medium">{formatCurrency(t.economia_impostos_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right font-semibold text-amber-700">{formatCurrency(t.economia_impostos_acumulada_r?.[idx] || 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
