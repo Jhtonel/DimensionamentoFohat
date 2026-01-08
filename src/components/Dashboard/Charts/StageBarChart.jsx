@@ -39,9 +39,14 @@ export default function StageBarChart({
     () => ({
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8, right: 8, bottom: 0, left: 6 } },
       plugins: {
         legend: { display: false },
         tooltip: {
+          bodyFont: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 14, weight: "600" },
+          titleFont: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 13, weight: "700" },
+          padding: 12,
+          boxPadding: 6,
           callbacks: {
             label: (ctx) => {
               const i = ctx.dataIndex;
@@ -59,11 +64,20 @@ export default function StageBarChart({
       scales: {
         x: {
           grid: { display: false },
-          ticks: { maxRotation: 0, autoSkip: true },
+          ticks: {
+            maxRotation: 0,
+            autoSkip: true,
+            color: "rgba(51, 65, 85, 0.9)",
+            font: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 13, weight: "600" },
+          },
         },
         y: {
           beginAtZero: true,
-          ticks: { precision: 0 },
+          ticks: {
+            precision: 0,
+            color: "rgba(51, 65, 85, 0.9)",
+            font: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 13, weight: "600" },
+          },
           grid: { color: "rgba(148, 163, 184, 0.25)" },
         },
       },

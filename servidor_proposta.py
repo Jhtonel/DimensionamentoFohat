@@ -1117,41 +1117,54 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             s = s.replace(",", "X").replace(".", ",").replace("X", ".")
             return f"R$ {s}"
 
+        # Tema Fohat (consistente entre todos os gráficos)
+        THEME = {
+            "bg": "#ffffff",
+            "text": "#0f172a",          # slate-900
+            "muted": "#334155",         # slate-700
+            "grid": "#e2e8f0",          # slate-200
+            "spine": "#e2e8f0",
+            "blue": "#1E3A8A",          # Fohat
+            "blue2": "#2563EB",         # azul claro (para contraste)
+            "green": "#059669",
+            "red": "#DC2626",
+        }
+
         # Configurar estilo profissional
         plt.style.use('default')
         
         # Ajustar tamanhos de fonte baseado no figsize - aumentados para harmonizar com proposta
-        base_font_size = 20  # Mais legível
+        base_font_size = 24  # Mais legível no A4
         scale_factor = min(figsize[0] / 12, figsize[1] / 8)  # Fator de escala baseado no figsize
         
         plt.rcParams.update({
             'font.family': 'sans-serif',
             'font.sans-serif': ['Arial', 'DejaVu Sans', 'Liberation Sans'],
             'font.size': int(base_font_size * scale_factor),
-            'axes.titlesize': int(22 * scale_factor),
-            'axes.labelsize': int(20 * scale_factor),
-            'xtick.labelsize': int(18 * scale_factor),
-            'ytick.labelsize': int(18 * scale_factor),
-            'legend.fontsize': int(18 * scale_factor),
-            'figure.titlesize': int(26 * scale_factor)
+            'axes.titlesize': int(24 * scale_factor),
+            'axes.labelsize': int(22 * scale_factor),
+            'xtick.labelsize': int(20 * scale_factor),
+            'ytick.labelsize': int(20 * scale_factor),
+            'legend.fontsize': int(19 * scale_factor),
+            'figure.titlesize': int(28 * scale_factor)
         })
         
         # Fundo branco evita “transparência” estranha no HTML/PDF e melhora contraste
-        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
-        ax.set_facecolor('white')
+        fig, ax = plt.subplots(figsize=figsize, facecolor=THEME["bg"])
+        ax.set_facecolor(THEME["bg"])
         # Reduzir margens internas (usar quase 100% da área) com respiro pro eixo X
-        fig.subplots_adjust(left=0.08, right=0.99, top=0.96, bottom=0.18)
+        fig.subplots_adjust(left=0.07, right=0.995, top=0.97, bottom=0.16)
         
         # Cores profissionais baseadas no design da proposta (Fohat)
         if colors is None:
             colors = {
-                'primary': '#1E3A8A',      # Azul Fohat
-                'secondary': '#059669',    # Verde
-                'accent': '#DC2626',       # Vermelho
+                'primary': THEME["blue"],      # Azul Fohat
+                'secondary': THEME["green"],   # Verde
+                'accent': THEME["red"],        # Vermelho
                 'warning': '#d97706',      # Laranja
                 'info': '#7c3aed',         # Roxo
                 'success': '#16a34a',      # Verde sucesso
-                'danger': '#DC2626',       # Vermelho perigo
+                'danger': THEME["red"],    # Vermelho perigo
                 'light': '#f8fafc',        # Cinza claro
                 'dark': '#1e293b'          # Cinza escuro
             }
@@ -1163,13 +1176,13 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         # Configurações de estilo profissional
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_color('#e2e8f0')
-        ax.spines['bottom'].set_color('#e2e8f0')
+        ax.spines['left'].set_color(THEME["spine"])
+        ax.spines['bottom'].set_color(THEME["spine"])
         ax.spines['left'].set_linewidth(1)
         ax.spines['bottom'].set_linewidth(1)
         
         # Configurar grid
-        ax.grid(True, alpha=0.12, color='#e2e8f0', linestyle='-', linewidth=0.6)
+        ax.grid(True, alpha=0.18, color=THEME["grid"], linestyle='-', linewidth=0.8)
         ax.set_axisbelow(True)
         
         if chart_type == 'bar':
@@ -1189,9 +1202,9 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
                     _fmt_brl_num(value, 0),
                     ha='center',
                     va='bottom',
-                    fontsize=int(18 * scale_factor),
+                    fontsize=int(20 * scale_factor),
                     fontweight='800',
-                    color='#0f172a'
+                    color=THEME["text"]
                 )
             # headroom para não cortar os rótulos
             try:
@@ -1208,10 +1221,15 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         elif chart_type == 'line':
             # Criar linha com estilo profissional (usar posições numéricas para evitar problemas com labels vazios)
             x = np.arange(len(labels))
-            line = ax.plot(x, data, marker='o', linewidth=4, markersize=9, 
+            line = ax.plot(x, data, marker='o', linewidth=4.6, markersize=10.5,
                           color=color_list[0], markerfacecolor='white', 
                           markeredgecolor=color_list[0], markeredgewidth=2,
                           alpha=0.9)
+            # Preencher suavemente para melhor leitura (sem poluir)
+            try:
+                ax.fill_between(x, data, color=color_list[0], alpha=0.08)
+            except Exception:
+                pass
             ax.set_xticks(x)
             # Para séries longas, reduzir ruído no eixo X (evita compressão e melhora legibilidade)
             try:
@@ -1245,13 +1263,13 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
                             textcoords="offset points",
                             xytext=(0, 18),
                             ha='center',
-                            fontsize=int(16 * scale_factor),
+                            fontsize=int(18 * scale_factor),
                             fontweight='900',
-                            color='#0f172a',
+                            color=THEME["text"],
                             bbox=dict(
                                 boxstyle='round,pad=0.35',
-                                facecolor='white',
-                                edgecolor='#e2e8f0',
+                                facecolor=THEME["bg"],
+                                edgecolor=THEME["grid"],
                                 alpha=0.96,
                                 linewidth=1
                             )
@@ -1270,9 +1288,9 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             width = 0.35
             
             # Criar barras duplas com estilo profissional
-            bars1 = ax.bar(x - width/2, data[0], width, label='Consumo', 
+            bars1 = ax.bar(x - width/2, data[0], width, label='Consumo médio', 
                           color=color_list[0], alpha=0.8, edgecolor='white', linewidth=1)
-            bars2 = ax.bar(x + width/2, data[1], width, label='Produção', 
+            bars2 = ax.bar(x + width/2, data[1], width, label='Produção estimada', 
                           color=color_list[1], alpha=0.8, edgecolor='white', linewidth=1)
             
             ax.set_xticks(x)
@@ -1282,7 +1300,7 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             legend = ax.legend(loc='upper right', frameon=True, fancybox=True, 
                              shadow=True, framealpha=0.9)
             legend.get_frame().set_facecolor('white')
-            legend.get_frame().set_edgecolor('#e2e8f0')
+            legend.get_frame().set_edgecolor(THEME["grid"])
             
             # Adicionar rótulos SOMENTE nas barras de produção (requisito)
             try:
@@ -1290,7 +1308,7 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
                 for bar, value in zip(bars2, data[1]):
                     ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + max_val*0.01,
                             f'{float(value):.0f}', ha='center', va='bottom',
-                            fontsize=int(14 * scale_factor), fontweight='700', color='#1e293b')
+                            fontsize=int(16 * scale_factor), fontweight='800', color=THEME["muted"])
                 # Garantir espaço para rótulos
                 ax.set_ylim(0, max_val * 1.15 if max_val > 0 else 1)
             except Exception:
@@ -1308,17 +1326,34 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         ax.set_ylabel('')
         
         # Configurar ticks
-        rot = 0 if (isinstance(labels, list) and len(labels) <= 3) else 45
-        ax.tick_params(axis='x', rotation=rot, colors='#334155', labelsize=int(17 * scale_factor))
-        ax.tick_params(axis='y', colors='#334155', labelsize=int(17 * scale_factor))
+        try:
+            non_empty = sum(1 for l in (labels or []) if str(l).strip())
+        except Exception:
+            non_empty = 0
+        # Por padrão, manter rótulos horizontais (o template tem pouco espaço vertical).
+        # Só rotacionar quando realmente necessário.
+        rot = 0 if (non_empty <= 8) else 30
+        ax.tick_params(axis='x', rotation=rot, colors=THEME["muted"], labelsize=int(19 * scale_factor))
+        ax.tick_params(axis='y', colors=THEME["muted"], labelsize=int(19 * scale_factor))
         
-        # Ajustar layout para evitar sobreposição
-        plt.tight_layout(pad=0.2)
+        # Ajustar layout para evitar sobreposição sem "comer" a área útil
+        try:
+            fig.subplots_adjust(left=0.07, right=0.995, top=0.97, bottom=0.16)
+        except Exception:
+            pass
         
-        # Converter para base64 com alta qualidade e fundo transparente
+        # Converter para base64 com alta qualidade (fundo branco para ficar consistente no HTML/PDF)
         buffer = io.BytesIO()
-        plt.savefig(buffer, format='png', dpi=200, bbox_inches='tight', 
-                   facecolor='none', edgecolor='none', pad_inches=0.2, transparent=True)
+        plt.savefig(
+            buffer,
+            format='png',
+            dpi=240,
+            bbox_inches='tight',
+            facecolor=THEME["bg"],
+            edgecolor='none',
+            pad_inches=0.06,
+            transparent=False
+        )
         buffer.seek(0)
         img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
         plt.close()
@@ -1395,7 +1430,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             ca = tabelas.get("custo_anual_sem_solar_r") or []
             if ca:
                 labs = [f"Ano {i+1}" if ((i + 1) % 5 == 0) else "" for i in range(len(ca))]
-                graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#3b82f6'], figsize=(16, 10), y_currency=True)
+                graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#1E3A8A'], figsize=(16, 10), y_currency=True)
                 if graf2: graficos["grafico2"] = graf2
         except Exception:
             pass
@@ -1411,7 +1446,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
                     prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
                     if float(prod_anual_kwh) > 0:
                         prod_vec = [float(prod_anual_kwh) / 12.0] * 12
-                graf3 = generate_chart_base64('dual_bar', [consumo_vec, prod_vec], meses, "", ['#2563eb', '#059669'], figsize=(16, 10), y_currency=False)
+                graf3 = generate_chart_base64('dual_bar', [consumo_vec, prod_vec], meses, "", ['#1E3A8A', '#059669'], figsize=(16, 10), y_currency=False)
                 if graf3: graficos["grafico3"] = graf3
         except Exception:
             pass
@@ -1488,26 +1523,31 @@ def process_template_html(proposta_data):
         
         # Converter imagens para base64
         fohat_base64 = convert_image_to_base64('/img/fohat.svg')
-        # A capa do template usa logo-green.svg (e o app usa logo-bg-blue.svg no CRM).
-        # Suportar ambos e substituir qualquer referência no HTML por base64.
-        logo_base64 = (
-            convert_image_to_base64('/img/logo-bg-blue.svg')
-            or convert_image_to_base64('/img/logo-green.svg')
+        # A capa do template usa logo-green.svg + filter invert para ficar branco.
+        # Se substituirmos pelo logo-bg-blue.svg (que tem fundo preenchido), esse filter vira um "quadrado branco".
+        # Portanto: preferir sempre o logo SEM fundo para a proposta.
+        logo_green_base64 = (
+            convert_image_to_base64('/img/logo-green.svg')
+            or convert_image_to_base64('/img/logo.svg')
+            or convert_image_to_base64('/img/logo-bg-blue.svg')
         )
+        logo_bg_blue_base64 = convert_image_to_base64('/img/logo-bg-blue.svg') or logo_green_base64
         como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
         
         # Substituir URLs das imagens por base64
         if fohat_base64:
             template_html = template_html.replace("url('/img/fohat.svg')", f"url('{fohat_base64}')")
             template_html = template_html.replace("url('img/fohat.svg')", f"url('{fohat_base64}')")
-        if logo_base64:
+        if logo_green_base64 or logo_bg_blue_base64:
             # svg variantes
-            template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_base64}"')
+            if logo_bg_blue_base64:
+                template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
+                template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
+            if logo_green_base64:
+                template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_green_base64}"')
         if como_funciona_base64:
             template_html = template_html.replace('src="/img/como-funciona.png"', f'src="{como_funciona_base64}"')
             template_html = template_html.replace('src="img/como-funciona.png"', f'src="{como_funciona_base64}"')
@@ -2524,7 +2564,7 @@ def analise_gerar_graficos():
                 if ca:
                     # Mostrar legendas apenas a cada 5 anos
                     labs = [f"Ano {i+1}" if ((i + 1) % 5 == 0) else "" for i in range(len(ca))]
-                    graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#3b82f6'], figsize=(16, 10), y_currency=True)
+                    graf2 = generate_chart_base64('line', [float(v) for v in ca], labs, "", ['#1E3A8A'], figsize=(16, 10), y_currency=True)
                     if graf2: graficos_base64["grafico2"] = graf2
             except Exception as _e:
                 print(f"⚠️ Falha grafico2: {_e}")
@@ -2542,7 +2582,7 @@ def analise_gerar_graficos():
                         prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
                         if float(prod_anual_kwh) > 0:
                             prod_mensal = [float(prod_anual_kwh) / 12.0] * 12
-                    graf3 = generate_chart_base64('dual_bar', [consumo_mensal, prod_mensal], meses, "", ['#2563eb', '#059669'], figsize=(16, 10), y_currency=False)
+                    graf3 = generate_chart_base64('dual_bar', [consumo_mensal, prod_mensal], meses, "", ['#1E3A8A', '#059669'], figsize=(16, 10), y_currency=False)
                     if graf3: graficos_base64["grafico3"] = graf3
             except Exception as _e:
                 print(f"⚠️ Falha grafico3: {_e}")
@@ -2735,6 +2775,13 @@ def salvar_proposta():
             # Rastreamento do criador (para filtros por usuário)
             'created_by': (me.uid if USE_DB and me else data.get('created_by')),
             'created_by_email': (me.email if USE_DB and me else data.get('created_by_email')),
+            # Campos do CRM (persistir para edição)
+            'nome_projeto': data.get('nome_projeto') or data.get('nome') or None,
+            'cep': data.get('cep') or None,
+            'logradouro': data.get('logradouro') or None,
+            'numero': data.get('numero') or None,
+            'complemento': data.get('complemento') or None,
+            'bairro': data.get('bairro') or None,
             'cliente_id': data.get('cliente_id'),
             'cliente_nome': data.get('cliente_nome', 'Cliente'),
             'cliente_endereco': data.get('cliente_endereco', 'Endereço não informado'),
@@ -2745,7 +2792,8 @@ def salvar_proposta():
             'cidade': data.get('cidade', 'Projeto'),
             'concessionaria': concessionaria_payload,
             'tipo_telhado': data.get('tipo_telhado', ''),
-            'estado': data.get('estado', ''),
+            'estado': data.get('estado') or data.get('uf') or '',
+            'tensao': data.get('tensao') or None,
             'vendedor_nome': data.get('vendedor_nome', 'Representante Comercial'),
             'vendedor_cargo': data.get('vendedor_cargo', 'Especialista em Energia Solar'),
             'vendedor_telefone': data.get('vendedor_telefone', '(11) 99999-9999'),
@@ -2937,6 +2985,94 @@ def gerar_proposta_html(proposta_id):
         print(f"❌ [gerar_proposta_html] Erro: {e}")
         return f"<html><body><h1>Erro ao gerar proposta HTML: {str(e)}</h1></body></html>", 500
 
+
+def _render_pdf_with_puppeteer(html: str, timeout_s: int = 90) -> bytes:
+    """
+    Renderiza o HTML em PDF usando Puppeteer (Chromium headless) via Node.
+    Retorna bytes do PDF.
+    """
+    renderer = Path(__file__).parent / "pdf_renderer" / "render_pdf.js"
+    if not renderer.exists():
+        raise RuntimeError("pdf_renderer/render_pdf.js não encontrado.")
+
+    env = os.environ.copy()
+    env.setdefault("CHROMIUM_PATH", "/usr/bin/chromium")
+
+    try:
+        proc = subprocess.run(
+            ["node", str(renderer)],
+            input=html.encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Timeout ao gerar PDF (Puppeteer).")
+
+    if proc.returncode != 0 or not proc.stdout:
+        err = (proc.stderr or b"").decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Falha ao gerar PDF (Puppeteer). rc={proc.returncode} err={err[:800]}")
+
+    return proc.stdout
+
+
+@app.route('/propostas/<proposta_id>/pdf', methods=['GET'])
+def gerar_pdf_puppeteer(proposta_id):
+    """
+    PDF idêntico ao template.html, gerado no backend via Puppeteer.
+    Requer auth/ACL quando USE_DB.
+    """
+    try:
+        cleanup_old_charts()
+
+        # Carregar dados da proposta + ACL
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+
+            role = (me.role or "").strip().lower()
+            if role not in ("admin", "gestor"):
+                if not (
+                    (row.created_by_email and row.created_by_email == me.email)
+                    or (row.created_by and row.created_by == me.uid)
+                ):
+                    return jsonify({"success": False, "message": "Não autorizado"}), 403
+
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                proposta_data = json.load(f)
+
+        html = process_template_html(proposta_data)
+        pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=90)
+
+        nome = (proposta_data or {}).get("cliente_nome") or "Proposta"
+        safe_nome = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(nome))[:60]
+        filename = f"Proposta_{safe_nome}_{proposta_id}.pdf"
+
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+            max_age=0,
+        )
+    except Exception as e:
+        print(f"❌ Erro ao gerar PDF (Puppeteer): {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/gerar-pdf/<proposta_id>', methods=['GET'])
 def gerar_pdf(proposta_id):
     """
@@ -3018,24 +3154,28 @@ def visualizar_proposta(proposta_id):
         
         # Converter imagens para base64
         fohat_base64 = convert_image_to_base64('/img/fohat.svg')
-        logo_base64 = (
-            convert_image_to_base64('/img/logo-bg-blue.svg')
-            or convert_image_to_base64('/img/logo-green.svg')
+        # Preferir logo sem fundo para evitar "quadrado branco" quando o template aplica filter invert
+        logo_green_base64 = (
+            convert_image_to_base64('/img/logo-green.svg')
             or convert_image_to_base64('/img/logo.svg')
+            or convert_image_to_base64('/img/logo-bg-blue.svg')
         )
+        logo_bg_blue_base64 = convert_image_to_base64('/img/logo-bg-blue.svg') or logo_green_base64
         como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
         
         # Substituir URLs das imagens por base64
         if fohat_base64:
             template_html = template_html.replace("url('/img/fohat.svg')", f"url('{fohat_base64}')")
             template_html = template_html.replace("url('img/fohat.svg')", f"url('{fohat_base64}')")
-        if logo_base64:
-            template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_base64}"')
-            template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_base64}"')
+        if logo_green_base64 or logo_bg_blue_base64:
+            if logo_bg_blue_base64:
+                template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
+                template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_bg_blue_base64}"')
+            if logo_green_base64:
+                template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_green_base64}"')
+                template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_green_base64}"')
         if como_funciona_base64:
             template_html = template_html.replace('src="/img/como-funciona.png"', f'src="{como_funciona_base64}"')
             template_html = template_html.replace('src="img/como-funciona.png"', f'src="{como_funciona_base64}"')
@@ -4732,6 +4872,68 @@ def listar_projetos():
         # ordenar por data (desc)
         projetos.sort(key=lambda p: p.get("created_date") or "", reverse=True)
         return jsonify(projetos)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/projetos/get/<projeto_id>', methods=['GET'])
+def get_projeto(projeto_id):
+    """
+    Retorna o payload completo de um projeto/proposta para edição no CRM.
+    Aplica ACL:
+    - admin/gestor: pode acessar qualquer proposta
+    - vendedor/instalador: apenas as próprias
+    """
+    try:
+        if not USE_DB:
+            proposta_file = PROPOSTAS_DIR / f"{projeto_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                data = {"id": projeto_id, **data}
+            return jsonify({"success": True, "projeto": data, "source": "file"})
+
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+
+        db = SessionLocal()
+        row = db.get(PropostaDB, projeto_id)
+        if not row:
+            db.close()
+            return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+
+        role = (me.role or "").strip().lower()
+        if role not in ("admin", "gestor"):
+            # ACL por criador
+            if not (
+                (row.created_by_email and row.created_by_email == me.email) or
+                (row.created_by and row.created_by == me.uid)
+            ):
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
+
+        data = row.payload or {}
+        db.close()
+
+        if not isinstance(data, dict):
+            data = {}
+
+        # Fallbacks úteis para edição (não dependem do CRM ter enviado antes)
+        if not data.get("nome_projeto"):
+            data["nome_projeto"] = data.get("nome") or f"Projeto - {row.cliente_nome or 'Cliente'}"
+        if not data.get("cliente_endereco") and row.cliente_endereco:
+            data["cliente_endereco"] = row.cliente_endereco
+        if not data.get("cidade") and row.cidade:
+            data["cidade"] = row.cidade
+
+        # Retornar payload completo (mergeando id)
+        return jsonify({
+            "success": True,
+            "projeto": {"id": row.id, **data},
+            "source": "db"
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 

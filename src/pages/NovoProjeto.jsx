@@ -329,29 +329,84 @@ export default function NovoProjeto() {
     setConfigs(configsMap);
 
     if (projetoId) {
-      const projeto = await Projeto.list();
-      const projetoEdit = projeto.find(p => p.id === projetoId);
-      if (projetoEdit) {
-        setFormData(projetoEdit);
-        if (projetoEdit.consumo_mes_a_mes && projetoEdit.consumo_mes_a_mes.length > 0) {
-          setTipoConsumo("mes_a_mes");
+      // Buscar por ID com payload completo (DB-first)
+      try {
+        const projetoEdit = await Projeto.getById(projetoId);
+        if (projetoEdit) {
+          const parseEnderecoCompleto = (addr) => {
+            if (!addr || typeof addr !== 'string') return {};
+            const raw = addr.trim();
+            const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
+            const out = {};
+            // CEP (último token geralmente)
+            const cepMatch = raw.match(/\b(\d{5}-?\d{3})\b/);
+            if (cepMatch?.[1]) {
+              const v = cepMatch[1].replace('-', '');
+              out.cep = v.length === 8 ? `${v.slice(0, 5)}-${v.slice(5)}` : cepMatch[1];
+            }
+            // UF (token isolado tipo "SP")
+            const uf = parts.find(p => /^[A-Z]{2}$/.test(p));
+            if (uf) out.estado = uf;
+            // Cidade (um token antes do UF, no padrão "... Cidade, UF, CEP")
+            if (uf) {
+              const ufIdx = parts.findIndex(p => p === uf);
+              if (ufIdx > 0) out.cidade = parts[ufIdx - 1];
+            }
+            // Bairro (token antes da cidade)
+            if (out.cidade) {
+              const cityIdx = parts.findIndex(p => p === out.cidade);
+              if (cityIdx > 0) out.bairro = parts[cityIdx - 1];
+            }
+            // Logradouro + número: geralmente "Rua X" e depois "60"
+            if (parts.length > 0) out.logradouro = parts[0];
+            const numeroToken = parts.find(p => /^\d+[A-Za-z]?$/.test(p)) || parts[1];
+            if (numeroToken && /^\d/.test(numeroToken)) out.numero = numeroToken;
+            return out;
+          };
+
+          const normalized = { ...projetoEdit };
+          // Normalizações de campos (payload da proposta vs form do CRM)
+          if (!normalized.nome_projeto && normalized.nome) normalized.nome_projeto = normalized.nome;
+          if (!normalized.endereco_completo && normalized.cliente_endereco) normalized.endereco_completo = normalized.cliente_endereco;
+          if (!normalized.cidade && normalized.cliente_cidade) normalized.cidade = normalized.cliente_cidade;
+          if (!normalized.estado && (normalized.uf || normalized.cliente_estado)) normalized.estado = normalized.uf || normalized.cliente_estado;
+          if (!normalized.potencia_kw && normalized.potencia_sistema) normalized.potencia_kw = normalized.potencia_sistema;
+          if ((!normalized.cep || !normalized.logradouro || !normalized.numero || !normalized.estado) && normalized.endereco_completo) {
+            const parsed = parseEnderecoCompleto(normalized.endereco_completo);
+            normalized.cep = normalized.cep || parsed.cep;
+            normalized.logradouro = normalized.logradouro || parsed.logradouro;
+            normalized.numero = normalized.numero || parsed.numero;
+            normalized.bairro = normalized.bairro || parsed.bairro;
+            normalized.cidade = normalized.cidade || parsed.cidade;
+            normalized.estado = normalized.estado || parsed.estado;
+          }
+
+          setFormData(prev => ({ ...prev, ...normalized }));
+
+          if (Array.isArray(normalized.consumo_mes_a_mes) && normalized.consumo_mes_a_mes.length > 0) {
+            setTipoConsumo("mes_a_mes");
+          }
+
+          const pot = normalized.potencia_sistema_kwp || normalized.potencia_sistema || normalized.potencia_kw;
+          if (pot) {
+            setResultados({
+              potencia_sistema_kwp: normalized.potencia_sistema_kwp || normalized.potencia_sistema || normalized.potencia_kw,
+              quantidade_placas: normalized.quantidade_placas,
+              custo_total: normalized.custo_total,
+              preco_final: normalized.preco_final || normalized.preco_venda,
+              economia_mensal_estimada: normalized.economia_mensal_estimada,
+              payback_meses: normalized.payback_meses,
+              custo_equipamentos: normalized.custo_equipamentos,
+              custo_instalacao: normalized.custo_instalacao,
+              custo_homologacao: normalized.custo_homologacao,
+              custo_ca: normalized.custo_ca,
+              custo_plaquinhas: normalized.custo_plaquinhas,
+              custo_obra: normalized.custo_obra
+            });
+          }
         }
-        if (projetoEdit.potencia_sistema_kwp) {
-          setResultados({
-            potencia_sistema_kwp: projetoEdit.potencia_sistema_kwp,
-            quantidade_placas: projetoEdit.quantidade_placas,
-            custo_total: projetoEdit.custo_total,
-            preco_final: projetoEdit.preco_final,
-            economia_mensal_estimada: projetoEdit.economia_mensal_estimada,
-            payback_meses: projetoEdit.payback_meses,
-            custo_equipamentos: projetoEdit.custo_equipamentos,
-            custo_instalacao: projetoEdit.custo_instalacao,
-            custo_homologacao: projetoEdit.custo_homologacao,
-            custo_ca: projetoEdit.custo_ca,
-            custo_plaquinhas: projetoEdit.custo_plaquinhas,
-            custo_obra: projetoEdit.custo_obra
-          });
-        }
+      } catch (e) {
+        console.warn("⚠️ Falha ao carregar proposta para edição:", e?.message || e);
       }
     } else if (clienteIdFromUrl) {
       // Se veio cliente_id na URL (do modal de cliente), pré-selecionar o cliente

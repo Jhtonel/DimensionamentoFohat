@@ -1,0 +1,10 @@
+{
+  "name": "pdf-renderer",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "^24.1.1"
+  }
+}
+
+

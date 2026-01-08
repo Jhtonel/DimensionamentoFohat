@@ -408,6 +408,16 @@ class Projeto extends BaseEntity {
     }
   }
 
+  static async getById(id) {
+    const url = `${this.getServerUrl()}/projetos/get/${id}?t=${Date.now()}`;
+    const resp = await fetch(url, { headers: { ...this._getAuthHeaders() } });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || json?.success === false) {
+      throw new Error(json?.message || `Falha ao carregar proposta (${resp.status})`);
+    }
+    return json?.projeto || null;
+  }
+
   static async create(data) {
     try {
       // 1. Tentar usar o ID passado explicitamente

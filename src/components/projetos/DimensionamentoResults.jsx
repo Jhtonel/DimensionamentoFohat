@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '../../components/ui/button';
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { saveAs } from "file-saver";
+import { baixarPdfPuppeteer } from "@/services/pdfService.js";
 import { propostaService } from '../../services/propostaService';
 import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
 import { Projeto, Configuracao } from '../../entities';
@@ -265,6 +265,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         // Identificação do criador (para filtros por usuário)
         created_by: user?.uid || null,
         created_by_email: user?.email || null,
+        // Campos do CRM (para reabrir em "Editar proposta" com tudo preenchido)
+        nome_projeto: formData?.nome_projeto || formData?.nome || null,
+        cep: formData?.cep || clienteInfo?.cep || null,
+        logradouro: formData?.logradouro || null,
+        numero: formData?.numero || null,
+        complemento: formData?.complemento || null,
+        bairro: formData?.bairro || null,
+        estado: formData?.estado || formData?.uf || null,
+        tipo_telhado: formData?.tipo_telhado || null,
+        tensao: formData?.tensao || null,
         cliente_id: formData?.cliente_id || null,
         cliente_nome: clienteInfo?.nome || 'Cliente',
         // Endereço deve vir da aba Dados Básicos (formData.endereco_completo)
@@ -451,148 +461,21 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     }
   };
 
-  // Função para gerar PDF diretamente
+  // Função para gerar PDF (somente Puppeteer backend: idêntico ao template.html)
   const gerarPDF = async () => {
-    let htmlForPdf = templateContent;
-    // Fonte da verdade: backend (evita placeholders {{}} e garante base64 em imagens/gráficos)
-    if (propostaId) {
-      try {
-        const htmlData = await propostaService.gerarPropostaHTML(propostaId);
-        if (htmlData && htmlData.html_content) {
-          htmlForPdf = htmlData.html_content;
-          setTemplateContent(htmlData.html_content);
-        }
-      } catch (e) {
-        // segue com htmlForPdf do estado como fallback
-      }
-    }
-    if (!htmlForPdf) {
-      alert('Template não carregado. Tente novamente.');
+    if (!propostaId) {
+      alert("Proposta não salva. Gere a proposta primeiro.");
       return;
     }
-
     setIsGeneratingPDF(true);
-    
     try {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      const withTimeout = async (promise, ms, label) => {
-        return await Promise.race([
-          promise,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(label || `Timeout após ${ms}ms`)), ms)
-          ),
-        ]);
-      };
-
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      // Criar elemento temporário para renderizar o template
-      const tempDiv = document.createElement('div');
-      // Importante: htmlForPdf vem como documento completo (<html><head>...<style>...).
-      // Se injetarmos "cru" em um <div>, alguns browsers não aplicam as regras do <head> corretamente,
-      // causando desalinhamentos no PDF. Então extraímos <style> e <body> e injetamos no mesmo documento.
-      let bodyHtml = htmlForPdf;
-      let styleText = '';
-      try {
-        const parsed = new DOMParser().parseFromString(String(htmlForPdf || ''), 'text/html');
-        styleText = Array.from(parsed.querySelectorAll('style'))
-          .map((s) => s.textContent || '')
-          .join('\n');
-        bodyHtml = parsed.body ? parsed.body.innerHTML : String(htmlForPdf || '');
-      } catch (_) {}
-      tempDiv.innerHTML = `${styleText ? `<style>${styleText}</style>` : ''}${bodyHtml}`;
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.top = '-9999px';
-      document.body.appendChild(tempDiv);
-
-      // Garantir carregamento de fontes (ex.: Google Fonts) antes do render do canvas
-      try {
-        if (document?.fonts?.ready) {
-          await withTimeout(document.fonts.ready, 15000, 'Timeout ao carregar fontes');
-        }
-      } catch (_) {}
-
-      // Processar cada slide
-      const slides = tempDiv.querySelectorAll('.page');
-      if (!slides || slides.length === 0) {
-        throw new Error('Nenhum slide encontrado no HTML da proposta. Tente gerar novamente.');
-      }
-
-      for (let i = 0; i < slides.length; i++) {
-        const slide = slides[i];
-
-        // Aguardar imagens carregarem (inclui decode() para evitar capturar "em branco")
-        const images = Array.from(slide.querySelectorAll('img'));
-        if (images.length > 0) {
-          await Promise.all(images.map(async (img) => {
-            try {
-              // Forçar eager + CORS-friendly
-              img.loading = 'eager';
-              img.decoding = 'sync';
-              img.crossOrigin = 'anonymous';
-            } catch (_) {}
-            try {
-              if (img.decode) {
-                await withTimeout(img.decode(), 5000, 'Timeout ao decodificar imagem');
-                return;
-              }
-            } catch (_) {}
-            await withTimeout(
-              new Promise((resolve) => {
-                if (img.complete) return resolve();
-                img.onload = resolve;
-                img.onerror = resolve;
-              }),
-              5000,
-              'Timeout ao carregar imagem'
-            );
-          }));
-        }
-
-        // Esperar 2 frames para layout/paint estabilizar antes do html2canvas
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        const canvas = await withTimeout(html2canvas(slide, {
-          // reduzir um pouco para evitar travas/memória; ainda fica bem nítido
-          scale: Math.max(1.6, (window.devicePixelRatio || 2)),
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          width: slide.offsetWidth,
-          height: slide.offsetHeight,
-          imageTimeout: 15000,
-          removeContainer: true
-        }), 30000, `Timeout ao renderizar slide ${i + 1}/${slides.length}`);
-
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        
-        if (i > 0) {
-          pdf.addPage();
-        }
-
-        // Preencher a página inteira (evita bordas e "drift" de alinhamento por arredondamento)
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      }
-
-      // Remover elemento temporário
-      try { document.body.removeChild(tempDiv); } catch (_) {}
-
-      // Baixar PDF
-      const fileName = `Proposta_Solar_${propostaData?.potencia_sistema || '0.00'}kWp_${propostaData?.cidade || 'Projeto'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
-      pdf.save(fileName);
-      
-    } catch (error) {
-      alert('Erro ao gerar PDF: ' + error.message);
+      const blob = await baixarPdfPuppeteer(propostaId);
+      const fileName = `Proposta_${(propostaData?.cidade || 'Projeto')}_${new Date()
+        .toLocaleDateString("pt-BR")
+        .replace(/\//g, "-")}.pdf`;
+      saveAs(blob, fileName);
+    } catch (e) {
+      alert("Erro ao gerar PDF: " + (e?.message || e));
     } finally {
       setIsGeneratingPDF(false);
     }

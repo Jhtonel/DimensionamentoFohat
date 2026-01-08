@@ -40,6 +40,9 @@ export default function ConversionDoughnut({
       plugins: {
         legend: { display: false },
         tooltip: {
+          bodyFont: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 14, weight: "600" },
+          titleFont: { family: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", size: 13, weight: "700" },
+          padding: 12,
           callbacks: {
             label: (ctx) => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%`,
           },
@@ -54,8 +57,8 @@ export default function ConversionDoughnut({
       <Doughnut data={data} options={options} />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-xl font-bold text-gray-900">{clamped.toFixed(1)}%</div>
-          <div className="text-xs text-gray-500">{label}</div>
+          <div className="text-2xl font-extrabold text-slate-900">{clamped.toFixed(1)}%</div>
+          <div className="text-sm font-medium text-slate-500">{label}</div>
         </div>
       </div>
     </div>
