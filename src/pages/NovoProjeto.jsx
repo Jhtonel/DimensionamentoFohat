@@ -3364,7 +3364,7 @@ export default function NovoProjeto() {
                   return null;
                 })()}
 
-                {/* Seletor de Comissão do Vendedor */}
+                {/* Seletor de Comissão do Vendedor - Visível para todos */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -3373,49 +3373,102 @@ export default function NovoProjeto() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="comissao-vendedor">Comissão do Vendedor</Label>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              id="comissao-vendedor"
-                              type="range"
-                              min="1"
-                              max="10"
-                              step="0.5"
-                              value={formData.comissao_vendedor || 5}
-                              onChange={(e) => handleChange("comissao_vendedor", parseFloat(e.target.value))}
-                              className="flex-1"
-                            />
-                            <span className="text-sm font-semibold w-12 text-center">
-                              {formData.comissao_vendedor || 5}%
-                            </span>
+                    {(() => {
+                      // Calcular valores para exibir
+                      const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                      const potenciaKwp = formData.potencia_kw || 0;
+                      const custoEquipamentos = kitSelecionado?.precoTotal || costs?.equipamentos?.total || 0;
+                      const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                      const comissaoVendedor = formData.comissao_vendedor || 5;
+                      const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor);
+                      const valorComissao = precoVenda * (comissaoVendedor / 100);
+                      const isAdmin = user?.role === 'admin';
+                      
+                      return (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="comissao-vendedor">Comissão do Vendedor</Label>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  id="comissao-vendedor"
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  step="0.5"
+                                  value={formData.comissao_vendedor || 5}
+                                  onChange={(e) => handleChange("comissao_vendedor", parseFloat(e.target.value))}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm font-semibold w-12 text-center">
+                                  {formData.comissao_vendedor || 5}%
+                                </span>
+                              </div>
+                              {isAdmin && (
+                                <p className="text-xs text-gray-500">
+                                  Margem desejada: {25 + (formData.comissao_vendedor || 5)}% (25% + comissão)
+                                </p>
+                              )}
+                            </div>
+                            {isAdmin ? (
+                              <div className="space-y-2">
+                                <Label>Resumo da Margem</Label>
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                  <div className="flex justify-between text-sm">
+                                    <span>Margem base:</span>
+                                    <span className="font-semibold">25%</span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span>Comissão vendedor:</span>
+                                    <span className="font-semibold">{formData.comissao_vendedor || 5}%</span>
+                                  </div>
+                                  <hr className="my-1" />
+                                  <div className="flex justify-between font-semibold text-blue-700">
+                                    <span>Margem total:</span>
+                                    <span>{25 + (formData.comissao_vendedor || 5)}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <Label>Sua Comissão</Label>
+                                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Percentual:</span>
+                                    <span className="font-semibold text-green-700">{formData.comissao_vendedor || 5}%</span>
+                                  </div>
+                                  <hr className="my-2 border-green-200" />
+                                  <div className="flex justify-between font-semibold text-green-700">
+                                    <span>Valor:</span>
+                                    <span>{formatCurrency(valorComissao)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-xs text-gray-500">
-                            Margem desejada: {25 + (formData.comissao_vendedor || 5)}% (25% + comissão)
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Resumo da Margem</Label>
-                          <div className="bg-blue-50 p-3 rounded-lg">
-                            <div className="flex justify-between text-sm">
-                              <span>Margem base:</span>
-                              <span className="font-semibold">25%</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span>Comissão vendedor:</span>
-                              <span className="font-semibold">{formData.comissao_vendedor || 5}%</span>
-                            </div>
-                            <hr className="my-1" />
-                            <div className="flex justify-between font-semibold text-blue-700">
-                              <span>Margem total:</span>
-                              <span>{25 + (formData.comissao_vendedor || 5)}%</span>
+                          
+                          {/* Valores de Venda - Sempre visíveis */}
+                          <div className="mt-4 pt-4 border-t">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
+                                <p className="text-sm text-gray-600 mb-1">Preço de Venda</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(precoVenda)}</p>
+                              </div>
+                              <div className="bg-gradient-to-br from-blue-50 to-sky-50 p-4 rounded-xl border border-blue-200">
+                                <p className="text-sm text-gray-600 mb-1">Sua Comissão ({formData.comissao_vendedor || 5}%)</p>
+                                <p className="text-2xl font-bold text-blue-600">{formatCurrency(valorComissao)}</p>
+                              </div>
+                              {isAdmin && (
+                                <div className="bg-gradient-to-br from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-200">
+                                  <p className="text-sm text-gray-600 mb-1">Custo Operacional</p>
+                                  <p className="text-2xl font-bold text-purple-600">{formatCurrency(custoOp.total)}</p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
                 {costsLoading ? (
@@ -3458,6 +3511,9 @@ export default function NovoProjeto() {
                       </div>
                     )}
                     
+                    {/* Detalhes de Custos - APENAS PARA ADMINS */}
+                    {user?.role === 'admin' && (
+                    <>
                     {/* Definição de Valores */}
                     <Card>
                       <CardHeader>
@@ -3818,6 +3874,9 @@ export default function NovoProjeto() {
                       quantidadesCalculadas={quantidadesCalculadas}
                       kitSelecionado={kitSelecionado}
                     />
+                    </>
+                    )}
+                    {/* Fim da seção de custos apenas para admins */}
 
                     {/* Cálculos replicados removidos – os números exibidos vêm do backend (analise_metrics). */}
                   </div>
