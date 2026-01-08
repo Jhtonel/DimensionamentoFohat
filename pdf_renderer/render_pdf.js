@@ -9,6 +9,10 @@ function readStdin() {
   });
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function main() {
   const html = await readStdin();
   if (!html || !html.trim()) {
@@ -27,6 +31,7 @@ async function main() {
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      "--disable-gpu",
       "--font-render-hinting=none",
     ],
     headless: "new",
@@ -36,21 +41,30 @@ async function main() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
 
-    // Render HTML exactly like a browser
-    await page.setContent(html, { waitUntil: ["load", "networkidle0"] });
+    // Render HTML - usar domcontentloaded em vez de networkidle0 (mais rápido)
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
+    
+    // Aguardar um pouco para scripts executarem
+    await delay(500);
+    
+    // Aguardar fontes carregarem
     try {
-      // ensure fonts are ready
       await page.evaluate(() => document.fonts?.ready);
     } catch (_) {}
+    
+    // Aguardar ECharts renderizar (com timeout curto)
     try {
-      // aguardar ECharts (SVG) renderizar antes do PDF
       await page.waitForFunction(
         "window.__FOHAT_ECHARTS_READY__ === true",
-        { timeout: 30000 }
+        { timeout: 10000 }
       );
-      // micro-delay para layout estabilizar
-      await page.waitForTimeout(150);
-    } catch (_) {}
+    } catch (_) {
+      // Se timeout, continua mesmo assim
+      console.error("ECharts ready timeout - continuing anyway");
+    }
+    
+    // Delay final para layout estabilizar
+    await delay(300);
 
     const pdf = await page.pdf({
       format: "A4",
@@ -70,5 +84,3 @@ main().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);
 });
-
-
