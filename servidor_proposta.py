@@ -3798,6 +3798,78 @@ def deletar_cliente(cliente_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/clientes/transfer/<cliente_id>', methods=['POST'])
+def transferir_cliente(cliente_id):
+    """
+    Transfere um cliente para outro usuário.
+    Apenas admins podem realizar esta operação.
+    Body: { "new_owner_uid": "uid_do_novo_dono", "new_owner_email": "email_do_novo_dono" }
+    """
+    try:
+        # Verificar autenticação e permissão de admin
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+        
+        role = (me.role or "").strip().lower()
+        if role != "admin":
+            return jsonify({"success": False, "message": "Apenas admins podem transferir clientes"}), 403
+        
+        data = request.get_json() or {}
+        new_owner_uid = data.get("new_owner_uid", "").strip()
+        new_owner_email = data.get("new_owner_email", "").strip()
+        
+        if not new_owner_uid and not new_owner_email:
+            return jsonify({"success": False, "message": "Informe new_owner_uid ou new_owner_email"}), 400
+        
+        if USE_DB:
+            db = SessionLocal()
+            # Buscar cliente
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            
+            # Atualizar proprietário
+            old_owner = row.created_by_email or row.created_by
+            row.created_by = new_owner_uid or row.created_by
+            row.created_by_email = new_owner_email or row.created_by_email
+            row.updated_at = datetime.now(timezone.utc)
+            
+            db.commit()
+            db.close()
+            
+            print(f"✅ Cliente '{row.nome}' transferido de '{old_owner}' para '{new_owner_email or new_owner_uid}'")
+            return jsonify({
+                "success": True, 
+                "message": f"Cliente transferido com sucesso",
+                "cliente_id": cliente_id,
+                "new_owner": new_owner_email or new_owner_uid
+            })
+        
+        # Fallback para arquivo JSON
+        clientes = _load_clientes()
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+        
+        cliente = clientes[cliente_id]
+        old_owner = cliente.get("created_by_email") or cliente.get("created_by")
+        cliente["created_by"] = new_owner_uid or cliente.get("created_by")
+        cliente["created_by_email"] = new_owner_email or cliente.get("created_by_email")
+        cliente["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        _save_clientes(clientes)
+        
+        print(f"✅ Cliente '{cliente.get('nome')}' transferido de '{old_owner}' para '{new_owner_email or new_owner_uid}'")
+        return jsonify({
+            "success": True, 
+            "message": f"Cliente transferido com sucesso",
+            "cliente_id": cliente_id,
+            "new_owner": new_owner_email or new_owner_uid
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Proxy para busca de CEP (ViaCEP)
 # ─────────────────────────────────────────────────────────────────────────────

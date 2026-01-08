@@ -369,8 +369,78 @@ export default function Clientes() {
 
   // Modal de detalhes do cliente
   const ClienteDetailsModal = ({ cliente, onClose }) => {
+    const [transferring, setTransferring] = useState(false);
+    const [selectedNewOwner, setSelectedNewOwner] = useState('');
+    
     if (!cliente) return null;
     const projetosCliente = getProjetosDoCliente(cliente.id);
+    
+    // Encontrar o usuário dono do cliente
+    const getOwnerInfo = () => {
+      const ownerEmail = cliente.created_by_email || cliente.created_by || '';
+      const ownerUid = cliente.created_by || '';
+      
+      // Tentar encontrar o nome do usuário na lista
+      const ownerUser = usuarios.find(u => 
+        u.email?.toLowerCase() === ownerEmail.toLowerCase() || 
+        u.uid === ownerUid
+      );
+      
+      if (ownerUser) {
+        return { nome: ownerUser.nome, email: ownerUser.email };
+      }
+      
+      // Se não encontrou, retorna o que temos
+      if (ownerEmail && ownerEmail.includes('@')) {
+        return { nome: ownerEmail.split('@')[0], email: ownerEmail };
+      }
+      
+      return { nome: ownerEmail || 'Não identificado', email: ownerEmail };
+    };
+    
+    const ownerInfo = getOwnerInfo();
+    
+    // Função para transferir cliente
+    const handleTransfer = async () => {
+      if (!selectedNewOwner) return;
+      
+      const newOwnerUser = usuarios.find(u => u.uid === selectedNewOwner);
+      if (!newOwnerUser) return;
+      
+      if (!window.confirm(`Transferir o cliente "${cliente.nome}" para ${newOwnerUser.nome}?`)) {
+        return;
+      }
+      
+      setTransferring(true);
+      try {
+        const token = localStorage.getItem('app_jwt_token');
+        const response = await fetch(`${getBackendUrl()}/clientes/transfer/${cliente.id}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            new_owner_uid: newOwnerUser.uid,
+            new_owner_email: newOwnerUser.email
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          alert('Cliente transferido com sucesso!');
+          loadData(); // Recarregar dados
+          onClose();
+        } else {
+          alert(`Erro: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('Erro ao transferir cliente:', error);
+        alert('Erro ao transferir cliente');
+      } finally {
+        setTransferring(false);
+      }
+    };
     
     return (
       <motion.div
@@ -447,6 +517,58 @@ export default function Clientes() {
                   <p className="text-sm text-gray-700">{cliente.observacoes}</p>
                 </div>
               )}
+            </div>
+            
+            {/* Seção do Usuário Vinculado */}
+            <div className="border-t pt-4 mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <User className="w-4 h-4 text-fohat-blue" />
+                Vendedor Responsável
+              </h3>
+              <div className="flex items-center justify-between gap-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-fohat-blue rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {ownerInfo.nome?.charAt(0).toUpperCase() || '?'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{ownerInfo.nome}</p>
+                    <p className="text-xs text-gray-500">{ownerInfo.email}</p>
+                  </div>
+                </div>
+                
+                {/* Botão/Seletor de transferência para admins */}
+                {user?.role === 'admin' && (
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedNewOwner} onValueChange={setSelectedNewOwner}>
+                      <SelectTrigger className="h-9 w-44 text-xs border-blue-200 focus:ring-fohat-blue">
+                        <SelectValue placeholder="Transferir para..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {usuarios
+                          .filter(u => u.email !== ownerInfo.email)
+                          .map(u => (
+                            <SelectItem key={u.uid} value={u.uid}>
+                              {u.nome || u.email}
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                    {selectedNewOwner && (
+                      <Button
+                        size="sm"
+                        onClick={handleTransfer}
+                        disabled={transferring}
+                        className="bg-fohat-orange hover:bg-orange-600 text-white h-9"
+                      >
+                        {transferring ? '...' : 'Mover'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Lista de Projetos */}
