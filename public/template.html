@@ -69,7 +69,8 @@
     --surface-3:var(--b-50);
     --text:var(--n-900);
     --text-muted:var(--n-600);
-    --border-soft:color-mix(in srgb, var(--n-200) 80%, transparent);
+    /* Evitar color-mix()/color() pois html2canvas/jsPDF não suportam bem (quebra o PDF) */
+    --border-soft:rgba(229,231,235,0.80); /* var(--n-200) #E5E7EB @ 80% */
     --shadow-sm:0 1px 2px rgba(16,24,40,.06), 0 1px 1px rgba(16,24,40,.04);
     --shadow-md:0 10px 20px rgba(16,24,40,.10), 0 6px 10px rgba(16,24,40,.06);
     --shadow-lg:0 24px 50px rgba(16,24,40,.16), 0 10px 18px rgba(16,24,40,.10);
@@ -661,7 +662,7 @@
     padding:20px;
     background:var(--red-50);
     border-radius:12px;
-    border:1px solid color-mix(in srgb, var(--red-300) 65%, transparent);
+    border:1px solid rgba(252,165,165,0.65); /* var(--red-300) #FCA5A5 @ 65% */
     box-shadow:var(--shadow-sm);
   }
 
