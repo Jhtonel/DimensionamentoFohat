@@ -261,6 +261,70 @@ def _require_role_admin_secret() -> bool:
     provided = (request.headers.get("X-Admin-Secret") or "").strip()
     return provided == secret
 
+def _get_bearer_token() -> str:
+    try:
+        h = (request.headers.get("Authorization") or "").strip()
+        if not h:
+            return ""
+        if h.lower().startswith("bearer "):
+            return h.split(" ", 1)[1].strip()
+        return ""
+    except Exception:
+        return ""
+
+def _get_request_email_from_firebase() -> str | None:
+    """
+    Tenta extrair o e-mail do requester a partir do Firebase ID token (Authorization: Bearer ...).
+    Retorna None se não houver token válido ou Firebase Admin indisponível.
+    """
+    if not FIREBASE_ADMIN_AVAILABLE:
+        return None
+    token = _get_bearer_token()
+    if not token:
+        return None
+    try:
+        decoded = fb_auth.verify_id_token(token)
+        email = (decoded.get("email") or "").strip().lower()
+        return email or None
+    except Exception:
+        return None
+
+def _is_email_admin(email: str | None) -> bool:
+    if not email:
+        return False
+    email = email.strip().lower()
+    admin_emails = _parse_env_emails("ADMIN_EMAILS")
+    if email in admin_emails:
+        return True
+    if USE_DB:
+        try:
+            db = SessionLocal()
+            r = db.get(RoleDB, email)
+            db.close()
+            return bool(r and (r.role or "").strip().lower() == "admin")
+        except Exception:
+            return False
+    return False
+
+def _require_admin_access() -> bool:
+    """
+    Protege endpoints administrativos.
+    - Em DEV: mantém compatibilidade (se ROLE_ADMIN_SECRET não estiver definido, permite).
+    - Em PROD: exige OU secret (X-Admin-Secret) OU Firebase ID token de um admin (ADMIN_EMAILS ou RoleDB=admin).
+    """
+    # Secret (quando configurado) sempre é aceito
+    secret = (os.environ.get("ROLE_ADMIN_SECRET") or "").strip()
+    if secret and _require_role_admin_secret():
+        return True
+
+    # Se não é produção e não há secret, permitir (compat)
+    if (not _is_prod()) and (not secret):
+        return True
+
+    # Produção (ou secret ausente mas queremos proteger): exigir token admin
+    req_email = _get_request_email_from_firebase()
+    return _is_email_admin(req_email)
+
 def _slug(s: str) -> str:
     return ''.join(ch.lower() if ch.isalnum() else '_' for ch in (s or '')).strip('_')
 
@@ -1534,6 +1598,8 @@ def get_role_permissions():
 def save_role_permission():
     """Salva as permissões de uma role específica."""
     try:
+        if not _require_admin_access():
+            return jsonify({"success": False, "message": "Não autorizado"}), 403
         data = request.get_json() or {}
         role = data.get('role')
         permissions = data.get('permissions')
@@ -1600,6 +1666,8 @@ def get_equipes():
 def save_equipes():
     """Salva configuração de equipes."""
     try:
+        if not _require_admin_access():
+            return jsonify({"success": False, "message": "Não autorizado"}), 403
         data = request.get_json() or {}
         equipes = data.get('equipes', {})
         
@@ -3319,6 +3387,8 @@ def cleanup_old_charts():
 
 @app.route('/admin/firebase/delete-user', methods=['POST'])
 def admin_firebase_delete_user():
+    if not _require_admin_access():
+        return jsonify({'success': False, 'message': 'Não autorizado'}), 403
     if not FIREBASE_ADMIN_AVAILABLE:
         return jsonify({'success': False, 'message': 'Firebase Admin não configurado no servidor'}), 500
     try:
@@ -3338,6 +3408,9 @@ def admin_firebase_list_users():
     Requer Firebase Admin configurado.
     Fallback: lista usuários conhecidos em data/users_roles.json se Firebase indisponível.
     """
+    if not _require_admin_access():
+        return jsonify({'success': False, 'message': 'Não autorizado'}), 403
+
     users = []
 
     # 1. Tentar buscar do Firebase Admin
@@ -3434,6 +3507,28 @@ def get_user_role():
         # Override seguro por env (ideal em produção): ADMIN_EMAILS
         admin_emails = _parse_env_emails("ADMIN_EMAILS")
         if email and email in admin_emails:
+            # Preferir DB quando disponível
+            if USE_DB:
+                try:
+                    db = SessionLocal()
+                    existing = db.get(RoleDB, email)
+                    if existing:
+                        existing.role = "admin"
+                        existing.cargo = existing.cargo or "Administrador"
+                    else:
+                        db.add(RoleDB(email=email, role="admin", cargo="Administrador"))
+                    db.commit()
+                    # recarregar para retornar nome/cargo
+                    r = db.get(RoleDB, email)
+                    db.close()
+                    return jsonify({'role': 'admin', 'nome': getattr(r, "nome", None), 'cargo': getattr(r, "cargo", "Administrador")})
+                except Exception as _db_err:
+                    print(f"⚠️ Falha ao upsert admin no DB: {_db_err}")
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+            # Fallback arquivo local (DEV)
             mapping = _load_roles()
             mapping[email] = mapping.get(email) if isinstance(mapping.get(email), dict) else {}
             if not isinstance(mapping[email], dict):
@@ -3478,13 +3573,19 @@ def list_roles():
     Retorna o mapeamento completo de roles (e-mail -> role, nome, cargo).
     """
     try:
-        if not _require_role_admin_secret():
+        if not _require_admin_access():
             return jsonify({'success': False, 'message': 'Não autorizado'}), 403
         if USE_DB:
             db = SessionLocal()
             rows = db.query(RoleDB).all()
             db.close()
             items = [{'email': r.email, 'role': r.role, 'nome': r.nome, 'cargo': r.cargo} for r in rows]
+            # Garantir que ADMIN_EMAILS apareça na lista, mesmo que não exista registro ainda
+            admin_emails = _parse_env_emails("ADMIN_EMAILS")
+            existing_emails = {it.get("email", "").lower() for it in items}
+            for em in admin_emails:
+                if em and em not in existing_emails:
+                    items.append({'email': em, 'role': 'admin', 'nome': None, 'cargo': 'Administrador'})
             return jsonify({'success': True, 'items': items, 'source': 'db'})
 
         mapping = _load_roles()
@@ -3505,7 +3606,7 @@ def upsert_role():
     Body: { email: string, role: string, nome?: string, cargo?: string }
     """
     try:
-        if not _require_role_admin_secret():
+        if not _require_admin_access():
             return jsonify({'success': False, 'message': 'Não autorizado'}), 403
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()
@@ -3555,7 +3656,7 @@ def delete_role():
     Body: { email: string }
     """
     try:
-        if not _require_role_admin_secret():
+        if not _require_admin_access():
             return jsonify({'success': False, 'message': 'Não autorizado'}), 403
         data = request.get_json() or {}
         email = (data.get('email') or '').strip().lower()

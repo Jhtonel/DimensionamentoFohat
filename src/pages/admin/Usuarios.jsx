@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Usuario } from "@/entities";
 import { systemConfig } from "@/config/firebase.js";
 import { getBackendUrl } from "@/services/backendUrl.js";
+import { useAuth } from "@/services/authService.jsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -759,6 +760,7 @@ export default function AdminUsuarios() {
   const [roleFilter, setRoleFilter] = useState("todos");
   const [onlyNoName, setOnlyNoName] = useState(false);
   const [settingsModal, setSettingsModal] = useState({ open: false, role: null });
+  const { user: authUser, loading: authLoading, getAuthToken } = useAuth();
   const [rolePermissions, setRolePermissions] = useState({
     admin: DEFAULT_PERMISSIONS.admin,
     gestor: DEFAULT_PERMISSIONS.gestor,
@@ -797,13 +799,15 @@ export default function AdminUsuarios() {
     });
 
     try {
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       for (const [userId, data] of changes) {
         const user = usuarios.find(u => u.id === userId);
         if (!user) continue;
         
         await fetch(`${serverUrl}/auth/roles`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             email: user.email,
             role: user.role,
@@ -832,10 +836,17 @@ export default function AdminUsuarios() {
   };
 
   useEffect(() => {
+    // Importante: em prod precisamos aguardar o Firebase Auth hidratar o usuário/token,
+    // senão as chamadas protegidas retornam vazio/403 e a tela fica sem usuários.
+    if (authLoading) return;
+    if (!authUser) {
+      setUsuarios([]);
+      return;
+    }
     load();
     loadPermissions();
     loadEquipes();
-  }, []);
+  }, [authLoading, authUser]);
 
   const getServerUrl = () => {
     return (systemConfig?.apiUrl && systemConfig.apiUrl.length > 0)
@@ -869,9 +880,11 @@ export default function AdminUsuarios() {
 
   const savePermissions = async (role, permissions) => {
     try {
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       await fetch(`${getServerUrl()}/config/role-permissions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ role, permissions })
       });
       setRolePermissions(prev => ({ ...prev, [role]: permissions }));
@@ -882,9 +895,11 @@ export default function AdminUsuarios() {
 
   const saveEquipes = async (novasEquipes) => {
     try {
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       await fetch(`${getServerUrl()}/config/equipes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ equipes: novasEquipes })
       });
       setEquipes(novasEquipes);
@@ -896,7 +911,11 @@ export default function AdminUsuarios() {
   const load = async () => {
     try {
       const serverUrl = getServerUrl();
-      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`, {
+        headers: authHeaders
+      });
       let fbUsers = [];
       if (resp.ok) {
         const json = await resp.json();
@@ -907,7 +926,7 @@ export default function AdminUsuarios() {
       
       let roleByEmail = {};
       try {
-        const rolesResp = await fetch(`${serverUrl}/auth/roles?t=${Date.now()}`);
+        const rolesResp = await fetch(`${serverUrl}/auth/roles?t=${Date.now()}`, { headers: authHeaders });
         if (rolesResp.ok) {
           const rolesJson = await rolesResp.json();
           const items = Array.isArray(rolesJson?.items) ? rolesJson.items : [];
@@ -916,6 +935,19 @@ export default function AdminUsuarios() {
           });
         }
       } catch (_) {}
+
+      // Fallback: quando o Firebase Admin não está disponível em produção,
+      // /admin/firebase/list-users pode retornar vazio. Nesse caso, ainda queremos
+      // exibir os usuários conhecidos pelo mapeamento de roles (Postgres).
+      if ((!fbUsers || fbUsers.length === 0) && roleByEmail && Object.keys(roleByEmail).length > 0) {
+        fbUsers = Object.entries(roleByEmail).map(([email, info]) => ({
+          uid: `role_${email}`,
+          email,
+          display_name: info?.nome || (email ? email.split('@')[0] : ''),
+          phone_number: '',
+          metadata: {}
+        }));
+      }
       
       const merged = fbUsers.map(u => {
         const info = roleByEmail[(u.email || '').toLowerCase()] || {};
@@ -948,9 +980,11 @@ export default function AdminUsuarios() {
     try {
       const target = usuarios.find(u => u.id === id);
       if (!target) return;
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       await fetch(`${getServerUrl()}/auth/roles`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ 
           email: target.email, 
           role: data.role || target.role || 'vendedor', 
@@ -962,7 +996,7 @@ export default function AdminUsuarios() {
     } finally {
       setLoading(false);
     }
-  }, [usuarios]);
+  }, [usuarios, getAuthToken]);
 
   const removerUsuario = useCallback(async (id) => {
     const target = usuarios.find(u => u.id === id);
@@ -971,23 +1005,25 @@ export default function AdminUsuarios() {
     setLoading(true);
     try {
       const serverUrl = getServerUrl();
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       try {
         await fetch(`${serverUrl}/admin/firebase/delete-user`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ uid: target.uid || id })
         });
       } catch (_) {}
       await fetch(`${serverUrl}/auth/roles`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ email: target.email })
       });
       await load();
     } finally {
       setLoading(false);
     }
-  }, [usuarios]);
+  }, [usuarios, getAuthToken]);
 
   const moverUsuarioParaRole = useCallback(async (userId, newRole) => {
     const user = usuarios.find(u => u.id === userId);
