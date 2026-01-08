@@ -12,7 +12,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // Dados do vendedor baseados no usuário logado
   // O cargo vem do cadastro do usuário (Admin > Usuários)
   const vendedorDados = {
-    nome: user?.name || user?.displayName || user?.email?.split('@')[0] || 'Consultor',
+    // Preferir SEMPRE o nome cadastrado no Postgres (UserDB.nome).
+    // Só cair no e-mail como último fallback.
+    nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
     cargo: user?.cargo || 'Consultor de Energia Solar',
     email: user?.email || '',
     telefone: user?.phone || user?.telefone || ''
@@ -493,7 +495,19 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Criar elemento temporário para renderizar o template
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = htmlForPdf;
+      // Importante: htmlForPdf vem como documento completo (<html><head>...<style>...).
+      // Se injetarmos "cru" em um <div>, alguns browsers não aplicam as regras do <head> corretamente,
+      // causando desalinhamentos no PDF. Então extraímos <style> e <body> e injetamos no mesmo documento.
+      let bodyHtml = htmlForPdf;
+      let styleText = '';
+      try {
+        const parsed = new DOMParser().parseFromString(String(htmlForPdf || ''), 'text/html');
+        styleText = Array.from(parsed.querySelectorAll('style'))
+          .map((s) => s.textContent || '')
+          .join('\n');
+        bodyHtml = parsed.body ? parsed.body.innerHTML : String(htmlForPdf || '');
+      } catch (_) {}
+      tempDiv.innerHTML = `${styleText ? `<style>${styleText}</style>` : ''}${bodyHtml}`;
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '-9999px';
@@ -562,22 +576,12 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         const imgWidth = canvas.width;
         const imgHeight = canvas.height;
         
-        // Calcular escala para A4 landscape
-        const scaleX = pdfWidth / imgWidth;
-        const scaleY = pdfHeight / imgHeight;
-        const scale = Math.min(scaleX, scaleY);
-        
-        const scaledWidth = imgWidth * scale;
-        const scaledHeight = imgHeight * scale;
-        
-        const x = (pdfWidth - scaledWidth) / 2;
-        const y = (pdfHeight - scaledHeight) / 2;
-
         if (i > 0) {
           pdf.addPage();
         }
-        
-        pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
+
+        // Preencher a página inteira (evita bordas e "drift" de alinhamento por arredondamento)
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       }
 
       // Remover elemento temporário

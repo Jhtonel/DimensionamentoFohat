@@ -1136,21 +1136,22 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             'figure.titlesize': int(26 * scale_factor)
         })
         
-        fig, ax = plt.subplots(figsize=figsize, facecolor='none')  # Fundo transparente
-        ax.set_facecolor('none')  # Fundo transparente
-        # Reduzir margens internas (usar quase 100% da área)
-        fig.subplots_adjust(left=0.07, right=0.995, top=0.995, bottom=0.12)
+        # Fundo branco evita “transparência” estranha no HTML/PDF e melhora contraste
+        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+        ax.set_facecolor('white')
+        # Reduzir margens internas (usar quase 100% da área) com respiro pro eixo X
+        fig.subplots_adjust(left=0.08, right=0.99, top=0.96, bottom=0.18)
         
-        # Cores profissionais baseadas no design da proposta
+        # Cores profissionais baseadas no design da proposta (Fohat)
         if colors is None:
             colors = {
-                'primary': '#2563eb',      # Azul principal
+                'primary': '#1E3A8A',      # Azul Fohat
                 'secondary': '#059669',    # Verde
-                'accent': '#dc2626',       # Vermelho
+                'accent': '#DC2626',       # Vermelho
                 'warning': '#d97706',      # Laranja
                 'info': '#7c3aed',         # Roxo
                 'success': '#16a34a',      # Verde sucesso
-                'danger': '#dc2626',       # Vermelho perigo
+                'danger': '#DC2626',       # Vermelho perigo
                 'light': '#f8fafc',        # Cinza claro
                 'dark': '#1e293b'          # Cinza escuro
             }
@@ -1168,13 +1169,13 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
         ax.spines['bottom'].set_linewidth(1)
         
         # Configurar grid
-        ax.grid(True, alpha=0.1, color='#e2e8f0', linestyle='-', linewidth=0.5)
+        ax.grid(True, alpha=0.12, color='#e2e8f0', linestyle='-', linewidth=0.6)
         ax.set_axisbelow(True)
         
         if chart_type == 'bar':
             # Criar barras com gradiente visual
             bars = ax.bar(labels, data, color=color_list[:len(data)], 
-                         alpha=0.8, edgecolor='white', linewidth=2,
+                         alpha=0.9, edgecolor='white', linewidth=2,
                          capsize=5, capstyle='round')
             
             # Adicionar valores nas barras com estilo melhorado
@@ -1182,11 +1183,16 @@ def generate_chart_base64(chart_type, data, labels, title, colors=None, figsize=
             for i, (bar, value) in enumerate(zip(bars, data)):
                 height = bar.get_height()
                 # Posicionar texto acima da barra
-                ax.text(bar.get_x() + bar.get_width()/2, height + max_val*0.02,
-                       _fmt_brl_num(value, 0), ha='center', va='bottom', 
-                       fontsize=int(18 * scale_factor), fontweight='900', color='#0f172a',
-                       bbox=dict(boxstyle='round,pad=0.4', facecolor='white', 
-                               edgecolor='#e2e8f0', alpha=0.95, linewidth=1))
+                ax.text(
+                    bar.get_x() + bar.get_width()/2,
+                    height + max_val*0.018,
+                    _fmt_brl_num(value, 0),
+                    ha='center',
+                    va='bottom',
+                    fontsize=int(18 * scale_factor),
+                    fontweight='800',
+                    color='#0f172a'
+                )
             # headroom para não cortar os rótulos
             try:
                 ax.set_ylim(0, (max_val * 1.18) if max_val > 0 else 1)
@@ -1487,7 +1493,6 @@ def process_template_html(proposta_data):
         logo_base64 = (
             convert_image_to_base64('/img/logo-bg-blue.svg')
             or convert_image_to_base64('/img/logo-green.svg')
-            or convert_image_to_base64('/img/logo.svg')
         )
         como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
         
