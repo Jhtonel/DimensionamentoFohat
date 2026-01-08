@@ -1482,7 +1482,13 @@ def process_template_html(proposta_data):
         
         # Converter imagens para base64
         fohat_base64 = convert_image_to_base64('/img/fohat.svg')
-        logo_base64 = convert_image_to_base64('/img/logo.svg')
+        # A capa do template usa logo-green.svg (e o app usa logo-bg-blue.svg no CRM).
+        # Suportar ambos e substituir qualquer referência no HTML por base64.
+        logo_base64 = (
+            convert_image_to_base64('/img/logo-bg-blue.svg')
+            or convert_image_to_base64('/img/logo-green.svg')
+            or convert_image_to_base64('/img/logo.svg')
+        )
         como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
         
         # Substituir URLs das imagens por base64
@@ -1490,6 +1496,11 @@ def process_template_html(proposta_data):
             template_html = template_html.replace("url('/img/fohat.svg')", f"url('{fohat_base64}')")
             template_html = template_html.replace("url('img/fohat.svg')", f"url('{fohat_base64}')")
         if logo_base64:
+            # svg variantes
+            template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_base64}"')
             template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_base64}"')
             template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_base64}"')
         if como_funciona_base64:
@@ -2694,6 +2705,25 @@ def salvar_proposta():
             }), 400
         
         # Preparar dados da proposta
+        # Normalizar consumo mês a mês (se fornecido)
+        def _normalize_consumo_mes_a_mes(val):
+            try:
+                if not isinstance(val, list):
+                    return []
+                out = []
+                for item in val[:24]:  # limite defensivo
+                    if not isinstance(item, dict):
+                        continue
+                    mes = (item.get("mes") or item.get("month") or item.get("label") or "").strip()
+                    kwh = _to_float(item.get("kwh", item.get("valor", item.get("value", 0))), 0.0)
+                    # manter campos extras se existirem (ex.: ordem), mas garantir kwh numérico
+                    out.append({**item, "mes": mes, "kwh": kwh})
+                return out
+            except Exception:
+                return []
+
+        consumo_mes_a_mes_norm = _normalize_consumo_mes_a_mes(data.get("consumo_mes_a_mes"))
+
         proposta_data = {
             'id': proposta_id,
             'data_criacao': datetime.now().isoformat(),
@@ -2723,6 +2753,8 @@ def salvar_proposta():
             'anos_payback': data.get('anos_payback', 0),
             'gasto_acumulado_payback': data.get('gasto_acumulado_payback', 0),
             'consumo_mensal_kwh': data.get('consumo_mensal_kwh', 0),
+            # Persistir também o consumo mês a mês (quando informado)
+            'consumo_mes_a_mes': consumo_mes_a_mes_norm,
             'tarifa_energia': tarifa_payload,
             'economia_mensal_estimada': data.get('economia_mensal_estimada', 0),
             # Dados do kit
@@ -2981,7 +3013,11 @@ def visualizar_proposta(proposta_id):
         
         # Converter imagens para base64
         fohat_base64 = convert_image_to_base64('/img/fohat.svg')
-        logo_base64 = convert_image_to_base64('/img/logo.svg')
+        logo_base64 = (
+            convert_image_to_base64('/img/logo-bg-blue.svg')
+            or convert_image_to_base64('/img/logo-green.svg')
+            or convert_image_to_base64('/img/logo.svg')
+        )
         como_funciona_base64 = convert_image_to_base64('/img/como-funciona.png')
         
         # Substituir URLs das imagens por base64
@@ -2989,6 +3025,10 @@ def visualizar_proposta(proposta_id):
             template_html = template_html.replace("url('/img/fohat.svg')", f"url('{fohat_base64}')")
             template_html = template_html.replace("url('img/fohat.svg')", f"url('{fohat_base64}')")
         if logo_base64:
+            template_html = template_html.replace('src="/img/logo-bg-blue.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="img/logo-bg-blue.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="/img/logo-green.svg"', f'src="{logo_base64}"')
+            template_html = template_html.replace('src="img/logo-green.svg"', f'src="{logo_base64}"')
             template_html = template_html.replace('src="/img/logo.svg"', f'src="{logo_base64}"')
             template_html = template_html.replace('src="img/logo.svg"', f'src="{logo_base64}"')
         if como_funciona_base64:
