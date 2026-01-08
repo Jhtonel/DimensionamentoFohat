@@ -312,6 +312,44 @@ export default function CostsDetailed({
                         </div>
                       </div>
                     </div>
+
+                    {/* Economia de Impostos com Solar */}
+                    <div className="p-3 rounded border bg-amber-50 border-amber-200">
+                      <div className="font-medium text-amber-800 mb-2">💡 Economia de Impostos com Energia Solar</div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        Com energia solar, você deixa de pagar esses impostos sobre a energia que você mesmo produz.
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div>
+                          <div className="text-xs text-gray-600">Economia PIS/mês</div>
+                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.pis.total)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Economia COFINS/mês</div>
+                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.cofins.total)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Economia ICMS/mês</div>
+                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.icms.total)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Total Impostos/mês</div>
+                          <div className="font-bold text-amber-700">{formatCurrency(decomp.totalImpostos)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-amber-200">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-600">Economia Impostos/ano</div>
+                            <div className="font-bold text-amber-800">{formatCurrency(decomp.totalImpostos * 12)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">Economia Impostos em 25 anos</div>
+                            <div className="font-bold text-amber-800">{formatCurrency(decomp.totalImpostos * 12 * 25)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
