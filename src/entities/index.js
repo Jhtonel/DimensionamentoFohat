@@ -195,11 +195,20 @@ class Cliente extends BaseEntity {
     return getBackendUrl();
   }
 
+  static _getAuthHeaders() {
+    try {
+      const token = localStorage.getItem('app_jwt_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    } catch {
+      return {};
+    }
+  }
+
   static async list(orderBy = '-created_at') {
     try {
       // Buscar do backend Python (fonte de verdade)
       const url = `${this.getServerUrl()}/clientes/list?t=${Date.now()}`;
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: { ...this._getAuthHeaders() } });
       if (resp.ok) {
         const arr = await resp.json();
         if (Array.isArray(arr)) {
@@ -231,15 +240,14 @@ class Cliente extends BaseEntity {
         cep: data?.cep ?? null,
         tipo: data?.tipo ?? null,
         observacoes: data?.observacoes ?? null,
-        created_by: data?.created_by || null,
-        created_by_email: data?.created_by_email || null,
+        // Atribuição é feita no backend (usuário logado)
       };
       
       // Salvar no backend Python
       const url = `${this.getServerUrl()}/clientes/create`;
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
         body: JSON.stringify(payload)
       });
       
@@ -279,7 +287,7 @@ class Cliente extends BaseEntity {
       const url = `${this.getServerUrl()}/clientes/update/${id}`;
       const resp = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
         body: JSON.stringify(updates)
       });
       
@@ -312,7 +320,7 @@ class Cliente extends BaseEntity {
     try {
       // Excluir no backend Python (já faz cascata das propostas)
       const url = `${this.getServerUrl()}/clientes/delete/${id}`;
-      const resp = await fetch(url, { method: 'DELETE' });
+      const resp = await fetch(url, { method: 'DELETE', headers: { ...this._getAuthHeaders() } });
       
       if (!resp.ok) throw new Error('Falha ao excluir cliente');
       
@@ -345,6 +353,15 @@ class Projeto extends BaseEntity {
     return getBackendUrl();
   }
 
+  static _getAuthHeaders() {
+    try {
+      const token = localStorage.getItem('app_jwt_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    } catch {
+      return {};
+    }
+  }
+
   static async list(orderBy = '-created_at') {
     try {
       // Política: se o backend Python responder, ele é a verdade (mesmo se vier vazio).
@@ -352,7 +369,7 @@ class Projeto extends BaseEntity {
       const fetchBackend = async () => {
         try {
           const url = `${this.getServerUrl()}/projetos/list?t=${Date.now()}`;
-          const resp = await fetch(url);
+          const resp = await fetch(url, { headers: { ...this._getAuthHeaders() } });
           if (!resp.ok) return null;
           const arr = await resp.json();
           // Atualizar cache local para manter sincronizado com o backend
@@ -511,6 +528,68 @@ class Configuracao extends BaseEntity {
 
   static getServerUrl() {
     return getBackendUrl();
+  }
+
+  static _getAuthHeaders() {
+    try {
+      const token = localStorage.getItem('app_jwt_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  static async list() {
+    // Hoje usamos Configuracao.list principalmente para proposta_configs (tela de Configurações)
+    try {
+      const serverUrl = this.getServerUrl();
+      const resp = await fetch(`${serverUrl}/config/proposta-configs?t=${Date.now()}`, {
+        headers: { ...this._getAuthHeaders() }
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        const cfg = json?.config;
+        if (cfg && typeof cfg === 'object') {
+          return [cfg];
+        }
+        return [];
+      }
+    } catch (_) {}
+    // fallback: memória (não persistente)
+    return super.list();
+  }
+
+  static async create(data) {
+    try {
+      const serverUrl = this.getServerUrl();
+      const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(data || {})
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao salvar configuração');
+      return json?.config || data;
+    } catch (e) {
+      return super.create(data);
+    }
+  }
+
+  static async update(id, data) {
+    // id é ignorado pois o endpoint é fixo (proposta_configs)
+    try {
+      const serverUrl = this.getServerUrl();
+      const resp = await fetch(`${serverUrl}/config/proposta-configs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this._getAuthHeaders() },
+        body: JSON.stringify(data || {})
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao salvar configuração');
+      return json?.config || data;
+    } catch (e) {
+      return super.update(id, data);
+    }
   }
 
   // Método para buscar todas as concessionárias do backend (dados ANEEL)

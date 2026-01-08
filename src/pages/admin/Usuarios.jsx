@@ -769,6 +769,8 @@ export default function AdminUsuarios() {
   });
   const [equipes, setEquipes] = useState({}); // { gestorEmail: [membroEmail1, membroEmail2, ...] }
   const [editedUsers, setEditedUsers] = useState({}); // { [userId]: { nome, cargo } }
+  const [createModal, setCreateModal] = useState({ open: false });
+  const [newUser, setNewUser] = useState({ email: "", nome: "", cargo: "", role: "vendedor", password: "" });
   
   // Contar alterações pendentes
   const pendingChangesCount = Object.keys(editedUsers).filter(id => {
@@ -805,11 +807,10 @@ export default function AdminUsuarios() {
         const user = usuarios.find(u => u.id === userId);
         if (!user) continue;
         
-        await fetch(`${serverUrl}/auth/roles`, {
-          method: 'POST',
+        await fetch(`${serverUrl}/admin/users/${encodeURIComponent(user.uid || userId)}`, {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
-            email: user.email,
             role: user.role,
             nome: data.nome,
             cargo: data.cargo
@@ -836,8 +837,7 @@ export default function AdminUsuarios() {
   };
 
   useEffect(() => {
-    // Importante: em prod precisamos aguardar o Firebase Auth hidratar o usuário/token,
-    // senão as chamadas protegidas retornam vazio/403 e a tela fica sem usuários.
+    // Agora auth é do nosso backend (JWT). Espera o hook hidratar o usuário.
     if (authLoading) return;
     if (!authUser) {
       setUsuarios([]);
@@ -913,61 +913,23 @@ export default function AdminUsuarios() {
       const serverUrl = getServerUrl();
       const token = await getAuthToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`, {
-        headers: authHeaders
-      });
-      let fbUsers = [];
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json?.success && Array.isArray(json.users)) {
-          fbUsers = json.users;
-        }
+      const resp = await fetch(`${serverUrl}/admin/users?t=${Date.now()}`, { headers: authHeaders });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) {
+        setUsuarios([]);
+        return;
       }
-      
-      let roleByEmail = {};
-      try {
-        const rolesResp = await fetch(`${serverUrl}/auth/roles?t=${Date.now()}`, { headers: authHeaders });
-        if (rolesResp.ok) {
-          const rolesJson = await rolesResp.json();
-          const items = Array.isArray(rolesJson?.items) ? rolesJson.items : [];
-          items.forEach((it) => {
-            if (it?.email && it?.role) roleByEmail[it.email.toLowerCase()] = { role: it.role, nome: it?.nome, cargo: it?.cargo };
-          });
-        }
-      } catch (_) {}
-
-      // Fallback: quando o Firebase Admin não está disponível em produção,
-      // /admin/firebase/list-users pode retornar vazio. Nesse caso, ainda queremos
-      // exibir os usuários conhecidos pelo mapeamento de roles (Postgres).
-      if ((!fbUsers || fbUsers.length === 0) && roleByEmail && Object.keys(roleByEmail).length > 0) {
-        fbUsers = Object.entries(roleByEmail).map(([email, info]) => ({
-          uid: `role_${email}`,
-          email,
-          display_name: info?.nome || (email ? email.split('@')[0] : ''),
-          phone_number: '',
-          metadata: {}
-        }));
-      }
-      
-      const merged = fbUsers.map(u => {
-        const info = roleByEmail[(u.email || '').toLowerCase()] || {};
-        let nomeDisplay = info?.nome || u.display_name;
-        if (!nomeDisplay && u.email) {
-          nomeDisplay = u.email.split('@')[0];
-        }
-        
-        return {
-          id: u.uid,
-          uid: u.uid,
-          nome: nomeDisplay || 'Usuário sem nome',
-          email: u.email || '',
-          telefone: u.phone_number || '',
-          role: info.role || 'vendedor',
-          cargo: info.cargo || '',
-          metadata: u.metadata
-        };
-      });
-      
+      const items = Array.isArray(json?.items) ? json.items : [];
+      const merged = items.map((u) => ({
+        id: u.uid,
+        uid: u.uid,
+        nome: u.nome || (u.email ? String(u.email).split('@')[0] : 'Usuário'),
+        email: u.email || '',
+        telefone: '',
+        role: u.role || 'vendedor',
+        cargo: u.cargo || '',
+        metadata: {}
+      }));
       setUsuarios(merged);
     } catch (e) {
       console.error('Falha ao listar usuários:', e);
@@ -982,12 +944,11 @@ export default function AdminUsuarios() {
       if (!target) return;
       const token = await getAuthToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-      await fetch(`${getServerUrl()}/auth/roles`, {
-        method: 'POST',
+      await fetch(`${getServerUrl()}/admin/users/${encodeURIComponent(target.uid || id)}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ 
-          email: target.email, 
-          role: data.role || target.role || 'vendedor', 
+        body: JSON.stringify({
+          role: data.role || target.role || 'vendedor',
           nome: data?.nome,
           cargo: data?.cargo
         })
@@ -1007,17 +968,9 @@ export default function AdminUsuarios() {
       const serverUrl = getServerUrl();
       const token = await getAuthToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-      try {
-        await fetch(`${serverUrl}/admin/firebase/delete-user`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders },
-          body: JSON.stringify({ uid: target.uid || id })
-        });
-      } catch (_) {}
-      await fetch(`${serverUrl}/auth/roles`, {
+      await fetch(`${serverUrl}/admin/users/${encodeURIComponent(target.uid || id)}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ email: target.email })
+        headers: { ...authHeaders }
       });
       await load();
     } finally {
@@ -1071,6 +1024,17 @@ export default function AdminUsuarios() {
           <p className="text-gray-600">Arraste usuários entre colunas. Clique em ⚙️ para configurar permissões e equipes.</p>
         </div>
         <div className="flex items-end gap-3 flex-wrap">
+          <Button
+            type="button"
+            onClick={() => {
+              setNewUser({ email: "", nome: "", cargo: "", role: "vendedor", password: "" });
+              setCreateModal({ open: true });
+            }}
+            className="h-9 bg-sky-600 hover:bg-sky-700"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Novo usuário
+          </Button>
           <div className="w-40">
             <Label className="text-xs text-gray-500">Filtrar</Label>
             <select
@@ -1119,6 +1083,85 @@ export default function AdminUsuarios() {
           </Button>
         </div>
       </div>
+
+      {/* Modal criar usuário (Postgres) */}
+      {createModal.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && setCreateModal({ open: false })}>
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl border">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div className="font-semibold text-gray-900">Novo usuário</div>
+              <button className="p-2 rounded hover:bg-gray-100" onClick={() => setCreateModal({ open: false })} aria-label="Fechar">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <Label>E-mail</Label>
+                <Input value={newUser.email} onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))} placeholder="email@dominio.com" />
+              </div>
+              <div className="space-y-1">
+                <Label>Nome</Label>
+                <Input value={newUser.nome} onChange={(e) => setNewUser(prev => ({ ...prev, nome: e.target.value }))} placeholder="Nome" />
+              </div>
+              <div className="space-y-1">
+                <Label>Cargo</Label>
+                <Input value={newUser.cargo} onChange={(e) => setNewUser(prev => ({ ...prev, cargo: e.target.value }))} placeholder="Cargo" />
+              </div>
+              <div className="space-y-1">
+                <Label>Role</Label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
+                  className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="gestor">Gestor</option>
+                  <option value="vendedor">Vendedor</option>
+                  <option value="instalador">Instalador</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Senha</Label>
+                <Input type="password" value={newUser.password} onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))} placeholder="mín. 6 caracteres" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setCreateModal({ open: false })}>Cancelar</Button>
+                <Button
+                  type="button"
+                  className="bg-sky-600 hover:bg-sky-700"
+                  onClick={async () => {
+                    try {
+                      const serverUrl = getServerUrl();
+                      const token = await getAuthToken();
+                      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+                      const resp = await fetch(`${serverUrl}/admin/users`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders },
+                        body: JSON.stringify({
+                          email: newUser.email,
+                          nome: newUser.nome,
+                          cargo: newUser.cargo,
+                          role: newUser.role,
+                          password: newUser.password
+                        })
+                      });
+                      const json = await resp.json().catch(() => ({}));
+                      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao criar usuário');
+                      setCreateModal({ open: false });
+                      await load();
+                    } catch (e) {
+                      alert(e?.message || 'Erro ao criar usuário');
+                    }
+                  }}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Criar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

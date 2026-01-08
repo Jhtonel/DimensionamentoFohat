@@ -1,92 +1,67 @@
 /**
- * Serviço de autenticação Firebase
+ * Serviço de autenticação (Postgres + JWT via backend)
  */
 
 import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail,
-  verifyPasswordResetCode,
-  confirmPasswordReset,
-  updatePassword,
-  reauthenticateWithCredential,
-  EmailAuthProvider
-} from 'firebase/auth';
-
-import { firebaseConfig } from '../config/firebase.js';
 import { supabase } from './supabaseClient.js';
 import { getBackendUrl } from "./backendUrl.js";
 
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const TOKEN_KEY = 'app_jwt_token';
 
 class AuthService {
   constructor() {
     this.currentUser = null;
     this.listeners = [];
-    this.secondaryApp = null;
-    
-    // Escutar mudanças no estado de autenticação
-    onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Primeiro cria o usuário mapeado
-        const mappedUser = this.mapFirebaseUser(firebaseUser);
 
-        const envAdminEmails = (() => {
-          try {
-            const raw = (import.meta?.env?.VITE_ADMIN_EMAILS || "").trim();
-            if (!raw) return new Set();
-            return new Set(raw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean));
-          } catch {
-            return new Set();
-          }
-        })();
-        
-        // Carregar role e cargo a partir do backend ANTES de notificar
-        try {
-          const userData = await this.fetchUserDataByEmail(mappedUser.email);
-          const emailLower = (mappedUser.email || '').toLowerCase();
-          const resolvedRole =
-            (envAdminEmails.has(emailLower) ? 'admin' : (userData?.role || 'vendedor'));
-          this.currentUser = { 
-            ...mappedUser, 
-            role: resolvedRole,
-            cargo: userData?.cargo || '',
-            nome: userData?.nome || mappedUser.nome
-          };
-        } catch (e) {
-          console.warn('Falha ao obter dados do usuário, usando padrão:', e?.message || e);
-          this.currentUser = { ...mappedUser, role: 'vendedor' };
-        }
-      } else {
-        this.currentUser = null;
-      }
-      
-      // Notificar listeners DEPOIS de carregar a role
-      this.listeners.forEach(listener => listener(this.currentUser));
-    });
+    // Hidratar sessão a partir do token salvo
+    this._hydrateFromToken();
   }
 
-  /**
-   * Busca dados do usuário no backend
-   */
-  // Constrói o usuário da aplicação a partir do usuário do Firebase
-  mapFirebaseUser(firebaseUser) {
-    const email = firebaseUser.email || '';
-    const nomePadrao = email ? email.split('@')[0] : 'Usuário';
-    return {
-      uid: firebaseUser.uid,
-      email,
-      nome: firebaseUser.displayName || nomePadrao,
-      role: 'vendedor' // papel padrão até buscarmos no banco
-    };
+  async _hydrateFromToken() {
+    const token = this._getToken();
+    if (!token) {
+      this.currentUser = null;
+      this.listeners.forEach(listener => listener(this.currentUser));
+      return;
+    }
+    try {
+      const serverUrl = getBackendUrl();
+      const resp = await fetch(`${serverUrl}/auth/me?t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error('Sessão inválida');
+      const json = await resp.json();
+      if (json?.success && json?.user) {
+        this.currentUser = { ...json.user };
+      } else {
+        throw new Error('Sessão inválida');
+      }
+    } catch (e) {
+      this._clearToken();
+      this.currentUser = null;
+    } finally {
+      this.listeners.forEach(listener => listener(this.currentUser));
+    }
+  }
+
+  _getToken() {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  _setToken(token) {
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+    } catch {}
+  }
+
+  _clearToken() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {}
   }
 
   /**
@@ -94,13 +69,25 @@ class AuthService {
    */
   async login(email, password) {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const mapped = this.mapFirebaseUser(userCredential.user);
-      this.currentUser = mapped;
-      return mapped;
+      const serverUrl = getBackendUrl();
+      const resp = await fetch(`${serverUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) {
+        throw new Error(json?.message || 'Credenciais inválidas');
+      }
+      const token = String(json?.token || '');
+      if (!token) throw new Error('Token não recebido');
+      this._setToken(token);
+      this.currentUser = json?.user || { email };
+      this.listeners.forEach(listener => listener(this.currentUser));
+      return this.currentUser;
     } catch (error) {
       console.error('❌ Erro no login:', error);
-      throw new Error(this.getErrorMessage(error.code));
+      throw new Error(error?.message || 'Erro de autenticação');
     }
   }
 
@@ -109,89 +96,34 @@ class AuthService {
    */
   async logout() {
     try {
-      await signOut(auth);
+      // best-effort: limpar token
+      this._clearToken();
       this.currentUser = null;
+      this.listeners.forEach(listener => listener(this.currentUser));
     } catch (error) {
       console.error('Erro no logout:', error);
       throw error;
     }
   }
 
-  /**
-   * Cria um usuário no Firebase Auth sem derrubar a sessão atual
-   * Usa uma instância secundária do app para evitar trocar o auth ativo
-   */
-  async createFirebaseUser({ email, password, displayName }) {
-    try {
-      if (!this.secondaryApp) {
-        this.secondaryApp = initializeApp(firebaseConfig, 'secondary');
-      }
-      const secondaryAuth = getAuth(this.secondaryApp);
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-      const createdUser = userCredential.user;
-      if (displayName) {
-        try {
-          await updateProfile(createdUser, { displayName });
-        } catch (e) {
-          console.warn('Não foi possível atualizar displayName do usuário recém-criado:', e);
-        }
-      }
-      // Dispara e-mail de redefinição de senha para que o usuário defina uma senha própria
-      try {
-        const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        const actionCodeSettings = {
-          url: `${origin}/reset-password`,
-          handleCodeInApp: false
-        };
-        await sendPasswordResetEmail(secondaryAuth, email, actionCodeSettings);
-      } catch (e) {
-        console.warn('Falha ao enviar e-mail de redefinição de senha (o usuário ainda foi criado):', e);
-      }
-      // Mantém admin logado no app principal; encerra sessão secundária
-      try {
-        await signOut(secondaryAuth);
-      } catch {}
-      return { uid: createdUser.uid, email: createdUser.email };
-    } catch (error) {
-      console.error('❌ Erro ao criar usuário no Firebase:', error);
-      throw new Error(this.getErrorMessage(error.code) || error.message);
-    }
+  // Firebase desativado (mantido só por compatibilidade do nome do método)
+  async createFirebaseUser() {
+    throw new Error('Criação de usuários via Firebase foi desativada. Use o painel de Admin (Postgres).');
   }
 
   /**
    * Envia e-mail de recuperação/definição de senha
    */
   async sendResetEmail(email) {
-    try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const actionCodeSettings = {
-        url: `${origin}/reset-password`,
-        handleCodeInApp: false
-      };
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
-      return true;
-    } catch (e) {
-      console.error('Erro ao enviar e-mail de redefinição:', e);
-      throw new Error(this.getErrorMessage(e.code) || e.message);
-    }
+    throw new Error('Recuperação de senha automática está desativada. Solicite ao administrador a redefinição.');
   }
 
   async verifyResetCode(code) {
-    try {
-      const email = await verifyPasswordResetCode(auth, code);
-      return email;
-    } catch (e) {
-      throw new Error(this.getErrorMessage(e.code) || e.message);
-    }
+    throw new Error('Fluxo de reset via link está desativado.');
   }
 
   async confirmReset(code, newPassword) {
-    try {
-      await confirmPasswordReset(auth, code, newPassword);
-      return true;
-    } catch (e) {
-      throw new Error(this.getErrorMessage(e.code) || e.message);
-    }
+    throw new Error('Fluxo de reset via link está desativado.');
   }
 
   /**
@@ -199,18 +131,22 @@ class AuthService {
    */
   async changePassword(currentPassword, newPassword) {
     try {
-      const user = auth.currentUser;
-      if (!user?.email) throw new Error('Usuário não autenticado');
-      // Reautenticar (necessário em muitos casos)
-      if (currentPassword) {
-        const credential = EmailAuthProvider.credential(user.email, currentPassword);
-        await reauthenticateWithCredential(user, credential);
+      const token = this._getToken();
+      if (!token) throw new Error('Usuário não autenticado');
+      const serverUrl = getBackendUrl();
+      const resp = await fetch(`${serverUrl}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.success) {
+        throw new Error(json?.message || 'Não foi possível alterar a senha');
       }
-      await updatePassword(user, newPassword);
       return true;
     } catch (e) {
       console.error('Erro ao alterar senha:', e);
-      throw new Error(this.getErrorMessage(e.code) || e.message);
+      throw new Error(e?.message || 'Erro ao alterar senha');
     }
   }
 
@@ -271,38 +207,15 @@ class AuthService {
    * Obtém token de autenticação para usar nas requisições
    */
   async getAuthToken() {
-    const user = auth.currentUser;
-    if (user) {
-      return await user.getIdToken();
-    }
-    return null;
+    const token = this._getToken();
+    return token || null;
   }
 
   /**
    * Busca dados do usuário (role, cargo, nome) pelo email
    */
   async fetchUserDataByEmail(email) {
-    if (!email) return { role: 'vendedor', cargo: '', nome: '' };
-    // Consultar dados no backend Python
-    try {
-      const serverUrl = getBackendUrl();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const resp = await fetch(`${serverUrl}/auth/role?email=${encodeURIComponent(email)}&t=${Date.now()}`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      if (resp.ok) {
-        const json = await resp.json();
-        return {
-          role: json?.role || 'vendedor',
-          cargo: json?.cargo || '',
-          nome: json?.nome || ''
-        };
-      }
-    } catch (e) {
-      console.warn('Falha ao consultar dados do usuário no backend:', e?.message || e);
-    }
+    // Não usado no auth do Postgres; manter compatibilidade mínima
     return { role: 'vendedor', cargo: '', nome: '' };
   }
   

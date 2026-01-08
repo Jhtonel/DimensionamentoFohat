@@ -313,8 +313,6 @@ export function calcularCustoHomologacao(potenciaKwp, faixas = {}) {
     // 10,1 a 25 kWp: R$ 1.000
     // 25,1 a 50 kWp: R$ 1.500
     // 50,1 a 75 kWp: R$ 2.000
-    // Obs.: Mantemos "até 5" por compatibilidade (mesmo valor do "até 10").
-    ate5: 500,
     ate10: 500,
     ate25: 1000,
     ate50: 1500,
@@ -329,7 +327,6 @@ export function calcularCustoHomologacao(potenciaKwp, faixas = {}) {
     f.ate25 = f.ate20;
   }
   
-  if (potenciaKwp <= 5) return f.ate5;
   if (potenciaKwp <= 10) return f.ate10;
   if (potenciaKwp <= 25) return f.ate25;
   if (potenciaKwp <= 50) return f.ate50;

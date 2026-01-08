@@ -28,10 +28,6 @@ export default function Configuracoes() {
       if (normalized.homologacao_ate_25_kwp == null && normalized.homologacao_ate_20_kwp != null) {
         normalized.homologacao_ate_25_kwp = normalized.homologacao_ate_20_kwp;
       }
-      // Se não existir "até 5", usar o mesmo de "até 10" (mantém consistência com a tabela)
-      if (normalized.homologacao_ate_5_kwp == null && normalized.homologacao_ate_10_kwp != null) {
-        normalized.homologacao_ate_5_kwp = normalized.homologacao_ate_10_kwp;
-      }
       setPropostaConfigs(normalized);
     } else {
       const newPropostaConfig = {
@@ -50,7 +46,6 @@ export default function Configuracoes() {
         percentual_divisao_lucro: 40,
         percentual_fundo_caixa: 20,
         // Tabela Fohat (homologação por faixa)
-        homologacao_ate_5_kwp: 500,
         homologacao_ate_10_kwp: 500,
         homologacao_ate_25_kwp: 1000,
         homologacao_ate_50_kwp: 1500,
@@ -71,9 +66,11 @@ export default function Configuracoes() {
         homologacao_ate_20_kwp: propostaConfigs.homologacao_ate_25_kwp ?? propostaConfigs.homologacao_ate_20_kwp
       };
       if (payload.id) {
-        await Configuracao.update(payload.id, payload);
+        const saved = await Configuracao.update(payload.id, payload);
+        if (saved) setPropostaConfigs(saved);
       } else {
-        await Configuracao.create(payload);
+        const saved = await Configuracao.create(payload);
+        if (saved) setPropostaConfigs(saved);
       }
       alert('Configurações de proposta salvas com sucesso!');
     } catch (error) {
@@ -149,14 +146,6 @@ export default function Configuracoes() {
                 <Card className="bg-blue-50 border-blue-200">
                   <CardContent className="p-4 space-y-3">
                     <h4 className="font-semibold text-blue-900">Homologação (por faixa)</h4>
-                    <div>
-                      <Label>até 5 kWp (R$)</Label>
-                      <Input
-                        type="number"
-                        value={propostaConfigs.homologacao_ate_5_kwp ?? 0}
-                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, homologacao_ate_5_kwp: parseFloat(e.target.value) }))}
-                      />
-                    </div>
                     <div>
                       <Label>até 10 kWp (R$)</Label>
                       <Input

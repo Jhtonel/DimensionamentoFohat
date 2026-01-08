@@ -130,6 +130,7 @@ class UserDB(Base):
     nome = Column(String(255))
     role = Column(String(32))
     cargo = Column(String(255), nullable=True)
+    password_hash = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -193,5 +194,26 @@ class ConfigDB(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+
+    # Migração leve (sem Alembic): garantir coluna password_hash em produção.
+    try:
+        with engine.begin() as conn:
+            if str(DATABASE_URL).startswith("postgresql"):
+                from sqlalchemy import text
+                r = conn.execute(
+                    text("SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash' LIMIT 1")
+                ).fetchone()
+                if not r:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_hash TEXT"))
+            elif str(DATABASE_URL).startswith("sqlite"):
+                # SQLite: tentar adicionar coluna se não existir
+                from sqlalchemy import text
+                r = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                cols = {row[1] for row in (r or [])}
+                if "password_hash" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_hash TEXT"))
+    except Exception:
+        # best-effort
+        pass
 
 

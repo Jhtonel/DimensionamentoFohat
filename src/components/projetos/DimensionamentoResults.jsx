@@ -526,34 +526,55 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       tempDiv.style.top = '-9999px';
       document.body.appendChild(tempDiv);
 
+      // Garantir carregamento de fontes (ex.: Google Fonts) antes do render do canvas
+      try {
+        if (document?.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch (_) {}
+
       // Processar cada slide
       const slides = tempDiv.querySelectorAll('.page');
 
       for (let i = 0; i < slides.length; i++) {
         const slide = slides[i];
 
-        // Aguardar imagens carregarem
-        const images = slide.querySelectorAll('img');
+        // Aguardar imagens carregarem (inclui decode() para evitar capturar "em branco")
+        const images = Array.from(slide.querySelectorAll('img'));
         if (images.length > 0) {
-          await Promise.all(Array.from(images).map(img => {
-            return new Promise(resolve => {
-              if (img.complete) {
-                resolve();
-              } else {
-                img.onload = resolve;
-                img.onerror = resolve;
+          await Promise.all(images.map(async (img) => {
+            try {
+              // Forçar eager + CORS-friendly
+              img.loading = 'eager';
+              img.decoding = 'sync';
+              img.crossOrigin = 'anonymous';
+            } catch (_) {}
+            try {
+              if (img.decode) {
+                await img.decode();
+                return;
               }
+            } catch (_) {}
+            await new Promise((resolve) => {
+              if (img.complete) return resolve();
+              img.onload = resolve;
+              img.onerror = resolve;
             });
           }));
         }
 
+        // Esperar 2 frames para layout/paint estabilizar antes do html2canvas
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
         const canvas = await html2canvas(slide, {
-          scale: 2,
+          scale: Math.max(2, window.devicePixelRatio || 2),
           useCORS: true,
-          allowTaint: true,
+          allowTaint: false,
           backgroundColor: '#ffffff',
           width: slide.offsetWidth,
-          height: slide.offsetHeight
+          height: slide.offsetHeight,
+          imageTimeout: 15000,
+          removeContainer: true
         });
 
         const imgData = canvas.toDataURL('image/png');

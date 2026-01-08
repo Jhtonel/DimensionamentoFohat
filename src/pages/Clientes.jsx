@@ -212,15 +212,18 @@ export default function Clientes() {
   const loadUsers = async () => {
     try {
       const serverUrl = getBackendUrl();
-      const resp = await fetch(`${serverUrl}/admin/firebase/list-users?t=${Date.now()}`);
+      const token = localStorage.getItem('app_jwt_token');
+      const resp = await fetch(`${serverUrl}/admin/users?t=${Date.now()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       let items = [];
       if (resp.ok) {
         const json = await resp.json();
-        if (json?.success && Array.isArray(json.users)) {
-          items = json.users.map(u => ({
+        if (json?.success && Array.isArray(json.items)) {
+          items = json.items.map(u => ({
             uid: u.uid,
             email: u.email || '',
-            nome: u.display_name || (u.email ? u.email.split('@')[0] : 'Usuário')
+            nome: u.nome || (u.email ? u.email.split('@')[0] : 'Usuário')
           }));
         }
       }
@@ -238,8 +241,7 @@ export default function Clientes() {
   const handleSave = async (data) => {
     const payload = { 
         ...data, 
-        created_by: editingCliente ? editingCliente.created_by : user?.uid,
-        created_by_email: editingCliente ? editingCliente.created_by_email : (user?.email || null),
+        // owner é atribuído no backend (JWT). Mantemos payload limpo aqui.
     };
     if (editingCliente) {
       await Cliente.update(editingCliente.id, payload);

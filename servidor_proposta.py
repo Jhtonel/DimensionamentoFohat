@@ -37,6 +37,7 @@ import urllib.error
 from urllib.parse import urljoin
 from datetime import date
 import jwt
+import bcrypt
 #
 # Firebase Admin (opcional, para gerenciar usuários do Auth)
 FIREBASE_ADMIN_AVAILABLE = False
@@ -305,11 +306,15 @@ def _get_request_email_from_firebase() -> str | None:
         cache_ttl = 3600  # 1h
         if (now - float(_FIREBASE_CERTS_CACHE.get("ts", 0) or 0)) > cache_ttl or not _FIREBASE_CERTS_CACHE.get("keys"):
             certs_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-            with urllib.request.urlopen(certs_url, timeout=20) as resp:
-                body = resp.read().decode("utf-8")
-                keys = json.loads(body) if body else {}
-                if isinstance(keys, dict):
-                    _FIREBASE_CERTS_CACHE = {"ts": now, "keys": keys}
+            try:
+                with urllib.request.urlopen(certs_url, timeout=20) as resp:
+                    body = resp.read().decode("utf-8")
+                    keys = json.loads(body) if body else {}
+                    if isinstance(keys, dict):
+                        _FIREBASE_CERTS_CACHE = {"ts": now, "keys": keys}
+            except Exception as _cert_err:
+                print(f"⚠️ Falha ao buscar certs do Firebase (HTTPS): {_cert_err}")
+                return None
 
         unverified_header = jwt.get_unverified_header(token)
         kid = unverified_header.get("kid")
@@ -366,6 +371,276 @@ def _require_admin_access() -> bool:
     # Produção (ou secret ausente mas queremos proteger): exigir token admin
     req_email = _get_request_email_from_firebase()
     return _is_email_admin(req_email)
+
+# -----------------------------------------------------------------------------
+# Auth próprio (Postgres) - JWT
+# -----------------------------------------------------------------------------
+def _app_jwt_secret() -> str:
+    return (os.environ.get("JWT_SECRET") or os.environ.get("APP_JWT_SECRET") or "").strip()
+
+def _create_app_jwt(email: str) -> str:
+    secret = _app_jwt_secret()
+    if not secret:
+        raise RuntimeError("JWT_SECRET não definido")
+    now = int(time.time())
+    payload = {"sub": email.lower(), "iat": now, "exp": now + (60 * 60 * 24 * 14)}  # 14 dias
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+def _decode_app_jwt(token: str) -> dict | None:
+    try:
+        secret = _app_jwt_secret()
+        if not secret:
+            return None
+        return jwt.decode(token, secret, algorithms=["HS256"])
+    except Exception:
+        return None
+
+def _get_request_email_from_app_jwt() -> str | None:
+    tok = _get_bearer_token()
+    if not tok:
+        return None
+    decoded = _decode_app_jwt(tok)
+    if not decoded:
+        return None
+    email = (decoded.get("sub") or "").strip().lower()
+    return email or None
+
+def _require_auth() -> str | None:
+    """
+    Retorna e-mail autenticado via JWT do app (Authorization: Bearer).
+    """
+    email = _get_request_email_from_app_jwt()
+    return email
+
+def _current_user_row():
+    """
+    Retorna o registro UserDB do usuário autenticado (ou None).
+    """
+    email = _require_auth()
+    if not email:
+        return None
+    try:
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.email == email).first()
+        db.close()
+        return u
+    except Exception:
+        return None
+
+def _require_admin_access_app() -> bool:
+    """
+    Admin baseado no nosso banco:
+    - aceita ROLE_ADMIN_SECRET (compat)
+    - ou JWT do app com user.role == admin
+    """
+    secret = (os.environ.get("ROLE_ADMIN_SECRET") or "").strip()
+    if secret and _require_role_admin_secret():
+        return True
+    email = _get_request_email_from_app_jwt()
+    if not email:
+        return False
+    try:
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.email == email).first()
+        db.close()
+        return bool(u and (u.role or "").strip().lower() == "admin")
+    except Exception:
+        return False
+
+def _hash_password(password: str) -> str:
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+def _check_password(password: str, password_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except Exception:
+        return False
+
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    """
+    Login no Postgres. Body: { email, password }
+    Retorna: { success, token, user }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        password = (data.get("password") or "").strip()
+        if not email or not password:
+            return jsonify({"success": False, "message": "Email e senha obrigatórios"}), 400
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.email == email).first()
+        db.close()
+        if not u or not u.password_hash:
+            return jsonify({"success": False, "message": "Credenciais inválidas"}), 401
+        if not _check_password(password, u.password_hash):
+            return jsonify({"success": False, "message": "Credenciais inválidas"}), 401
+        token = _create_app_jwt(email)
+        return jsonify({
+            "success": True,
+            "token": token,
+            "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/auth/me", methods=["GET"])
+def auth_me():
+    email = _require_auth()
+    if not email:
+        return jsonify({"success": False, "message": "Não autenticado"}), 401
+    try:
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.email == email).first()
+        db.close()
+        if not u:
+            return jsonify({"success": False, "message": "Usuário não encontrado"}), 404
+        return jsonify({"success": True, "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid}})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/auth/change-password", methods=["POST"])
+def auth_change_password():
+    email = _require_auth()
+    if not email:
+        return jsonify({"success": False, "message": "Não autenticado"}), 401
+    try:
+        data = request.get_json() or {}
+        current_pwd = (data.get("currentPassword") or "").strip()
+        new_pwd = (data.get("newPassword") or "").strip()
+        if not new_pwd or len(new_pwd) < 6:
+            return jsonify({"success": False, "message": "Nova senha inválida (mínimo 6 caracteres)"}), 400
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.email == email).first()
+        if not u or not u.password_hash:
+            db.close()
+            return jsonify({"success": False, "message": "Usuário sem senha configurada"}), 400
+        if not _check_password(current_pwd, u.password_hash):
+            db.close()
+            return jsonify({"success": False, "message": "Senha atual incorreta"}), 400
+        u.password_hash = _hash_password(new_pwd)
+        db.commit()
+        db.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/auth/bootstrap-admin", methods=["POST"])
+def auth_bootstrap_admin():
+    """
+    Cria o primeiro admin no Postgres (para migrar fora do Firebase).
+    Requer header X-Admin-Secret=ROLE_ADMIN_SECRET.
+    """
+    if not _require_role_admin_secret():
+        return jsonify({"success": False, "message": "Não autorizado"}), 403
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        password = (data.get("password") or "").strip()
+        nome = (data.get("nome") or "").strip() or None
+        cargo = (data.get("cargo") or "").strip() or "Administrador"
+        if not email or not password:
+            return jsonify({"success": False, "message": "Email e senha obrigatórios"}), 400
+        db = SessionLocal()
+        total = db.query(UserDB).count()
+        if total > 0:
+            db.close()
+            return jsonify({"success": False, "message": "Bootstrap já executado"}), 400
+        uid = str(uuid.uuid4())
+        u = UserDB(uid=uid, email=email, nome=nome or email.split("@")[0], role="admin", cargo=cargo, password_hash=_hash_password(password))
+        db.add(u)
+        db.commit()
+        db.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/users", methods=["GET"])
+def admin_list_users():
+    if not _require_admin_access_app():
+        return jsonify({"success": False, "message": "Não autorizado"}), 403
+    try:
+        db = SessionLocal()
+        rows = db.query(UserDB).order_by(UserDB.created_at.desc()).all()
+        db.close()
+        items = [{"uid": u.uid, "email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "created_at": str(u.created_at)} for u in rows]
+        return jsonify({"success": True, "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/users", methods=["POST"])
+def admin_create_user():
+    if not _require_admin_access_app():
+        return jsonify({"success": False, "message": "Não autorizado"}), 403
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        password = (data.get("password") or "").strip()
+        nome = (data.get("nome") or "").strip() or None
+        role = (data.get("role") or "vendedor").strip().lower()
+        cargo = (data.get("cargo") or "").strip() or None
+        if not email or not password:
+            return jsonify({"success": False, "message": "Email e senha obrigatórios"}), 400
+        if role not in ("admin", "gestor", "vendedor", "instalador"):
+            return jsonify({"success": False, "message": "Role inválida"}), 400
+        db = SessionLocal()
+        existing = db.query(UserDB).filter(UserDB.email == email).first()
+        if existing:
+            db.close()
+            return jsonify({"success": False, "message": "Usuário já existe"}), 400
+        uid = str(uuid.uuid4())
+        u = UserDB(uid=uid, email=email, nome=nome or email.split("@")[0], role=role, cargo=cargo, password_hash=_hash_password(password))
+        db.add(u)
+        db.commit()
+        db.close()
+        return jsonify({"success": True, "uid": uid})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/users/<uid>", methods=["PATCH"])
+def admin_update_user(uid):
+    if not _require_admin_access_app():
+        return jsonify({"success": False, "message": "Não autorizado"}), 403
+    try:
+        data = request.get_json() or {}
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.uid == uid).first()
+        if not u:
+            db.close()
+            return jsonify({"success": False, "message": "Usuário não encontrado"}), 404
+        if "nome" in data:
+            u.nome = (data.get("nome") or "").strip()
+        if "cargo" in data:
+            u.cargo = (data.get("cargo") or "").strip()
+        if "role" in data:
+            role = (data.get("role") or "").strip().lower()
+            if role not in ("admin", "gestor", "vendedor", "instalador"):
+                db.close()
+                return jsonify({"success": False, "message": "Role inválida"}), 400
+            u.role = role
+        if "password" in data and str(data.get("password") or "").strip():
+            u.password_hash = _hash_password(str(data.get("password")).strip())
+        db.commit()
+        db.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/admin/users/<uid>", methods=["DELETE"])
+def admin_delete_user(uid):
+    if not _require_admin_access_app():
+        return jsonify({"success": False, "message": "Não autorizado"}), 403
+    try:
+        db = SessionLocal()
+        u = db.query(UserDB).filter(UserDB.uid == uid).first()
+        if u:
+            db.delete(u)
+            db.commit()
+        db.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 def _slug(s: str) -> str:
     return ''.join(ch.lower() if ch.isalnum() else '_' for ch in (s or '')).strip('_')
@@ -1817,6 +2092,69 @@ def get_concessionaria(slug):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+# =========================================================================
+# CONFIG: proposta_configs (Postgres)
+# =========================================================================
+@app.route('/config/proposta-configs', methods=['GET'])
+def get_proposta_configs():
+    """
+    Retorna a configuração 'proposta_configs' salva no Postgres.
+    """
+    try:
+        if not USE_DB:
+            return jsonify({"success": True, "config": None, "source": "file"}), 200
+        # Admin-only (tela de configurações é restrita)
+        if not _require_admin_access_app():
+            return jsonify({"success": False, "message": "Não autorizado"}), 403
+        db = SessionLocal()
+        row = db.get(ConfigDB, "proposta_configs")
+        db.close()
+        cfg = row.data if row else None
+        if isinstance(cfg, dict):
+            cfg = {"id": "proposta_configs", **cfg}
+            cfg.setdefault("chave", "proposta_configs")
+            cfg.setdefault("tipo", "proposta")
+        return jsonify({"success": True, "config": cfg, "source": "db"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/proposta-configs', methods=['POST'])
+def save_proposta_configs():
+    """
+    Salva (upsert) a configuração 'proposta_configs' no Postgres.
+    Body: objeto JSON com os campos de configuração.
+    """
+    try:
+        if not USE_DB:
+            return jsonify({"success": False, "message": "DB indisponível"}), 400
+        if not _require_admin_access_app():
+            return jsonify({"success": False, "message": "Não autorizado"}), 403
+        data = request.get_json() or {}
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "message": "Payload inválido"}), 400
+        data = {**data}
+        data.pop("id", None)
+        data.setdefault("chave", "proposta_configs")
+        data.setdefault("tipo", "proposta")
+
+        db = SessionLocal()
+        row = db.get(ConfigDB, "proposta_configs")
+        if row:
+            row.data = data
+        else:
+            db.add(ConfigDB(id="proposta_configs", data=data))
+        db.commit()
+        row = db.get(ConfigDB, "proposta_configs")
+        db.close()
+
+        cfg = row.data if row else data
+        cfg = {"id": "proposta_configs", **(cfg if isinstance(cfg, dict) else {})}
+        cfg.setdefault("chave", "proposta_configs")
+        cfg.setdefault("tipo", "proposta")
+        return jsonify({"success": True, "config": cfg, "source": "db"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/config/taxas-distribuicao', methods=['GET'])
 def get_taxas_distribuicao():
     """
@@ -2315,6 +2653,11 @@ def salvar_proposta():
         print("🔍 DEBUG: Iniciando endpoint /salvar-proposta")
         data = request.get_json()
         print(f"🔍 DEBUG: Dados recebidos: {data}")
+
+        # Owner sempre vem do usuário logado (Postgres/JWT)
+        me = _current_user_row() if USE_DB else None
+        if USE_DB and not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
         
         # Gerar ID único para a proposta
         proposta_id = str(uuid.uuid4())
@@ -2345,8 +2688,8 @@ def salvar_proposta():
             'id': proposta_id,
             'data_criacao': datetime.now().isoformat(),
             # Rastreamento do criador (para filtros por usuário)
-            'created_by': data.get('created_by'),
-            'created_by_email': data.get('created_by_email'),
+            'created_by': (me.uid if USE_DB and me else data.get('created_by')),
+            'created_by_email': (me.email if USE_DB and me else data.get('created_by_email')),
             'cliente_id': data.get('cliente_id'),
             'cliente_nome': data.get('cliente_nome', 'Cliente'),
             'cliente_endereco': data.get('cliente_endereco', 'Endereço não informado'),
@@ -3828,9 +4171,22 @@ def _save_clientes(data: dict) -> None:
 def listar_clientes():
     """Lista todos os clientes."""
     try:
+        # Auth obrigatório (DB)
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
         if USE_DB:
             db = SessionLocal()
-            rows = db.query(ClienteDB).order_by(ClienteDB.created_at.desc()).all()
+            q = db.query(ClienteDB)
+            role = (me.role or "").strip().lower() if me else ""
+            if role not in ("admin", "gestor"):
+                # Vendedor/instalador: só seus clientes
+                q = q.filter(
+                    (ClienteDB.created_by_email == me.email) |
+                    (ClienteDB.created_by == me.uid)
+                )
+            rows = q.order_by(ClienteDB.created_at.desc()).all()
             db.close()
             clientes = []
             for r in rows:
@@ -3861,6 +4217,10 @@ def listar_clientes():
 def criar_cliente():
     """Cria um novo cliente."""
     try:
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
         data = request.get_json() or {}
         cliente_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
@@ -3874,8 +4234,9 @@ def criar_cliente():
             "cep": data.get("cep"),
             "tipo": data.get("tipo"),
             "observacoes": data.get("observacoes"),
-            "created_by": data.get("created_by"),
-            "created_by_email": data.get("created_by_email"),
+            # Vincular sempre ao usuário logado
+            "created_by": (me.uid if USE_DB and me else data.get("created_by")),
+            "created_by_email": (me.email if USE_DB and me else data.get("created_by_email")),
             "created_at": now,
             "updated_at": now
         }
@@ -3912,11 +4273,20 @@ def atualizar_cliente(cliente_id):
     try:
         data = request.get_json() or {}
         if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
             db = SessionLocal()
             row = db.get(ClienteDB, cliente_id)
             if not row:
                 db.close()
                 return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            # ACL: só admin/gestor ou dono do cliente
+            role = (me.role or "").strip().lower()
+            is_owner = (row.created_by_email == me.email) or (row.created_by == me.uid)
+            if role not in ("admin", "gestor") and not is_owner:
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
             row.nome = data.get("nome", row.nome)
             row.telefone = data.get("telefone", row.telefone)
             row.email = data.get("email", row.email)
@@ -3969,11 +4339,19 @@ def deletar_cliente(cliente_id):
     """Exclui um cliente e todas as propostas vinculadas (cascata)."""
     try:
         if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
             db = SessionLocal()
             row = db.get(ClienteDB, cliente_id)
             if not row:
                 db.close()
                 return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            role = (me.role or "").strip().lower()
+            is_owner = (row.created_by_email == me.email) or (row.created_by == me.uid)
+            if role not in ("admin", "gestor") and not is_owner:
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
             # (best-effort) apagar propostas vinculadas no DB
             try:
                 db.query(PropostaDB).filter(PropostaDB.cliente_id == cliente_id).delete(synchronize_session=False)
@@ -4183,8 +4561,18 @@ def listar_projetos():
     """
     try:
         if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
             db = SessionLocal()
-            rows = db.query(PropostaDB).order_by(PropostaDB.created_at.desc()).all()
+            q = db.query(PropostaDB)
+            role = (me.role or "").strip().lower()
+            if role not in ("admin", "gestor"):
+                q = q.filter(
+                    (PropostaDB.created_by_email == me.email) |
+                    (PropostaDB.created_by == me.uid)
+                )
+            rows = q.order_by(PropostaDB.created_at.desc()).all()
             db.close()
             projetos = []
             for r in rows:

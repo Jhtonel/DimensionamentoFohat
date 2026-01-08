@@ -1651,8 +1651,6 @@ export default function NovoProjeto() {
     // 10,1 a 25 kWp: R$ 1.000
     // 25,1 a 50 kWp: R$ 1.500
     // 50,1 a 75 kWp: R$ 2.000
-    // Obs.: mantemos "até 5" por compatibilidade (mesmo valor do "até 10")
-    if (potenciaKwp <= 5) return 500;
     if (potenciaKwp <= 10) return 500;
     if (potenciaKwp <= 25) return 1000;
     if (potenciaKwp <= 50) return 1500;

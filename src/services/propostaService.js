@@ -57,10 +57,14 @@ export const propostaService = {
       console.log('🌐 URL do servidor:', `${SERVER_URL}/salvar-proposta`);
       console.log('🌐 SERVER_URL configurado como:', SERVER_URL);
       
+      const token = (() => {
+        try { return localStorage.getItem('app_jwt_token'); } catch { return null; }
+      })();
       const response = await fetchWithTimeout(`${SERVER_URL}/salvar-proposta`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(propostaData)
       }, 20000);
