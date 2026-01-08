@@ -13,11 +13,24 @@ function formatCurrency(value) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function formatPercent(value) {
+  const v = Number(value || 0);
+  return v.toLocaleString('pt-BR', { style: 'percent', minimumFractionDigits: 1 });
+}
+
 /**
- * Aba de Custos – detalhamento do cálculo
- * - Não executa nenhum cálculo financeiro local relevante
- * - Busca KPIs + Tabelas no backend núcleo único (/dimensionamento/excel-calculo)
- * - Exibe fórmulas substituídas por números, resultados e as tabelas de 25 anos
+ * Aba de Custos – detalhamento do cálculo (Lei 14.300/2022)
+ * 
+ * ATUALIZADO PARA 2026 - Conforme:
+ * - Lei 14.300/2022 (Marco Legal da Geração Distribuída)
+ * - Resolução Normativa ANEEL 1000/2023
+ * 
+ * Inclui:
+ * - Economia REAL (apenas componentes compensáveis)
+ * - TUSD Fio B (não compensável - regra de transição)
+ * - Degradação anual do sistema
+ * - Custos de manutenção e substituição do inversor
+ * - VPL (Valor Presente Líquido)
  */
 export default function CostsDetailed({
   formData,
@@ -204,55 +217,92 @@ export default function CostsDetailed({
               </div>
             </section>
 
-            {/* Decomposição da Tarifa de Energia */}
+            {/* Decomposição da Tarifa de Energia (Lei 14.300/2022) */}
             <section className="space-y-3">
-              <h4 className="font-semibold">📊 Decomposição da Tarifa de Energia</h4>
+              <h4 className="font-semibold">📊 Decomposição da Tarifa de Energia (Lei 14.300/2022)</h4>
               <div className="text-xs text-gray-600 mb-2">
-                Detalhamento dos componentes que formam a tarifa de energia elétrica.
+                Detalhamento dos componentes que formam a tarifa de energia elétrica, conforme Lei 14.300/2022.
               </div>
               {(() => {
                 const decomp = calcularDecomposicaoTarifa(
                   consumoKwhDerivado,
                   formData?.concessionaria || '',
                   'residencial',
-                  'verde'
+                  'verde',
+                  2026 // Ano de referência para Lei 14.300
                 );
                 return (
                   <div className="space-y-4">
-                    {/* Componentes da Tarifa */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="p-3 rounded border bg-blue-50 border-blue-200">
-                        <div className="font-medium text-blue-800">TE - Tarifa de Energia</div>
-                        <div className="text-xs text-blue-600 mb-1">Custo da geração de energia</div>
+                    {/* Aviso Lei 14.300 */}
+                    <div className="p-3 rounded-lg border-2 border-yellow-300 bg-yellow-50">
+                      <div className="font-medium text-yellow-800 mb-1">⚠️ Lei 14.300/2022 - Marco Legal da Geração Distribuída</div>
+                      <div className="text-xs text-yellow-700">
+                        {decomp.lei14300?.descricao || `Em 2026, ${(decomp.lei14300?.tusdFioBCobranca * 100 || 45).toFixed(0)}% da TUSD (Fio B) não é compensável.`}
+                      </div>
+                    </div>
+                    
+                    {/* Componentes da Tarifa - TE e TUSD separados */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* TE - 100% Compensável */}
+                      <div className="p-3 rounded border-2 bg-green-50 border-green-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600">✓</span>
+                          <span className="font-medium text-green-800">TE - Tarifa de Energia</span>
+                        </div>
+                        <div className="text-xs text-green-600 mb-1">100% COMPENSÁVEL</div>
                         <div className="flex justify-between text-sm">
                           <span>Valor por kWh:</span>
                           <span className="font-medium">R$ {decomp.te.valor.toFixed(4)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Total ({consumoKwhDerivado.toFixed(0)} kWh):</span>
-                          <span className="font-semibold text-blue-700">{formatCurrency(decomp.te.total)}</span>
+                          <span>Total:</span>
+                          <span className="font-semibold text-green-700">{formatCurrency(decomp.te.total)}</span>
                         </div>
                       </div>
-                      <div className="p-3 rounded border bg-purple-50 border-purple-200">
-                        <div className="font-medium text-purple-800">TUSD - Uso do Sistema de Distribuição</div>
-                        <div className="text-xs text-purple-600 mb-1">Tarifa pelo uso da rede elétrica</div>
+                      
+                      {/* TUSD Compensável */}
+                      <div className="p-3 rounded border-2 bg-blue-50 border-blue-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-600">✓</span>
+                          <span className="font-medium text-blue-800">TUSD Compensável</span>
+                        </div>
+                        <div className="text-xs text-blue-600 mb-1">{((decomp.lei14300?.tusdCompensavelPct || 0.55) * 100).toFixed(0)}% da TUSD</div>
                         <div className="flex justify-between text-sm">
                           <span>Valor por kWh:</span>
-                          <span className="font-medium">R$ {decomp.tusd.valor.toFixed(4)}</span>
+                          <span className="font-medium">R$ {(decomp.tusdCompensavel?.valor || 0).toFixed(4)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Total ({consumoKwhDerivado.toFixed(0)} kWh):</span>
-                          <span className="font-semibold text-purple-700">{formatCurrency(decomp.tusd.total)}</span>
+                          <span>Total:</span>
+                          <span className="font-semibold text-blue-700">{formatCurrency(decomp.tusdCompensavel?.total || 0)}</span>
+                        </div>
+                      </div>
+                      
+                      {/* TUSD Fio B - NÃO Compensável */}
+                      <div className="p-3 rounded border-2 bg-red-50 border-red-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-red-600">✗</span>
+                          <span className="font-medium text-red-800">TUSD Fio B</span>
+                        </div>
+                        <div className="text-xs text-red-600 mb-1">NÃO compensável ({((decomp.lei14300?.tusdFioBCobranca || 0.45) * 100).toFixed(0)}% da TUSD)</div>
+                        <div className="flex justify-between text-sm">
+                          <span>Valor por kWh:</span>
+                          <span className="font-medium">R$ {(decomp.tusdFioB?.valor || 0).toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Total:</span>
+                          <span className="font-semibold text-red-700">{formatCurrency(decomp.tusdFioB?.total || 0)}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Impostos */}
                     <div className="p-3 rounded border bg-orange-50 border-orange-200">
-                      <div className="font-medium text-orange-800 mb-2">Impostos e Contribuições</div>
+                      <div className="font-medium text-orange-800 mb-2">Impostos e Contribuições (Compensáveis em SP)</div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                         <div>
-                          <div className="font-medium">PIS</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <span className="text-green-600 text-xs">✓</span> PIS
+                          </div>
                           <div className="text-xs text-gray-600">Programa de Integração Social</div>
                           <div className="flex justify-between">
                             <span>Alíquota:</span>
@@ -264,7 +314,9 @@ export default function CostsDetailed({
                           </div>
                         </div>
                         <div>
-                          <div className="font-medium">COFINS</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <span className="text-green-600 text-xs">✓</span> COFINS
+                          </div>
                           <div className="text-xs text-gray-600">Contrib. Financ. Seguridade Social</div>
                           <div className="flex justify-between">
                             <span>Alíquota:</span>
@@ -276,8 +328,10 @@ export default function CostsDetailed({
                           </div>
                         </div>
                         <div>
-                          <div className="font-medium">ICMS</div>
-                          <div className="text-xs text-gray-600">Imposto Estadual (SP)</div>
+                          <div className="font-medium flex items-center gap-1">
+                            <span className="text-green-600 text-xs">✓</span> ICMS
+                          </div>
+                          <div className="text-xs text-gray-600">Imposto Estadual (SP - compensável)</div>
                           <div className="flex justify-between">
                             <span>Alíquota:</span>
                             <span>{(decomp.icms.aliquota * 100).toFixed(0)}%</span>
@@ -290,12 +344,12 @@ export default function CostsDetailed({
                       </div>
                     </div>
 
-                    {/* Resumo */}
-                    <div className="p-3 rounded border bg-green-50 border-green-200">
-                      <div className="font-medium text-green-800 mb-2">Resumo da Conta</div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    {/* Resumo Lei 14.300 */}
+                    <div className="p-4 rounded-lg border-2 bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+                      <div className="font-medium text-green-800 mb-3">📊 Resumo da Conta (Lei 14.300/2022)</div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div>
-                          <div className="text-xs text-gray-600">Tarifa Base (TE + TUSD)</div>
+                          <div className="text-xs text-gray-600">Tarifa Base</div>
                           <div className="font-semibold">{formatCurrency(decomp.tarifaBase.total)}</div>
                         </div>
                         <div>
@@ -303,51 +357,41 @@ export default function CostsDetailed({
                           <div className="font-semibold">{formatCurrency(decomp.totalImpostos)}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-600">Tarifa Final/kWh</div>
-                          <div className="font-semibold text-green-700">R$ {decomp.tarifaFinalKwh.toFixed(3)}</div>
-                        </div>
-                        <div>
                           <div className="text-xs text-gray-600">Total da Conta</div>
-                          <div className="font-bold text-green-700">{formatCurrency(decomp.totalFinal)}</div>
+                          <div className="font-bold">{formatCurrency(decomp.totalFinal)}</div>
                         </div>
+                        <div className="bg-green-100 p-2 rounded">
+                          <div className="text-xs text-green-700">✓ Economia REAL</div>
+                          <div className="font-bold text-green-700">{formatCurrency(decomp.totalCompensavel || 0)}</div>
+                        </div>
+                        <div className="bg-red-100 p-2 rounded">
+                          <div className="text-xs text-red-700">✗ Custo Residual</div>
+                          <div className="font-bold text-red-700">{formatCurrency(decomp.totalNaoCompensavel || 0)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-green-200 flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Percentual da conta que pode ser economizado:</span>
+                        <span className="text-xl font-bold text-green-600">{decomp.percentualEconomia || '0'}%</span>
                       </div>
                     </div>
 
-                    {/* Economia de Impostos com Solar */}
+                    {/* Economia Real vs Modelo Antigo */}
                     <div className="p-3 rounded border bg-amber-50 border-amber-200">
-                      <div className="font-medium text-amber-800 mb-2">💡 Economia de Impostos com Energia Solar</div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        Com energia solar, você deixa de pagar esses impostos sobre a energia que você mesmo produz.
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                        <div>
-                          <div className="text-xs text-gray-600">Economia PIS/mês</div>
-                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.pis.total)}</div>
+                      <div className="font-medium text-amber-800 mb-2">💡 Impacto da Lei 14.300 na Economia</div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="p-2 bg-gray-100 rounded">
+                          <div className="text-xs text-gray-600">Modelo Antigo (100% compensável)</div>
+                          <div className="font-bold text-gray-700">{formatCurrency(decomp.totalFinal)}/mês</div>
+                          <div className="text-xs text-gray-500">Em 25 anos: {formatCurrency(decomp.totalFinal * 12 * 25)}</div>
                         </div>
-                        <div>
-                          <div className="text-xs text-gray-600">Economia COFINS/mês</div>
-                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.cofins.total)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-600">Economia ICMS/mês</div>
-                          <div className="font-semibold text-amber-700">{formatCurrency(decomp.icms.total)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-600">Total Impostos/mês</div>
-                          <div className="font-bold text-amber-700">{formatCurrency(decomp.totalImpostos)}</div>
+                        <div className="p-2 bg-green-100 rounded">
+                          <div className="text-xs text-green-700">Lei 14.300 (economia real)</div>
+                          <div className="font-bold text-green-700">{formatCurrency(decomp.totalCompensavel || 0)}/mês</div>
+                          <div className="text-xs text-green-600">Em 25 anos: {formatCurrency((decomp.totalCompensavel || 0) * 12 * 25)}</div>
                         </div>
                       </div>
-                      <div className="mt-2 pt-2 border-t border-amber-200">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <div className="text-xs text-gray-600">Economia Impostos/ano</div>
-                            <div className="font-bold text-amber-800">{formatCurrency(decomp.totalImpostos * 12)}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-600">Economia Impostos em 25 anos</div>
-                            <div className="font-bold text-amber-800">{formatCurrency(decomp.totalImpostos * 12 * 25)}</div>
-                          </div>
-                        </div>
+                      <div className="mt-2 text-xs text-amber-700">
+                        <strong>Diferença:</strong> {formatCurrency((decomp.totalFinal || 0) - (decomp.totalCompensavel || 0))}/mês a menos devido à TUSD Fio B não compensável.
                       </div>
                     </div>
                   </div>
@@ -355,113 +399,276 @@ export default function CostsDetailed({
               })()}
             </section>
 
-            {/* Fórmulas com substituição */}
+            {/* Lei 14.300/2022 - Economia Real vs Bruta */}
+            {(m.economia_mensal_real || m.economia_mensal_bruta) && (
+              <section className="space-y-3">
+                <h4 className="font-semibold">⚖️ Lei 14.300/2022 - Economia Real vs Bruta</h4>
+                <div className="text-xs text-gray-600 mb-2">
+                  A Lei 14.300/2022 estabelece que nem toda a tarifa é compensável. A economia REAL considera apenas 
+                  os componentes que podem ser efetivamente compensados pela energia solar gerada.
+                </div>
+                
+                {/* Comparação Economia Real vs Bruta */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border-2 border-red-200 bg-red-50">
+                    <div className="font-medium text-red-800 mb-2">❌ Economia BRUTA (modelo antigo)</div>
+                    <div className="text-xs text-red-600 mb-2">
+                      Assumia 100% da tarifa como compensável - incorreto após Lei 14.300
+                    </div>
+                    <div className="text-2xl font-bold text-red-700">
+                      {formatCurrency(m.economia_mensal_bruta)}/mês
+                    </div>
+                    <div className="text-sm text-red-600 mt-1">
+                      {formatCurrency((m.economia_mensal_bruta || 0) * 12)}/ano
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 rounded-lg border-2 border-green-200 bg-green-50">
+                    <div className="font-medium text-green-800 mb-2">✅ Economia REAL (Lei 14.300)</div>
+                    <div className="text-xs text-green-600 mb-2">
+                      Considera apenas componentes compensáveis + custos operacionais
+                    </div>
+                    <div className="text-2xl font-bold text-green-700">
+                      {formatCurrency(m.economia_mensal_real)}/mês
+                    </div>
+                    <div className="text-sm text-green-600 mt-1">
+                      {formatCurrency((m.economia_mensal_real || 0) * 12)}/ano
+                    </div>
+                  </div>
+                </div>
+                
+                {/* TUSD Fio B */}
+                <div className="p-4 rounded-lg border border-orange-200 bg-orange-50">
+                  <div className="font-medium text-orange-800 mb-2">⚠️ TUSD Fio B - Custo NÃO compensável</div>
+                  <div className="text-xs text-orange-600 mb-2">
+                    Conforme Lei 14.300, a TUSD Fio B não é compensável e cresce gradualmente até 2029.
+                    Em {m.ano_referencia_lei14300 || 2026}, {((m.decomposicao_tarifa?.tusd_fio_b_cobranca_percentual || 0.45) * 100).toFixed(0)}% da TUSD é cobrada.
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-xs text-gray-600">Custo mensal</div>
+                      <div className="font-bold text-orange-700">{formatCurrency(m.custo_residual_mensal)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600">Custo anual</div>
+                      <div className="font-bold text-orange-700">{formatCurrency(m.custo_residual_anual)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600">Custo em 25 anos</div>
+                      <div className="font-bold text-orange-700">{formatCurrency(m.custo_tusd_fio_b_25_anos)}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Custos Operacionais */}
+                <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
+                  <div className="font-medium text-blue-800 mb-2">🔧 Custos Operacionais (incluídos no cálculo)</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-600">Manutenção anual (1% do investimento)</div>
+                      <div className="font-semibold text-blue-700">{formatCurrency(m.custo_manutencao_anual)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600">Economia líquida anual</div>
+                      <div className="font-bold text-blue-700">{formatCurrency(m.economia_liquida_anual)}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Comparação de Payback */}
+                <div className="p-4 rounded-lg border border-purple-200 bg-purple-50">
+                  <div className="font-medium text-purple-800 mb-2">📊 Comparação de Payback</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-600">Payback OTIMISTA (sem custos)</div>
+                      <div className="font-semibold text-purple-600">{m.anos_payback_otimista || m.anos_payback} anos</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600">Payback REAL (Lei 14.300)</div>
+                      <div className="font-bold text-purple-800">{m.anos_payback_real || m.anos_payback} anos</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-purple-600 mt-2">
+                    O payback real considera: economia compensável, TUSD Fio B, manutenção e degradação.
+                  </div>
+                </div>
+                
+                {/* Percentual de Economia */}
+                {m.percentual_economia > 0 && (
+                  <div className="p-3 rounded border bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Percentual da conta que pode ser economizado:</span>
+                      <span className="text-xl font-bold text-green-600">{m.percentual_economia}%</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Os outros {(100 - m.percentual_economia).toFixed(1)}% são custos fixos (TUSD Fio B) que permanecerão mesmo com energia solar.
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Fórmulas com substituição (Lei 14.300) */}
             <section className="space-y-3">
-              <h4 className="font-semibold">Fórmulas aplicadas (núcleo)</h4>
+              <h4 className="font-semibold">Fórmulas aplicadas (Lei 14.300/2022)</h4>
               <div className="text-xs text-gray-600">
-                Abaixo mostramos a fórmula e, em seguida, a substituição com os valores usados.
+                Cálculos atualizados conforme Lei 14.300/2022 e Resolução ANEEL 1000/2023.
               </div>
               <div className="space-y-2 text-sm">
                 <div className="p-3 rounded border bg-gray-50">
-                  <div className="font-medium">Economia mensal</div>
-                  <div>Se houver consumo em R$: economia_mensal = consumo_reais</div>
-                  <div>Senão: economia_mensal = consumo_kWh × tarifa</div>
+                  <div className="font-medium">Economia Real (Lei 14.300)</div>
+                  <div>economia_real = (TE + TUSD_compensável + PIS + COFINS + ICMS) × produção_kWh</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Onde TUSD_compensável = TUSD_total × (1 - %_Fio_B_cobrada)
+                  </div>
                   <div className="mt-1 text-gray-700">
-                    Substituição: {payload.consumo_mensal_reais > 0
-                      ? `economia_mensal = ${formatCurrency(payload.consumo_mensal_reais)}`
-                      : `economia_mensal = ${Number(payload.consumo_mensal_kwh || 0).toLocaleString('pt-BR')} × ${formatCurrency(payload.tarifa_energia)} = ${formatCurrency(m.economia_mensal_estimada)}`
-                    }
+                    Resultado: {formatCurrency(m.economia_mensal_real)}/mês
+                  </div>
+                </div>
+                <div className="p-3 rounded border bg-gray-50">
+                  <div className="font-medium">Degradação anual do sistema</div>
+                  <div>Produção(ano N) = Produção(ano 1) × (1 - 0,75%)^(N-1)</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Taxa de degradação padrão: 0,75% ao ano (conforme garantia dos fabricantes)
+                  </div>
+                </div>
+                <div className="p-3 rounded border bg-gray-50">
+                  <div className="font-medium">Fluxo de caixa anual</div>
+                  <div>FC_anual = Economia_real - Custo_TUSD_Fio_B - Custo_manutenção - CAPEX(ano 0)</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Manutenção: 1% do investimento/ano | Substituição inversor: ano 12 (15% do investimento)
+                  </div>
+                </div>
+                <div className="p-3 rounded border bg-gray-50">
+                  <div className="font-medium">Payback Real</div>
+                  <div>Payback = menor N onde Σ FC_acumulado ≥ 0</div>
+                  <div className="mt-1 text-gray-700">
+                    Resultado: {(m.anos_payback_real || m.anos_payback || 0).toFixed?.(1)} anos
                   </div>
                 </div>
                 <div className="p-3 rounded border bg-gray-50">
                   <div className="font-medium">Conta anual atual</div>
-                  <div>conta_anual = economia_mensal × 12</div>
+                  <div>conta_anual = economia_mensal_bruta × 12</div>
                   <div className="mt-1 text-gray-700">
-                    Substituição: {formatCurrency(m.economia_mensal_estimada || 0)} × 12 = {formatCurrency(m.conta_atual_anual || 0)}
-                  </div>
-                </div>
-                <div className="p-3 rounded border bg-gray-50">
-                  <div className="font-medium">Payback (fluxo de caixa)</div>
-                  <div>É o ponto onde o fluxo de caixa acumulado cruza zero.</div>
-                  <div>Interpolação linear entre os anos N e N+1 quando há troca de sinal:</div>
-                  <div className="text-xs">
-                    fração = -FC_acum(N) ÷ (FC_acum(N+1) - FC_acum(N)); payback_anos = N + fração
-                  </div>
-                  <div className="mt-1 text-gray-700">
-                    Resultado: {(m.anos_payback || 0).toFixed?.(1) || m.anos_payback} anos
-                  </div>
-                </div>
-                <div className="p-3 rounded border bg-gray-50">
-                  <div className="font-medium">Gasto acumulado até o payback</div>
-                  <div>gasto_acumulado_payback = conta_anual × payback_anos</div>
-                  <div className="mt-1 text-gray-700">
-                    Substituição: {formatCurrency(m.conta_atual_anual || 0)} × {(m.anos_payback || 0).toFixed?.(1) || m.anos_payback} = {formatCurrency(m.gasto_acumulado_payback || 0)}
+                    Substituição: {formatCurrency(m.economia_mensal_bruta || 0)} × 12 = {formatCurrency(m.conta_atual_anual || 0)}
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Tabelas 25 anos */}
+            {/* Tabelas 25 anos (Lei 14.300/2022) */}
             <section className="space-y-3">
-              <h4 className="font-semibold">Tabelas de 25 anos (núcleo)</h4>
+              <h4 className="font-semibold">Tabelas de 25 anos (Lei 14.300/2022)</h4>
               {!t || Object.keys(t).length === 0 ? (
                 <div className="text-sm text-gray-600">Preencha consumo, tarifa, potência e preço para gerar as tabelas.</div>
               ) : (
                 <div className="space-y-4">
+                  {/* VPL Final */}
+                  {t.vpl_final !== undefined && (
+                    <div className="p-4 rounded-lg border-2 border-green-200 bg-green-50">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium text-green-800">📈 VPL (Valor Presente Líquido) em 25 anos</div>
+                          <div className="text-xs text-green-600">Taxa de desconto: {((t.parametros_lei14300?.taxa_desconto_vpl || 0.08) * 100).toFixed(0)}% a.a.</div>
+                        </div>
+                        <div className="text-2xl font-bold text-green-700">
+                          {formatCurrency(t.vpl_final)}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600 mt-2">
+                        VPL = Σ (FC_N / (1 + taxa_desconto)^N) - Investimento Inicial
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Tabela principal com Lei 14.300 */}
                   <div className="overflow-auto border rounded">
+                    <div className="bg-blue-50 p-2 font-medium text-blue-800 text-sm">
+                      📊 Fluxo de Caixa - Lei 14.300/2022 (com degradação, manutenção e TUSD Fio B)
+                    </div>
                     <table className="min-w-full text-xs">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="p-2 text-left">Ano</th>
-                          <th className="p-2 text-right">Tarifa (R$/kWh)</th>
-                          <th className="p-2 text-right">Conta anual sem solar</th>
-                          <th className="p-2 text-right">Acumulado sem solar</th>
-                          <th className="p-2 text-right">Taxa de distribuição</th>
-                          <th className="p-2 text-right">Conta anual com solar</th>
-                          <th className="p-2 text-right">Economia anual</th>
-                          <th className="p-2 text-right">Fluxo caixa anual</th>
-                          <th className="p-2 text-right">Fluxo caixa acumulado</th>
+                          <th className="p-2 text-left">Calendário</th>
+                          <th className="p-2 text-right">Tarifa</th>
+                          <th className="p-2 text-right">Sem Solar</th>
+                          <th className="p-2 text-right">Eco. Real</th>
+                          <th className="p-2 text-right">TUSD Fio B</th>
+                          <th className="p-2 text-right">Manutenção</th>
+                          <th className="p-2 text-right">Com Solar</th>
+                          <th className="p-2 text-right">FC Anual</th>
+                          <th className="p-2 text-right">FC Acum.</th>
+                          <th className="p-2 text-right">VPL</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {(t.ano || []).map((_, idx) => (
-                          <tr key={idx} className={idx % 2 ? 'bg-white' : 'bg-gray-50'}>
+                        {(t.ano || []).map((_, idx) => {
+                          const isPaybackYear = t.fluxo_caixa_acumulado_r?.[idx] >= 0 && (idx === 0 || t.fluxo_caixa_acumulado_r?.[idx-1] < 0);
+                          const hasInverterReplacement = (t.custo_substituicao_inversor_r?.[idx] || 0) > 0;
+                          return (
+                            <tr key={idx} className={`${idx % 2 ? 'bg-white' : 'bg-gray-50'} ${isPaybackYear ? 'bg-green-100 font-bold' : ''} ${hasInverterReplacement ? 'bg-orange-100' : ''}`}>
                             <td className="p-2">{t.ano[idx]}</td>
+                              <td className="p-2">{t.ano_calendario?.[idx] || ''}</td>
                             <td className="p-2 text-right">{formatCurrency(t.tarifa_r_kwh?.[idx] || 0)}</td>
                             <td className="p-2 text-right">{formatCurrency(t.custo_anual_sem_solar_r?.[idx] || 0)}</td>
-                            <td className="p-2 text-right">{formatCurrency(t.custo_acumulado_sem_solar_r?.[idx] || 0)}</td>
-                            <td className="p-2 text-right">{formatCurrency(t.taxa_distribuicao_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right text-green-700">{formatCurrency(t.economia_anual_real_r?.[idx] || t.economia_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right text-orange-600">{formatCurrency(t.custo_tusd_fio_b_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right text-blue-600">
+                                {formatCurrency((t.custo_manutencao_anual_r?.[idx] || 0) + (t.custo_substituicao_inversor_r?.[idx] || 0))}
+                                {hasInverterReplacement && <span className="text-xs ml-1">🔧</span>}
+                              </td>
                             <td className="p-2 text-right">{formatCurrency(t.custo_anual_com_solar_r?.[idx] || 0)}</td>
-                            <td className="p-2 text-right">{formatCurrency(t.economia_anual_r?.[idx] || 0)}</td>
                             <td className="p-2 text-right">{formatCurrency(t.fluxo_caixa_anual_r?.[idx] || 0)}</td>
-                            <td className="p-2 text-right">{formatCurrency(t.fluxo_caixa_acumulado_r?.[idx] || 0)}</td>
+                              <td className={`p-2 text-right ${(t.fluxo_caixa_acumulado_r?.[idx] || 0) >= 0 ? 'text-green-700 font-bold' : 'text-red-600'}`}>
+                                {formatCurrency(t.fluxo_caixa_acumulado_r?.[idx] || 0)}
+                              </td>
+                              <td className="p-2 text-right">{formatCurrency(t.vpl_anual_r?.[idx] || 0)}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-                  {/* Nova tabela: Geração anual (kWh e R$) */}
+                  
+                  {/* Legenda */}
+                  <div className="text-xs text-gray-500 flex gap-4 flex-wrap">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-100 border rounded"></span> Ano do payback</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 bg-orange-100 border rounded"></span> Substituição do inversor</span>
+                    <span className="text-green-700">■</span> Eco. Real = Economia compensável
+                    <span className="text-orange-600">■</span> TUSD Fio B = Não compensável
+                  </div>
+                  
+                  {/* Tabela de Produção com Degradação */}
                   <div className="overflow-auto border rounded">
+                    <div className="bg-purple-50 p-2 font-medium text-purple-800 text-sm">
+                      📉 Produção Anual com Degradação ({((t.parametros_lei14300?.taxa_degradacao_anual || 0.0075) * 100).toFixed(2)}% ao ano)
+                    </div>
                     <table className="min-w-full text-xs">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="p-2 text-left">Ano</th>
-                          <th className="p-2 text-right">Produção anual (kWh)</th>
-                          <th className="p-2 text-right">Produção anual (R$)</th>
+                          <th className="p-2 text-right">Produção (kWh)</th>
+                          <th className="p-2 text-right">Eco. Bruta (R$)</th>
+                          <th className="p-2 text-right">Eco. Real (R$)</th>
+                          <th className="p-2 text-right">Degradação Acum.</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {(t.ano || []).map((_, idx) => (
+                        {(t.ano || []).map((_, idx) => {
+                          const prod1 = t.producao_anual_kwh?.[0] || 0;
+                          const prodN = t.producao_anual_kwh?.[idx] || 0;
+                          const degradacaoPct = prod1 > 0 ? ((1 - prodN / prod1) * 100).toFixed(1) : '0';
+                          return (
                           <tr key={`prod-${idx}`} className={idx % 2 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="p-2">{t.ano[idx]}</td>
-                            <td className="p-2 text-right">
-                              {Number(t.producao_anual_kwh?.[idx] || 0).toLocaleString('pt-BR')}
-                            </td>
-                            <td className="p-2 text-right">
-                              {formatCurrency(t.producao_anual_r?.[idx] || 0)}
-                            </td>
+                              <td className="p-2 text-right">{Number(t.producao_anual_kwh?.[idx] || 0).toLocaleString('pt-BR')}</td>
+                              <td className="p-2 text-right text-gray-500">{formatCurrency(t.economia_anual_bruta_r?.[idx] || t.producao_anual_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right text-green-700 font-medium">{formatCurrency(t.economia_anual_real_r?.[idx] || 0)}</td>
+                              <td className="p-2 text-right text-purple-600">-{degradacaoPct}%</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

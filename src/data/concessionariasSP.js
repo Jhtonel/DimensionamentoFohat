@@ -522,41 +522,83 @@ export function obterEstatisticasTarifas() {
 }
 
 /**
- * Calcula a decomposição detalhada da tarifa
+ * Regras de transição Lei 14.300/2022 - TUSD Fio B cobrada por ano
+ */
+const TUSD_FIO_B_COBRANCA_POR_ANO = {
+  2024: 0.15, // 15%
+  2025: 0.30, // 30%
+  2026: 0.45, // 45%
+  2027: 0.60, // 60%
+  2028: 0.75, // 75%
+  // 2029+: 90%
+};
+
+/**
+ * Calcula a decomposição detalhada da tarifa conforme Lei 14.300/2022
+ * 
+ * ATUALIZADO PARA 2026 - Inclui:
+ * - TE (Tarifa de Energia) - 100% compensável
+ * - TUSD Compensável - parte da TUSD que pode ser compensada
+ * - TUSD Fio B - parte da TUSD que NÃO é compensável (Lei 14.300)
+ * - PIS, COFINS, ICMS - impostos sobre energia
+ * 
  * @param {number} consumoKwh - Consumo em kWh
  * @param {Object|string} concessionaria - Dados da concessionária ou nome
  * @param {string} tipoConsumo - 'residencial', 'comercial' ou 'industrial'
  * @param {string} bandeira - Bandeira tarifária
- * @returns {Object} Decomposição detalhada da tarifa
+ * @param {number} anoReferencia - Ano para cálculo da regra de transição (padrão: 2026)
+ * @returns {Object} Decomposição detalhada da tarifa com compensação Lei 14.300
  */
-export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde') {
+export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde', anoReferencia = 2026) {
   // Se for string, buscar a concessionária
   const concData = typeof concessionaria === 'string' 
     ? buscarConcessionaria(concessionaria) 
     : concessionaria;
   
+  // Percentual de TUSD Fio B cobrada conforme Lei 14.300
+  const tusdFioBCobranca = TUSD_FIO_B_COBRANCA_POR_ANO[anoReferencia] ?? 0.90;
+  const tusdCompensavelPct = 1 - tusdFioBCobranca;
+  
   if (!concData || !concData.tarifas || !concData.tarifas[tipoConsumo]) {
     // Retornar valores estimados padrão se concessionária não encontrada
     const tarifaPadrao = 0.676; // Tarifa média SP
+    const te = 0.368;
+    const tusd = 0.308;
+    const tusdCompensavel = tusd * tusdCompensavelPct;
+    const tusdFioB = tusd * tusdFioBCobranca;
+    
     return {
       consumoKwh,
       tipoConsumo,
       bandeira,
+      anoReferencia,
       concessionaria: concessionaria || 'Não especificada',
+      // Lei 14.300
+      lei14300: {
+        tusdFioBCobranca,
+        tusdCompensavelPct,
+        icmsCompensavel: true, // Em SP, ICMS é compensável
+      },
       // Componentes da tarifa (valores estimados)
-      te: { valor: 0.368, percentual: 0.545, total: 0.368 * consumoKwh },
-      tusd: { valor: 0.308, percentual: 0.455, total: 0.308 * consumoKwh },
-      tarifaBase: { valor: 0.676, total: 0.676 * consumoKwh },
+      te: { valor: te, percentual: 0.545, total: te * consumoKwh, compensavel: true },
+      tusd: { valor: tusd, percentual: 0.455, total: tusd * consumoKwh },
+      tusdCompensavel: { valor: tusdCompensavel, total: tusdCompensavel * consumoKwh, compensavel: true },
+      tusdFioB: { valor: tusdFioB, total: tusdFioB * consumoKwh, compensavel: false },
+      tarifaBase: { valor: tarifaPadrao, total: tarifaPadrao * consumoKwh },
       // Impostos
-      pis: { aliquota: 0.0165, valor: 0.676 * 0.0165, total: consumoKwh * 0.676 * 0.0165 },
-      cofins: { aliquota: 0.076, valor: 0.676 * 0.076, total: consumoKwh * 0.676 * 0.076 },
-      icms: { aliquota: 0.18, valor: 0.676 * 0.18, total: consumoKwh * 0.676 * 0.18 },
+      pis: { aliquota: 0.0165, valor: tarifaPadrao * 0.0165, total: consumoKwh * tarifaPadrao * 0.0165, compensavel: true },
+      cofins: { aliquota: 0.076, valor: tarifaPadrao * 0.076, total: consumoKwh * tarifaPadrao * 0.076, compensavel: true },
+      icms: { aliquota: 0.18, valor: tarifaPadrao * 0.18, total: consumoKwh * tarifaPadrao * 0.18, compensavel: true },
       bandeiraTarifaria: { valor: 0, total: 0 },
       // Totais
-      totalSemImpostos: 0.676 * consumoKwh,
-      totalImpostos: consumoKwh * 0.676 * (0.0165 + 0.076 + 0.18),
-      totalFinal: tarifaPadrao * consumoKwh * 1.27, // Aproximação com impostos
-      tarifaFinalKwh: tarifaPadrao
+      totalSemImpostos: tarifaPadrao * consumoKwh,
+      totalImpostos: consumoKwh * tarifaPadrao * (0.0165 + 0.076 + 0.18),
+      totalFinal: tarifaPadrao * consumoKwh * 1.27,
+      tarifaFinalKwh: tarifaPadrao,
+      // Lei 14.300 - Economia Real
+      totalCompensavel: (te + tusdCompensavel) * consumoKwh * 1.27, // Com impostos
+      totalNaoCompensavel: tusdFioB * consumoKwh * 1.27,
+      percentualEconomia: ((te + tusdCompensavel) / tarifaPadrao * 100).toFixed(1),
     };
   }
   
@@ -564,14 +606,19 @@ export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsu
   const bandeiraTarifaria = concData.bandeirasTarifarias?.[bandeira] || 0;
   
   // Valores por kWh
-  const te = tarifas.te || tarifas.tarifaBasica * 0.545; // TE ~54.5% da tarifa base
-  const tusd = tarifas.tusd || tarifas.tarifaBasica * 0.455; // TUSD ~45.5% da tarifa base
+  const te = tarifas.te || tarifas.tarifaBasica * 0.545;
+  const tusd = tarifas.tusd || tarifas.tarifaBasica * 0.455;
   const tarifaBase = tarifas.tarifaBasica;
+  
+  // Lei 14.300: TUSD separada em compensável e Fio B
+  const tusdCompensavel = tusd * tusdCompensavelPct;
+  const tusdFioB = tusd * tusdFioBCobranca;
   
   // Impostos (alíquotas)
   const pisAliquota = tarifas.pis || 0.0165;
   const cofinsAliquota = tarifas.cofins || 0.076;
   const icmsAliquota = tarifas.icms || 0.18;
+  const fatorImpostos = 1 + pisAliquota + cofinsAliquota + icmsAliquota;
   
   // Calcular valores em R$ por kWh dos impostos
   const pisValorKwh = tarifaBase * pisAliquota;
@@ -579,6 +626,10 @@ export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsu
   const icmsValorKwh = tarifaBase * icmsAliquota;
   
   // Totais
+  const totalTe = te * consumoKwh;
+  const totalTusd = tusd * consumoKwh;
+  const totalTusdCompensavel = tusdCompensavel * consumoKwh;
+  const totalTusdFioB = tusdFioB * consumoKwh;
   const totalSemImpostos = tarifaBase * consumoKwh;
   const totalPis = pisValorKwh * consumoKwh;
   const totalCofins = cofinsValorKwh * consumoKwh;
@@ -587,23 +638,53 @@ export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsu
   const totalImpostos = totalPis + totalCofins + totalIcms;
   const totalFinal = (tarifas.totalComImpostos + bandeiraTarifaria) * consumoKwh;
   
+  // Lei 14.300: Economia Real (apenas componentes compensáveis)
+  // TE + TUSD compensável + impostos proporcionais
+  const baseCompensavel = te + tusdCompensavel;
+  const totalCompensavel = baseCompensavel * consumoKwh * fatorImpostos;
+  const totalNaoCompensavel = tusdFioB * consumoKwh * fatorImpostos;
+  const percentualEconomia = ((baseCompensavel / tarifaBase) * 100).toFixed(1);
+  
   return {
     consumoKwh,
     tipoConsumo,
     bandeira,
+    anoReferencia,
     concessionaria: concData.nome || concData.sigla || 'Não especificada',
+    // Lei 14.300
+    lei14300: {
+      tusdFioBCobranca,
+      tusdCompensavelPct,
+      icmsCompensavel: true, // Em SP, ICMS é compensável
+      descricao: `Lei 14.300/2022 - Em ${anoReferencia}, ${(tusdFioBCobranca * 100).toFixed(0)}% da TUSD (Fio B) não é compensável`,
+    },
     // Componentes da tarifa
     te: { 
       valor: te, 
       percentual: te / tarifaBase, 
-      total: te * consumoKwh,
-      descricao: 'Tarifa de Energia (TE) - Custo da geração de energia'
+      total: totalTe,
+      compensavel: true,
+      descricao: 'Tarifa de Energia (TE) - 100% compensável'
     },
     tusd: { 
       valor: tusd, 
       percentual: tusd / tarifaBase, 
-      total: tusd * consumoKwh,
-      descricao: 'TUSD - Tarifa de Uso do Sistema de Distribuição'
+      total: totalTusd,
+      descricao: 'TUSD Total - Tarifa de Uso do Sistema de Distribuição'
+    },
+    tusdCompensavel: { 
+      valor: tusdCompensavel, 
+      percentual: tusdCompensavelPct,
+      total: totalTusdCompensavel,
+      compensavel: true,
+      descricao: `TUSD Compensável (${(tusdCompensavelPct * 100).toFixed(0)}% em ${anoReferencia})`
+    },
+    tusdFioB: { 
+      valor: tusdFioB, 
+      percentual: tusdFioBCobranca,
+      total: totalTusdFioB,
+      compensavel: false,
+      descricao: `TUSD Fio B - NÃO compensável (${(tusdFioBCobranca * 100).toFixed(0)}% em ${anoReferencia})`
     },
     tarifaBase: { valor: tarifaBase, total: totalSemImpostos },
     // Impostos
@@ -611,19 +692,22 @@ export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsu
       aliquota: pisAliquota, 
       valor: pisValorKwh, 
       total: totalPis,
+      compensavel: true,
       descricao: 'PIS - Programa de Integração Social'
     },
     cofins: { 
       aliquota: cofinsAliquota, 
       valor: cofinsValorKwh, 
       total: totalCofins,
+      compensavel: true,
       descricao: 'COFINS - Contribuição para Financiamento da Seguridade Social'
     },
     icms: { 
       aliquota: icmsAliquota, 
       valor: icmsValorKwh, 
       total: totalIcms,
-      descricao: 'ICMS - Imposto sobre Circulação de Mercadorias e Serviços'
+      compensavel: true, // Em SP é compensável
+      descricao: 'ICMS - Imposto Estadual (compensável em SP)'
     },
     bandeiraTarifaria: { 
       valor: bandeiraTarifaria, 
@@ -634,6 +718,12 @@ export function calcularDecomposicaoTarifa(consumoKwh, concessionaria, tipoConsu
     totalSemImpostos,
     totalImpostos,
     totalFinal,
-    tarifaFinalKwh: tarifas.totalComImpostos + bandeiraTarifaria
+    tarifaFinalKwh: tarifas.totalComImpostos + bandeiraTarifaria,
+    // Lei 14.300 - Resumo de Economia
+    totalCompensavel,
+    totalNaoCompensavel,
+    percentualEconomia,
+    economiaReal: totalCompensavel,
+    custoResidual: totalNaoCompensavel,
   };
 }
