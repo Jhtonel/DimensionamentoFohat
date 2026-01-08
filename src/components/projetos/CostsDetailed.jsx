@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { propostaService } from '../../services/propostaService.js';
 import { Configuracao } from '../../entities/index.js';
 import { calcularInstalacaoPorPlaca } from '../../utils/calculosSolares.js';
+import { calcularDecomposicaoTarifa } from '../../data/concessionariasSP.js';
 
 // UI base usada no projeto
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card.jsx';
@@ -201,6 +202,119 @@ export default function CostsDetailed({
                   <span className="font-medium">{Number(payload.irradiacao_media || 0).toLocaleString('pt-BR')}</span>
                 </div>
               </div>
+            </section>
+
+            {/* Decomposição da Tarifa de Energia */}
+            <section className="space-y-3">
+              <h4 className="font-semibold">📊 Decomposição da Tarifa de Energia</h4>
+              <div className="text-xs text-gray-600 mb-2">
+                Detalhamento dos componentes que formam a tarifa de energia elétrica.
+              </div>
+              {(() => {
+                const decomp = calcularDecomposicaoTarifa(
+                  consumoKwhDerivado,
+                  formData?.concessionaria || '',
+                  'residencial',
+                  'verde'
+                );
+                return (
+                  <div className="space-y-4">
+                    {/* Componentes da Tarifa */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="p-3 rounded border bg-blue-50 border-blue-200">
+                        <div className="font-medium text-blue-800">TE - Tarifa de Energia</div>
+                        <div className="text-xs text-blue-600 mb-1">Custo da geração de energia</div>
+                        <div className="flex justify-between text-sm">
+                          <span>Valor por kWh:</span>
+                          <span className="font-medium">R$ {decomp.te.valor.toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Total ({consumoKwhDerivado.toFixed(0)} kWh):</span>
+                          <span className="font-semibold text-blue-700">{formatCurrency(decomp.te.total)}</span>
+                        </div>
+                      </div>
+                      <div className="p-3 rounded border bg-purple-50 border-purple-200">
+                        <div className="font-medium text-purple-800">TUSD - Uso do Sistema de Distribuição</div>
+                        <div className="text-xs text-purple-600 mb-1">Tarifa pelo uso da rede elétrica</div>
+                        <div className="flex justify-between text-sm">
+                          <span>Valor por kWh:</span>
+                          <span className="font-medium">R$ {decomp.tusd.valor.toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Total ({consumoKwhDerivado.toFixed(0)} kWh):</span>
+                          <span className="font-semibold text-purple-700">{formatCurrency(decomp.tusd.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Impostos */}
+                    <div className="p-3 rounded border bg-orange-50 border-orange-200">
+                      <div className="font-medium text-orange-800 mb-2">Impostos e Contribuições</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <div className="font-medium">PIS</div>
+                          <div className="text-xs text-gray-600">Programa de Integração Social</div>
+                          <div className="flex justify-between">
+                            <span>Alíquota:</span>
+                            <span>{(decomp.pis.aliquota * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total:</span>
+                            <span className="font-medium">{formatCurrency(decomp.pis.total)}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-medium">COFINS</div>
+                          <div className="text-xs text-gray-600">Contrib. Financ. Seguridade Social</div>
+                          <div className="flex justify-between">
+                            <span>Alíquota:</span>
+                            <span>{(decomp.cofins.aliquota * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total:</span>
+                            <span className="font-medium">{formatCurrency(decomp.cofins.total)}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-medium">ICMS</div>
+                          <div className="text-xs text-gray-600">Imposto Estadual (SP)</div>
+                          <div className="flex justify-between">
+                            <span>Alíquota:</span>
+                            <span>{(decomp.icms.aliquota * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total:</span>
+                            <span className="font-medium">{formatCurrency(decomp.icms.total)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Resumo */}
+                    <div className="p-3 rounded border bg-green-50 border-green-200">
+                      <div className="font-medium text-green-800 mb-2">Resumo da Conta</div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div>
+                          <div className="text-xs text-gray-600">Tarifa Base (TE + TUSD)</div>
+                          <div className="font-semibold">{formatCurrency(decomp.tarifaBase.total)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Total Impostos</div>
+                          <div className="font-semibold">{formatCurrency(decomp.totalImpostos)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Tarifa Final/kWh</div>
+                          <div className="font-semibold text-green-700">R$ {decomp.tarifaFinalKwh.toFixed(3)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Total da Conta</div>
+                          <div className="font-bold text-green-700">{formatCurrency(decomp.totalFinal)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Fórmulas com substituição */}
