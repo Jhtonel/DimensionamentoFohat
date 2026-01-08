@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calculator, Save, DollarSign, TrendingUp, MapPin, Search, Check } from "lucide-react";
+import { ArrowLeft, Calculator, Save, DollarSign, TrendingUp, MapPin, Search, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { motion } from "framer-motion";
@@ -149,11 +149,20 @@ export default function NovoProjeto() {
   });
   const [loadingProdutos, setLoadingProdutos] = useState(false);
   const [loadingFiltros, setLoadingFiltros] = useState(false);
+  const [mostrarTodosKits, setMostrarTodosKits] = useState(false);
   const [quantidadesCalculadas, setQuantidadesCalculadas] = useState({ paineis: 0, inversores: 0, estruturas: 0, acessorios: 0 });
   // Popup de progresso (Dados Básicos)
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressValue, setProgressValue] = useState(0);
   const [progressLabel, setProgressLabel] = useState('Preparando...');
+
+  // Progresso monotônico (nunca diminui durante a mesma execução)
+  const setProgressMonotonic = useCallback((nextValue, nextLabel) => {
+    const v = Number(nextValue);
+    const clamped = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0;
+    setProgressValue((prev) => Math.max(prev, clamped));
+    if (typeof nextLabel === "string") setProgressLabel(nextLabel);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -973,15 +982,15 @@ export default function NovoProjeto() {
 
     setLoadingProdutos(true);
     // Mostrar popup de progresso na aba Dados Básicos
+    setProgressValue(0);
+    setProgressLabel('Preparando...');
     setProgressOpen(true);
-    setProgressValue(5);
-    setProgressLabel('Validando informações...');
+    setProgressMonotonic(5, 'Validando informações...');
     
     try {
       // Primeiro busca os filtros disponíveis
       console.log('🔍 Buscando filtros disponíveis...');
-      setProgressValue(15);
-      setProgressLabel('Carregando filtros de equipamentos...');
+      setProgressMonotonic(15, 'Carregando filtros de equipamentos...');
       const filtros = await solaryumApi.buscarFiltros();
       setFiltrosDisponiveis(filtros);
       
@@ -1019,8 +1028,7 @@ export default function NovoProjeto() {
         }
       }
 
-      setProgressValue(35);
-      setProgressLabel('Calculando potência do sistema...');
+      setProgressMonotonic(35, 'Calculando potência do sistema...');
       let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
       
       console.log('🔍 Debug da potência:');
@@ -1061,8 +1069,7 @@ export default function NovoProjeto() {
       // Dispara uma chamada inicial ao MontarKits para garantir requisição visível
       const todosOsKits = [];
       try {
-        setProgressValue(45);
-        setProgressLabel('Buscando kits iniciais...');
+        setProgressMonotonic(45, 'Buscando kits iniciais...');
         console.log('🚀 Disparando chamada inicial MontarKits (tipoInv=0)...');
         const kitInicial = await solaryumApi.montarKitCustomizado({ ...dadosBase, tipoInv: '0' });
         if (Array.isArray(kitInicial) && kitInicial.length > 0) {
@@ -1093,8 +1100,7 @@ export default function NovoProjeto() {
         let doneReq = 0;
         const updateBatchProgress = () => {
           const pct = startPct + (doneReq / Math.max(1, totalReq)) * (endPct - startPct);
-          setProgressValue(pct);
-          setProgressLabel(`Buscando kits (combinações de inversores) ${doneReq}/${totalReq}...`);
+          setProgressMonotonic(pct, `Buscando kits (combinações de inversores) ${doneReq}/${totalReq}...`);
         };
         updateBatchProgress();
         const requisicoes = tiposInversor.map(async (tipoInv) => {
@@ -1120,8 +1126,6 @@ export default function NovoProjeto() {
         });
         
         // Executa todas as requisições em paralelo
-        setProgressValue(60);
-        setProgressLabel('Buscando kits (combinações de inversores)...');
         console.log('🚀 Executando todas as requisições em paralelo...');
         const resultados = await Promise.all(requisicoes);
         
@@ -1134,8 +1138,7 @@ export default function NovoProjeto() {
       } else {
         // Faz uma requisição para cada combinação de potência de painel E tipo de inversor
         console.log('🔍 Preparando requisições para todas as combinações...');
-        setProgressValue(60);
-        setProgressLabel('Buscando kits (todas as combinações)...');
+        setProgressMonotonic(60, 'Buscando kits (todas as combinações)...');
         
         // Cria todas as requisições em paralelo com progresso granular (60% → 85%)
         const startPct = 60;
@@ -1144,8 +1147,7 @@ export default function NovoProjeto() {
         let doneReq = 0;
         const updateBatchProgress = () => {
           const pct = startPct + (doneReq / Math.max(1, totalReq)) * (endPct - startPct);
-          setProgressValue(pct);
-          setProgressLabel(`Buscando kits (todas as combinações) ${doneReq}/${totalReq}...`);
+          setProgressMonotonic(pct, `Buscando kits (todas as combinações) ${doneReq}/${totalReq}...`);
         };
         updateBatchProgress();
         const requisicoes = [];
@@ -1186,7 +1188,6 @@ export default function NovoProjeto() {
         
         // Executa todas as requisições em paralelo
         console.log(`🚀 Executando ${requisicoes.length} requisições em paralelo...`);
-        setProgressValue(70);
         const resultados = await Promise.all(requisicoes);
         
         // Combina todos os resultados
@@ -1203,8 +1204,7 @@ export default function NovoProjeto() {
       
       if (todosOsKits.length > 0) {
         console.log('🔧 Processando todos os kits encontrados...');
-        setProgressValue(85);
-        setProgressLabel('Processando kits encontrados...');
+        setProgressMonotonic(85, 'Processando kits encontrados...');
         
         // Processa cada kit como uma opção completa
         todosOsKits.forEach((kit, index) => {
@@ -2270,19 +2270,41 @@ export default function NovoProjeto() {
   return (
     <div className="h-full overflow-y-auto p-4 md:p-8">
       {progressOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-md border border-sky-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Processando...</h3>
-            <p className="text-sm text-gray-600 mb-4">{progressLabel}</p>
-            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.18 }}
+        >
+          <motion.div
+            className="bg-white rounded-2xl shadow-2xl p-6 w-[92%] max-w-md border border-sky-100"
+            initial={{ opacity: 0, scale: 0.98, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Processando...</h3>
+                <p className="text-sm text-gray-600 mt-1">{progressLabel}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 w-2.5 rounded-full bg-sky-600 animate-pulse" />
+                <span className="text-sm font-medium text-gray-700 tabular-nums">{Math.round(progressValue)}%</span>
+              </div>
+            </div>
+
+            <div className="w-full bg-gray-200/80 rounded-full h-3 overflow-hidden">
               <div
-                className="bg-sky-600 h-3 rounded-full transition-all"
+                className="bg-gradient-to-r from-sky-500 to-sky-700 h-3 rounded-full transition-[width] duration-500 ease-out"
                 style={{ width: `${Math.min(100, Math.max(0, progressValue))}%` }}
               />
             </div>
-            <div className="text-right text-sm mt-2 text-gray-700">{Math.round(progressValue)}%</div>
-          </div>
-        </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+              <span>Isso pode levar alguns segundos…</span>
+              <span className="tabular-nums">{Math.round(progressValue)}/100</span>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
       <div className="w-full space-y-6">
         <motion.div
@@ -2939,57 +2961,165 @@ export default function NovoProjeto() {
                             </div>
 
                             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {kitsRecomendadosMicro.slice(0, 3).map((kit, idx) => (
-                                <Card
-                                  key={`reco-${kit.id}`}
-                                  className={`cursor-pointer transition-all duration-200 ${
-                                    kitSelecionado?.id === kit.id
-                                      ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
-                                      : idx === 0
-                                      ? 'border-emerald-500 bg-emerald-50/60 shadow-lg ring-2 ring-emerald-200'
-                                      : 'border-emerald-200 bg-white shadow-sm hover:shadow-md hover:border-emerald-300'
-                                  }`}
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (kitSelecionado?.id === kit.id) return;
-                                    await selecionarKit(kit);
-                                  }}
-                                >
-                                  <CardHeader className="pb-2">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <CardTitle className="text-sm leading-tight">
-                                        {kit.nome}
-                                      </CardTitle>
-                                      <Badge className={idx === 0 ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}>
-                                        #{idx + 1}
-                                      </Badge>
-                                    </div>
-                                  </CardHeader>
-                                  <CardContent className="pt-0">
-                                    <div className="flex items-center justify-between text-sm">
-                                      <span className="text-gray-600">Potência:</span>
-                                      <span className="font-semibold">{kit.potencia}kW</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm mt-1">
-                                      <span className="text-gray-600">Preço Total:</span>
-                                      <span className="font-bold text-emerald-700">{formatCurrency(kit.precoTotal)}</span>
-                                    </div>
-                                    <div className="mt-3 text-xs text-slate-600">
-                                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 border border-emerald-200">
-                                        Micro-inversor recomendado
-                                      </span>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
+                              {kitsRecomendadosMicro.slice(0, 3).map((kit, idx) => {
+                                const badgeRank = `#${idx + 1}`;
+                                const highlightClass =
+                                  idx === 0
+                                    ? 'border-emerald-500 bg-emerald-50/60 shadow-lg ring-2 ring-emerald-200'
+                                    : idx === 1
+                                    ? 'border-emerald-300 bg-emerald-50/40 shadow-md ring-1 ring-emerald-100'
+                                    : 'border-emerald-200 bg-emerald-50/25 shadow-sm ring-1 ring-emerald-100/60';
+
+                                return (
+                                  <Card
+                                    key={`reco-${kit.id}`}
+                                    className={`cursor-pointer transition-all duration-200 ${
+                                      kitSelecionado?.id === kit.id
+                                        ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                                        : selecionandoKit
+                                        ? 'border-yellow-400 bg-yellow-50 shadow-md ring-1 ring-yellow-200'
+                                        : highlightClass
+                                    }`}
+                                    onClick={async (e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (kitSelecionado?.id === kit.id) return;
+                                      await selecionarKit(kit);
+                                    }}
+                                  >
+                                    <CardHeader className="pb-3">
+                                      <div className="flex items-center justify-between">
+                                        <CardTitle className="text-lg">
+                                          {kit.nome}
+                                          {selecionandoKit && kitSelecionado?.id === kit.id && (
+                                            <span className="ml-2 text-yellow-600 text-sm">⏳ Selecionando...</span>
+                                          )}
+                                        </CardTitle>
+                                        {kitSelecionado?.id !== kit.id && (
+                                          <Badge className={idx === 0 ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}>
+                                            {badgeRank}
+                                          </Badge>
+                                        )}
+                                        {kitSelecionado?.id === kit.id && (
+                                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                            <Check className="w-4 h-4 text-white" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* Fotos do Painel e Inversor */}
+                                      {(kit.fotoPainel || kit.fotoInversor) && (
+                                        <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden relative">
+                                          {/* Foto do Painel - fundo completo */}
+                                          {kit.fotoPainel && (
+                                            <img
+                                              src={kit.fotoPainel}
+                                              alt="Painel Solar"
+                                              className="w-full h-full object-cover"
+                                            />
+                                          )}
+
+                                          {/* Foto do Inversor - sobreposta no canto inferior direito */}
+                                          {kit.fotoInversor && (
+                                            <div className="absolute bottom-2 right-4 w-28">
+                                              <img
+                                                src={kit.fotoInversor}
+                                                alt="Inversor"
+                                                className="w-full h-full object-contain"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {/* Label do Painel */}
+                                          {kit.fotoPainel && (
+                                            <div className="absolute bottom-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+                                              Painel
+                                            </div>
+                                          )}
+
+                                          {/* Label do Inversor */}
+                                          {kit.fotoInversor && (
+                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                                              Inversor
+                                            </div>
+                                          )}
+
+                                          {/* Fallback se não tiver foto do painel */}
+                                          {!kit.fotoPainel && kit.fotoInversor && (
+                                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                              <span className="text-gray-500 text-sm">Sem foto do painel</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">Potência:</span>
+                                        <span className="font-semibold">{kit.potencia}kW</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">Área:</span>
+                                        <span className="font-semibold">{kit.area}m²</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">Preço Total:</span>
+                                        <span className="font-bold text-green-600">{formatCurrency(kit.precoTotal)}</span>
+                                      </div>
+                                      {kit.disponibilidade && (
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-sm text-gray-600">Disponível:</span>
+                                          <span className="text-sm text-orange-600">
+                                            {new Date(kit.disponibilidade).toLocaleDateString('pt-BR')}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      {/* Componentes do Kit */}
+                                      <div className="pt-3 border-t">
+                                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Componentes:</h4>
+                                        <div className="space-y-1 text-xs text-gray-600">
+                                          {kit.componentes.map((componente, index) => (
+                                            <div key={index} className="flex justify-between">
+                                              <span className="truncate mr-2">
+                                                {componente.agrupamento}: {componente.marca} {componente.potencia ? `${componente.potencia}W` : ''} {componente.descricao}
+                                              </span>
+                                              <span className="text-gray-500">x{componente.quantidade}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
 
                         {/* Lista principal (sem duplicar os 3 recomendados) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {produtosDisponiveisLista.map((kit) => {
+                        <div className="flex items-center justify-center">
+                          <Button
+                            variant="outline"
+                            className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                            onClick={() => setMostrarTodosKits((v) => !v)}
+                          >
+                            {mostrarTodosKits ? (
+                              <>
+                                <ChevronUp className="w-4 h-4 mr-2" />
+                                Recolher lista ({produtosDisponiveisLista.length})
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-4 h-4 mr-2" />
+                                Ver todos os kits ({produtosDisponiveisLista.length})
+                              </>
+                            )}
+                          </Button>
+                        </div>
+
+                        {mostrarTodosKits && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {produtosDisponiveisLista.map((kit) => {
                           const rank = top3CustoBeneficioIds.indexOf(kit?.id);
                           const isTop = rank !== -1;
                           const rankLabel = isTop ? `TOP ${rank + 1}` : null;
@@ -3132,7 +3262,8 @@ export default function NovoProjeto() {
                     </Card>
                           );
                         })}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
