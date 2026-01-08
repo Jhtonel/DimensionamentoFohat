@@ -12,9 +12,7 @@ import {
   FolderKanban, 
   Settings, 
   LogOut,
-  DollarSign,
-  FileText,
-  CreditCard
+  FileText
 } from "lucide-react";
 
 const Layout = ({ children }) => {
@@ -138,50 +136,6 @@ const Layout = ({ children }) => {
                   >
                     <Settings className="w-4 h-4" />
                     {open && <span>Taxas</span>}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/comissoes"
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
-                        isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`
-                    }
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    {open && <span>Comissões</span>}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/formas-pagamento"
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors min-w-0 ${
-                        isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`
-                    }
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    {open && <span>Pagamento</span>}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/clientes"
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
-                        isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`
-                    }
-                  >
-                    <Users className="w-4 h-4" />
-                    {open && <span>Clientes</span>}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/propostas"
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 mx-2 mt-1 px-3 py-2 rounded-md text-sm transition-colors ${
-                        isActive ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`
-                    }
-                  >
-                    <FileText className="w-4 h-4" />
-                    {open && <span>Propostas</span>}
                   </NavLink>
                 </div>
               )}

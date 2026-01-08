@@ -11,8 +11,6 @@ import Configuracoes from './pages/Configuracoes.jsx';
 import PropostaView from './pages/PropostaView.jsx';
 import AdminUsuarios from './pages/admin/Usuarios.jsx';
 import AdminTaxas from './pages/admin/Taxas.jsx';
-import AdminComissoes from './pages/admin/Comissoes.jsx';
-import AdminFormasPagamento from './pages/admin/FormasPagamento.jsx';
 import Pipeline from './pages/Pipeline.jsx';
 import './index.css';
 import ForgotPassword from './pages/auth/ForgotPassword.jsx';
@@ -110,10 +108,6 @@ function AppWithAuth() {
         {/* Rotas admin */}
         <Route path="/admin/usuarios" element={<Layout><RequireRole roles={['admin']}><AdminUsuarios /></RequireRole></Layout>} />
         <Route path="/admin/taxas" element={<Layout><RequireRole roles={['admin']}><AdminTaxas /></RequireRole></Layout>} />
-        <Route path="/admin/comissoes" element={<Layout><RequireRole roles={['admin']}><AdminComissoes /></RequireRole></Layout>} />
-        <Route path="/admin/formas-pagamento" element={<Layout><RequireRole roles={['admin']}><AdminFormasPagamento /></RequireRole></Layout>} />
-        <Route path="/admin/clientes" element={<Layout><RequireRole roles={['admin']}><Clientes /></RequireRole></Layout>} />
-        <Route path="/admin/propostas" element={<Layout><RequireRole roles={['admin']}><Projetos /></RequireRole></Layout>} />
         
         {/* Rota independente para proposta (sem Layout) */}
         <Route path="/proposta/:propostaId" element={<PropostaView />} />
