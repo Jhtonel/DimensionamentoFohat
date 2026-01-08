@@ -1773,6 +1773,176 @@
   /* Slide 09 - Eixo X do Gráfico Comparativo */
   .grafico-comparativo .eixo-x{
     grid-column:2;
+  }
+
+  /* ====== SLIDE 10 - FORMAS DE PAGAMENTO ====== */
+  .formas-pagamento-content{
+    grid-column:1 / -1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:32px;
+    align-items:start;
+  }
+
+  .forma-pagamento-card{
+    background:white;
+    border-radius:20px;
+    padding:32px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    border:1px solid var(--n-200);
+  }
+
+  .forma-pagamento-card.destaque{
+    border:2px solid var(--brand-primary);
+    box-shadow:0 8px 30px rgba(10,80,135,0.15);
+  }
+
+  .forma-pagamento-header{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:24px;
+    padding-bottom:16px;
+    border-bottom:2px solid var(--n-100);
+  }
+
+  .forma-pagamento-icon{
+    width:56px;
+    height:56px;
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .forma-pagamento-icon.cartao{
+    background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  }
+
+  .forma-pagamento-icon.financiamento{
+    background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  }
+
+  .forma-pagamento-icon svg{
+    width:28px;
+    height:28px;
+    fill:white;
+  }
+
+  .forma-pagamento-titulo{
+    font-size:22px;
+    font-weight:700;
+    color:var(--n-900);
+  }
+
+  .forma-pagamento-subtitulo{
+    font-size:14px;
+    color:var(--n-500);
+    margin-top:4px;
+  }
+
+  .parcelas-grid{
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:12px;
+  }
+
+  .parcela-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 16px;
+    background:var(--n-50);
+    border-radius:12px;
+    font-size:14px;
+  }
+
+  .parcela-item:hover{
+    background:var(--n-100);
+  }
+
+  .parcela-numero{
+    color:var(--n-600);
+    font-weight:500;
+  }
+
+  .parcela-valor{
+    font-weight:700;
+    color:var(--n-900);
+  }
+
+  .forma-pagamento-destaque{
+    margin-top:24px;
+    padding:20px;
+    background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-radius:16px;
+    border:1px solid #86efac;
+  }
+
+  .forma-pagamento-destaque.azul{
+    background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border:1px solid #93c5fd;
+  }
+
+  .destaque-label{
+    font-size:13px;
+    color:var(--n-600);
+    margin-bottom:4px;
+  }
+
+  .destaque-valor{
+    font-size:28px;
+    font-weight:800;
+    color:#16a34a;
+  }
+
+  .destaque-valor.azul{
+    color:#1d4ed8;
+  }
+
+  .forma-pagamento-aviso{
+    margin-top:16px;
+    font-size:12px;
+    color:var(--n-500);
+    text-align:center;
+  }
+
+  /* Slide 10 - Resumo */
+  .pagamento-resumo{
+    grid-column:1 / -1;
+    margin-top:24px;
+    padding:24px;
+    background:linear-gradient(135deg, var(--brand-primary) 0%, #0a5087 100%);
+    border-radius:20px;
+    color:white;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+
+  .pagamento-resumo-texto h4{
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+
+  .pagamento-resumo-texto p{
+    font-size:14px;
+    opacity:0.9;
+  }
+
+  .pagamento-resumo-valor{
+    text-align:right;
+  }
+
+  .pagamento-resumo-valor .label{
+    font-size:13px;
+    opacity:0.8;
+  }
+
+  .pagamento-resumo-valor .valor{
+    font-size:32px;
+    font-weight:800;
     grid-row:2;
     display:flex;
     justify-content:space-between;
@@ -2490,6 +2660,85 @@
           </div>
           <div class="chart-media">
             <div id="grafico-slide-09" class="echart" aria-label="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 10 - FORMAS DE PAGAMENTO ====== -->
+  <section id="slide-10" class="page">
+    <div class="page-inner">
+      <div class="client-name">{{cliente_nome}}</div>
+      <div class="slide-number">10</div>
+      <!-- Linha azul do topo -->
+      <div class="line-blue-top"></div>
+      
+      <div class="slide-header">
+        <h2 class="title-lg text-primary">FORMAS DE PAGAMENTO</h2>
+      </div>
+
+      <div class="formas-pagamento-content">
+        <!-- Cartão de Crédito -->
+        <div class="forma-pagamento-card">
+          <div class="forma-pagamento-header">
+            <div class="forma-pagamento-icon cartao">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+            </div>
+            <div>
+              <div class="forma-pagamento-titulo">Cartão de Crédito</div>
+            </div>
+          </div>
+
+          <div class="parcelas-grid">
+            {{parcelas_cartao}}
+          </div>
+
+          <div class="forma-pagamento-destaque">
+            <div class="destaque-label">À vista no cartão</div>
+            <div class="destaque-valor">{{valor_avista_cartao}}</div>
+          </div>
+
+          <div class="forma-pagamento-aviso">
+            * Sujeito à aprovação de crédito
+          </div>
+        </div>
+
+        <!-- Financiamento Bancário -->
+        <div class="forma-pagamento-card">
+          <div class="forma-pagamento-header">
+            <div class="forma-pagamento-icon financiamento">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z"/></svg>
+            </div>
+            <div>
+              <div class="forma-pagamento-titulo">Financiamento Bancário</div>
+              <div class="forma-pagamento-subtitulo">Taxa a partir de 1,95% a.m.</div>
+            </div>
+          </div>
+
+          <div class="parcelas-grid">
+            {{parcelas_financiamento}}
+          </div>
+
+          <div class="forma-pagamento-destaque azul">
+            <div class="destaque-label">Parcela que cabe no seu bolso</div>
+            <div class="destaque-valor azul">{{menor_parcela_financiamento}}</div>
+          </div>
+
+          <div class="forma-pagamento-aviso">
+            * Sujeito à análise de crédito
+          </div>
+        </div>
+
+        <!-- Resumo -->
+        <div class="pagamento-resumo">
+          <div class="pagamento-resumo-texto">
+            <h4>Invista no seu futuro!</h4>
+            <p>Escolha a melhor forma de pagamento para você</p>
+          </div>
+          <div class="pagamento-resumo-valor">
+            <div class="label">Valor do investimento</div>
+            <div class="valor">{{preco_final}}</div>
           </div>
         </div>
       </div>

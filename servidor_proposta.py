@@ -1502,6 +1502,17 @@ def process_template_html(proposta_data):
         # Esta chamada injeta o script do ECharts e os dados JSON para renderização dos gráficos
         template_html = apply_analise_financeira_graphs(template_html, proposta_data)
         
+        # ====== FORMAS DE PAGAMENTO (Slide 10) ======
+        try:
+            preco_final_pagamento = float(proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)) or 0)
+            pagamento_data = calcular_parcelas_pagamento(preco_final_pagamento)
+            template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
+            template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
+            template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
+            template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
+        except Exception as e:
+            print(f"⚠️ Erro ao processar formas de pagamento: {e}")
+        
         return template_html
         
     except Exception as e:
@@ -2002,6 +2013,165 @@ def popular_taxas_padrao():
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+# =========================================================================
+# FORMAS DE PAGAMENTO (Config)
+# =========================================================================
+
+# Default payment options
+DEFAULT_FORMAS_PAGAMENTO = {
+    "pagseguro": [
+        {"parcelas": 1, "taxa": 3.16},
+        {"parcelas": 2, "taxa": 4.57},
+        {"parcelas": 3, "taxa": 5.38},
+        {"parcelas": 4, "taxa": 6.18},
+        {"parcelas": 5, "taxa": 6.97},
+        {"parcelas": 6, "taxa": 7.75},
+        {"parcelas": 7, "taxa": 8.92},
+        {"parcelas": 8, "taxa": 9.68},
+        {"parcelas": 9, "taxa": 10.44},
+        {"parcelas": 10, "taxa": 11.19},
+        {"parcelas": 11, "taxa": 11.93},
+        {"parcelas": 12, "taxa": 12.66},
+        {"parcelas": 13, "taxa": 13.89},
+        {"parcelas": 14, "taxa": 14.60},
+        {"parcelas": 15, "taxa": 15.31},
+        {"parcelas": 16, "taxa": 16.01},
+        {"parcelas": 17, "taxa": 16.70},
+        {"parcelas": 18, "taxa": 17.39},
+    ],
+    "financiamento": [
+        {"parcelas": 12, "taxa": 1.95},
+        {"parcelas": 24, "taxa": 1.95},
+        {"parcelas": 36, "taxa": 1.95},
+        {"parcelas": 48, "taxa": 1.95},
+        {"parcelas": 60, "taxa": 1.95},
+        {"parcelas": 72, "taxa": 1.95},
+        {"parcelas": 84, "taxa": 1.95},
+        {"parcelas": 96, "taxa": 1.95},
+    ]
+}
+
+def _load_formas_pagamento():
+    """Carrega configuração de formas de pagamento do banco ou retorna default."""
+    try:
+        if USE_DB and db_pool:
+            conn = db_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT value FROM configs WHERE key = 'formas_pagamento'
+                    """)
+                    row = cur.fetchone()
+                    if row:
+                        return row[0]
+            finally:
+                db_pool.putconn(conn)
+    except Exception as e:
+        logging.warning(f"Erro ao carregar formas de pagamento: {e}")
+    return DEFAULT_FORMAS_PAGAMENTO
+
+def _save_formas_pagamento(data):
+    """Salva configuração de formas de pagamento no banco."""
+    try:
+        if USE_DB and db_pool:
+            conn = db_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO configs (key, value) VALUES ('formas_pagamento', %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """, (json.dumps(data),))
+                    conn.commit()
+                    return True
+            finally:
+                db_pool.putconn(conn)
+    except Exception as e:
+        logging.warning(f"Erro ao salvar formas de pagamento: {e}")
+    return False
+
+@app.route('/config/formas-pagamento', methods=['GET'])
+def get_formas_pagamento():
+    """Retorna configuração de formas de pagamento."""
+    try:
+        formas = _load_formas_pagamento()
+        return jsonify({"success": True, "formas_pagamento": formas})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/config/formas-pagamento', methods=['POST'])
+def save_formas_pagamento():
+    """Salva configuração de formas de pagamento."""
+    try:
+        body = request.get_json() or {}
+        formas = body.get('formas_pagamento', DEFAULT_FORMAS_PAGAMENTO)
+        
+        if _save_formas_pagamento(formas):
+            return jsonify({"success": True, "formas_pagamento": formas})
+        else:
+            # Se não tem DB, retorna sucesso mas os dados não persistem
+            return jsonify({"success": True, "formas_pagamento": formas, "warning": "Dados não persistidos (sem banco)"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
+    """
+    Calcula o valor das parcelas para cada opção de pagamento.
+    Retorna HTML formatado para inserir no template.
+    """
+    if formas_pagamento is None:
+        formas_pagamento = _load_formas_pagamento()
+    
+    def fmt_currency(val):
+        return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
+    # Parcelas de cartão (taxa simples sobre o valor)
+    parcelas_cartao_html = ""
+    for item in formas_pagamento.get("pagseguro", [])[:6]:  # Mostrar apenas 6 opções
+        parcelas = item.get("parcelas", 1)
+        taxa = item.get("taxa", 0)
+        valor_com_taxa = valor_total * (1 + taxa / 100)
+        valor_parcela = valor_com_taxa / parcelas
+        parcelas_cartao_html += f'''
+            <div class="parcela-item">
+              <span class="parcela-numero">{parcelas}x de</span>
+              <span class="parcela-valor">{fmt_currency(valor_parcela)}</span>
+            </div>
+        '''
+    
+    # Parcelas de financiamento (juros compostos - Price)
+    parcelas_financiamento_html = ""
+    menor_parcela = float('inf')
+    for item in formas_pagamento.get("financiamento", []):
+        parcelas = item.get("parcelas", 1)
+        taxa_mensal = item.get("taxa", 0) / 100
+        
+        if taxa_mensal > 0:
+            # Fórmula Price
+            valor_parcela = valor_total * (taxa_mensal * (1 + taxa_mensal) ** parcelas) / ((1 + taxa_mensal) ** parcelas - 1)
+        else:
+            valor_parcela = valor_total / parcelas
+        
+        if valor_parcela < menor_parcela:
+            menor_parcela = valor_parcela
+        
+        parcelas_financiamento_html += f'''
+            <div class="parcela-item">
+              <span class="parcela-numero">{parcelas}x de</span>
+              <span class="parcela-valor">{fmt_currency(valor_parcela)}</span>
+            </div>
+        '''
+    
+    # Valor à vista no cartão (1x com taxa)
+    primeira_taxa = formas_pagamento.get("pagseguro", [{"taxa": 3.16}])[0].get("taxa", 3.16)
+    valor_avista = valor_total * (1 + primeira_taxa / 100)
+    
+    return {
+        "parcelas_cartao": parcelas_cartao_html,
+        "parcelas_financiamento": parcelas_financiamento_html,
+        "valor_avista_cartao": fmt_currency(valor_avista),
+        "menor_parcela_financiamento": fmt_currency(menor_parcela) if menor_parcela != float('inf') else fmt_currency(0)
+    }
 
 @app.route('/analise/gerar-graficos', methods=['POST'])
 def analise_gerar_graficos():
