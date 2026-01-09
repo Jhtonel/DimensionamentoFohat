@@ -4289,19 +4289,54 @@ def transferir_cliente(cliente_id):
             
             # Atualizar proprietário
             old_owner = row.created_by_email or row.created_by
+            nome_cliente = row.nome
             row.created_by = new_owner_uid or row.created_by
             row.created_by_email = new_owner_email or row.created_by_email
             row.updated_at = datetime.now(timezone.utc)
+            new_owner = new_owner_email or new_owner_uid
+
+            # Transferir também TODAS as propostas vinculadas a este cliente
+            propostas_transferidas = 0
+            try:
+                # Atualizar colunas principais (rápido)
+                propostas_transferidas = (
+                    db.query(PropostaDB)
+                    .filter(PropostaDB.cliente_id == cliente_id)
+                    .update(
+                        {
+                            PropostaDB.created_by: (new_owner_uid or PropostaDB.created_by),
+                            PropostaDB.created_by_email: (new_owner_email or PropostaDB.created_by_email),
+                        },
+                        synchronize_session=False,
+                    )
+                    or 0
+                )
+                # Atualizar também o payload (para consistência com ACL/filtros que usam payload)
+                # Best-effort: loop apenas nas propostas desse cliente.
+                rows = db.query(PropostaDB).filter(PropostaDB.cliente_id == cliente_id).all()
+                for p in rows:
+                    payload = p.payload or {}
+                    if isinstance(payload, dict):
+                        if new_owner_uid:
+                            payload["created_by"] = new_owner_uid
+                        if new_owner_email:
+                            payload["created_by_email"] = new_owner_email
+                        p.payload = payload
+                # commit único
+            except Exception as _e:
+                print(f"⚠️ [transferir_cliente] Falha ao transferir propostas do cliente {cliente_id}: {_e}")
             
             db.commit()
             db.close()
             
-            print(f"✅ Cliente '{row.nome}' transferido de '{old_owner}' para '{new_owner_email or new_owner_uid}'")
+            # IMPORTANTE: não acessar atributos do ORM após fechar a sessão (evita DetachedInstanceError)
+            print(f"✅ Cliente '{nome_cliente}' transferido de '{old_owner}' para '{new_owner}'. Propostas transferidas: {propostas_transferidas}")
             return jsonify({
-                "success": True, 
-                "message": f"Cliente transferido com sucesso",
+                "success": True,
+                "message": "Cliente transferido com sucesso",
                 "cliente_id": cliente_id,
-                "new_owner": new_owner_email or new_owner_uid
+                "new_owner": new_owner,
+                "propostas_transferidas": int(propostas_transferidas),
             })
         
         # Fallback para arquivo JSON
@@ -4316,13 +4351,50 @@ def transferir_cliente(cliente_id):
         cliente["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         _save_clientes(clientes)
+
+        # Transferir propostas vinculadas (modo arquivo)
+        propostas_transferidas = 0
+        try:
+            cliente_nome = (cliente.get("nome", "") or "").lower().strip()
+            cliente_telefone = (cliente.get("telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+            for file in PROPOSTAS_DIR.glob("*.json"):
+                try:
+                    with open(file, "r", encoding="utf-8") as f:
+                        proposta = json.load(f) or {}
+                    # Verificar vinculação pelo cliente_id e, fallback, por nome/telefone
+                    vinculado = False
+                    if proposta.get("cliente_id") == cliente_id:
+                        vinculado = True
+                    else:
+                        p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                        if cliente_nome and p_nome == cliente_nome:
+                            vinculado = True
+                        p_tel = (proposta.get("cliente_telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                        if (not vinculado) and cliente_telefone and p_tel == cliente_telefone and len(cliente_telefone) > 8:
+                            vinculado = True
+                    if not vinculado:
+                        continue
+
+                    if new_owner_uid:
+                        proposta["created_by"] = new_owner_uid
+                    if new_owner_email:
+                        proposta["created_by_email"] = new_owner_email
+                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    with open(file, "w", encoding="utf-8") as f:
+                        json.dump(proposta, f, ensure_ascii=False, indent=2)
+                    propostas_transferidas += 1
+                except Exception:
+                    continue
+        except Exception as _e:
+            print(f"⚠️ [transferir_cliente] Falha ao transferir propostas (arquivo): {_e}")
         
         print(f"✅ Cliente '{cliente.get('nome')}' transferido de '{old_owner}' para '{new_owner_email or new_owner_uid}'")
         return jsonify({
             "success": True, 
             "message": f"Cliente transferido com sucesso",
             "cliente_id": cliente_id,
-            "new_owner": new_owner_email or new_owner_uid
+            "new_owner": new_owner_email or new_owner_uid,
+            "propostas_transferidas": int(propostas_transferidas),
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
