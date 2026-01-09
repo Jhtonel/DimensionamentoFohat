@@ -2474,6 +2474,428 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     }
 
 
+# -----------------------------------------------------------------------------
+# Admin / Debug: relatório completo de cálculos de uma proposta
+# -----------------------------------------------------------------------------
+def _json_safe(obj, _depth: int = 0):
+    """
+    Converte estruturas em algo serializável em JSON com tolerância a tipos não padrão.
+    Também evita payloads gigantes (base64) explodirem a resposta.
+    """
+    try:
+        if _depth > 12:
+            return str(obj)
+
+        if obj is None or isinstance(obj, (bool, int, float, str)):
+            if isinstance(obj, str) and len(obj) > 20000:
+                head = obj[:2000]
+                tail = obj[-400:]
+                return f"{head}\n...[TRUNCADO {len(obj)} chars]...\n{tail}"
+            return obj
+
+        if isinstance(obj, (datetime, date)):
+            try:
+                return obj.isoformat()
+            except Exception:
+                return str(obj)
+
+        try:
+            from decimal import Decimal
+            if isinstance(obj, Decimal):
+                return float(obj)
+        except Exception:
+            pass
+
+        if isinstance(obj, (list, tuple, set)):
+            return [_json_safe(x, _depth=_depth + 1) for x in list(obj)]
+
+        if isinstance(obj, dict):
+            out = {}
+            for k, v in obj.items():
+                out[str(k)] = _json_safe(v, _depth=_depth + 1)
+            return out
+
+        return str(obj)
+    except Exception:
+        return str(obj)
+
+
+def _parse_preco_robusto_debug(val) -> float:
+    """Parse robusto de preço (inclui NBSP) usado no relatório de debug."""
+    try:
+        if val is None:
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            s = val.strip()
+            for token in ['R$', 'r$', 'RS', 'rs']:
+                s = s.replace(token, '')
+            try:
+                s = re.sub(r"\s+", "", s)
+            except Exception:
+                s = ''.join(s.split())
+            s = s.strip()
+            if not s:
+                return 0.0
+            if ',' in s and '.' in s:
+                if s.rfind(',') > s.rfind('.'):
+                    s = s.replace('.', '').replace(',', '.')
+                else:
+                    s = s.replace(',', '')
+            elif ',' in s:
+                parts = s.split(',')
+                if len(parts) == 2 and len(parts[1]) in (2, 3):
+                    s = s.replace(',', '.')
+                else:
+                    s = s.replace(',', '')
+            return float(s)
+        return 0.0
+    except Exception:
+        return 0.0
+
+
+def build_relatorio_calculos_proposta(proposta_data: dict, include_render: bool = False) -> dict:
+    """
+    Gera um relatório completo (somente leitura) com os principais cálculos executados
+    no backend para montar a proposta (HTML/PDF), incluindo:
+    - Normalizações e parsing
+    - Núcleo de dimensionamento (calcular_dimensionamento) e tabelas/metrics
+    - Dados de gráficos (mesmos usados no ECharts)
+    - Parcelamentos (persistidos e calculados)
+    """
+    proposta_data = proposta_data or {}
+    warnings = []
+
+    payload_raw = _json_safe(proposta_data)
+
+    # Preço base para pagamentos (mesma ideia do process_template_html)
+    preco_final_real = 0.0
+    preco_sources = []
+    chaves_preco = ['preco_venda', 'preco_final', 'custo_total_projeto', 'investimento_inicial', 'custo_total', 'valor_total']
+    for chave in chaves_preco:
+        val = proposta_data.get(chave)
+        if val is None:
+            continue
+        parsed = _parse_preco_robusto_debug(val)
+        preco_sources.append({"chave": chave, "raw": val, "parsed": parsed})
+        if parsed > 0 and preco_final_real <= 0:
+            preco_final_real = parsed
+
+    if preco_final_real <= 0:
+        try:
+            custo_equip = _parse_preco_robusto_debug(proposta_data.get('custo_equipamentos', 0))
+            custo_inst = _parse_preco_robusto_debug(proposta_data.get('custo_instalacao', 0))
+            custo_homol = _parse_preco_robusto_debug(proposta_data.get('custo_homologacao', 0))
+            custo_outros = _parse_preco_robusto_debug(proposta_data.get('custo_outros', 0))
+            margem = _parse_preco_robusto_debug(proposta_data.get('margem_lucro', 0))
+            soma = custo_equip + custo_inst + custo_homol + custo_outros + margem
+            if soma > 0:
+                preco_final_real = soma
+                preco_sources.append({"chave": "__soma_custos__", "raw": {"equip": custo_equip, "inst": custo_inst, "homol": custo_homol, "outros": custo_outros, "margem": margem}, "parsed": soma})
+        except Exception as e:
+            warnings.append(f"Falha ao calcular soma de custos: {e}")
+
+    if preco_final_real <= 0:
+        warnings.append("Preço final não encontrado/zerado (preco_venda/preco_final/custos). Parcelamentos podem ficar 0.")
+
+    # Núcleo (placeholders/HTML)
+    core_payload_html = {}
+    core_html = {}
+    try:
+        consumo_kwh = parse_float(proposta_data.get('consumo_mensal_kwh', 0), 0.0)
+        if (consumo_kwh <= 0) and isinstance(proposta_data.get('consumo_mes_a_mes'), list):
+            try:
+                arr_vals = [parse_float(((x or {}).get('kwh') or 0), 0.0) for x in proposta_data.get('consumo_mes_a_mes')]
+                arr_vals = [v for v in arr_vals if v > 0]
+                if arr_vals:
+                    consumo_kwh = sum(arr_vals) / len(arr_vals)
+            except Exception:
+                pass
+
+        core_payload_html = {
+            "consumo_mensal_reais": parse_float(proposta_data.get('consumo_mensal_reais', 0), 0.0),
+            "consumo_mensal_kwh": consumo_kwh,
+            "tarifa_energia": parse_float(proposta_data.get('tarifa_energia', 0), 0.0),
+            "potencia_sistema": parse_float(proposta_data.get('potencia_sistema', proposta_data.get('potencia_kwp', 0)), 0.0),
+            "preco_venda": parse_float(proposta_data.get('preco_venda', proposta_data.get('preco_final', proposta_data.get('custo_total_projeto', 0))), 0.0),
+            "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
+            "ano_instalacao": 2026,
+        }
+        core_html = calcular_dimensionamento(core_payload_html) or {}
+    except Exception as e:
+        warnings.append(f"Falha ao executar calcular_dimensionamento (HTML): {e}")
+        core_html = {}
+
+    # Núcleo (gráficos)
+    irr_vec = None
+    core_payload_charts = {}
+    core_charts = {}
+    try:
+        irr_custom = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
+        if isinstance(irr_custom, list) and len(irr_custom) == 12:
+            irr_vec = [parse_float(v, 0.0) for v in irr_custom]
+        else:
+            media = parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
+            try:
+                irr_vec_csv = _resolve_irr_vec_from_csv(proposta_data.get('cidade'), media)
+                irr_vec = irr_vec_csv if (isinstance(irr_vec_csv, list) and len(irr_vec_csv) == 12) else [media] * 12
+            except Exception:
+                irr_vec = [media] * 12
+
+        consumo_kwh_c = parse_float(proposta_data.get('consumo_mensal_kwh', 0), 0.0)
+        consumo_reais_c = parse_float(proposta_data.get('consumo_mensal_reais', 0), 0.0)
+        tarifa_kwh_c = parse_float(proposta_data.get('tarifa_energia', 0), 0.0)
+        if consumo_kwh_c <= 0 and consumo_reais_c > 0 and tarifa_kwh_c > 0:
+            consumo_kwh_c = consumo_reais_c / tarifa_kwh_c
+
+        core_payload_charts = {
+            "consumo_mensal_kwh": consumo_kwh_c,
+            "consumo_mensal_reais": consumo_reais_c,
+            "tarifa_energia": tarifa_kwh_c,
+            "potencia_sistema": parse_float(proposta_data.get('potencia_sistema', proposta_data.get('potencia_kwp', 0)), 0.0),
+            "preco_venda": parse_float(proposta_data.get('preco_venda', proposta_data.get('preco_final', proposta_data.get('custo_total_projeto', 0))), 0.0),
+            "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
+            "irradiancia_mensal_kwh_m2_dia": irr_vec,
+            "ano_instalacao": 2026,
+        }
+        core_charts = calcular_dimensionamento(core_payload_charts) or {}
+    except Exception as e:
+        warnings.append(f"Falha ao executar calcular_dimensionamento (GRÁFICOS): {e}")
+        core_charts = {}
+
+    # Charts payload (para conferência)
+    charts_payload = {}
+    try:
+        tabelas = (core_charts.get("tabelas") or {}) if isinstance(core_charts, dict) else {}
+        cas = tabelas.get("custo_acumulado_sem_solar_r") or []
+        ca = tabelas.get("custo_anual_sem_solar_r") or []
+        fca = tabelas.get("fluxo_caixa_acumulado_r") or []
+        consumo_tbl = (tabelas.get("consumo_mensal_kwh") or []) if tabelas else []
+        consumo_mes = float(consumo_tbl[0]) if (isinstance(consumo_tbl, list) and len(consumo_tbl) >= 1) else 0.0
+        prod_mes = (tabelas.get("producao_mensal_kwh_ano1") or [])
+        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+        def _extract_consumo_vec_local() -> list[float]:
+            try:
+                cmm = proposta_data.get("consumo_mes_a_mes")
+                if isinstance(cmm, list) and len(cmm) > 0:
+                    out = [None] * 12
+                    months_map = {
+                        "jan": 0, "janeiro": 0,
+                        "fev": 1, "fevereiro": 1,
+                        "mar": 2, "março": 2, "marco": 2,
+                        "abr": 3, "abril": 3,
+                        "mai": 4, "maio": 4,
+                        "jun": 5, "junho": 5,
+                        "jul": 6, "julho": 6,
+                        "ago": 7, "agosto": 7,
+                        "set": 8, "setembro": 8,
+                        "out": 9, "outubro": 9,
+                        "nov": 10, "novembro": 10,
+                        "dez": 11, "dezembro": 11,
+                    }
+                    seq_i = 0
+                    for item in cmm[:24]:
+                        if not isinstance(item, dict):
+                            continue
+                        v = parse_float(item.get("kwh", item.get("valor", item.get("value", 0))), None)
+                        if v is None:
+                            continue
+                        mes_raw = (item.get("mes") or item.get("month") or item.get("label") or "")
+                        mes_s = str(mes_raw).strip().lower()
+                        idx = None
+                        if mes_s in months_map:
+                            idx = months_map[mes_s]
+                        else:
+                            m = re.search(r"(\d{1,2})", mes_s)
+                            if m:
+                                try:
+                                    n = int(m.group(1))
+                                    if 1 <= n <= 12:
+                                        idx = n - 1
+                                except Exception:
+                                    idx = None
+                            if idx is None:
+                                for k, i in months_map.items():
+                                    if mes_s.startswith(k):
+                                        idx = i
+                                        break
+                        if idx is None:
+                            if seq_i < 12:
+                                idx = seq_i
+                                seq_i += 1
+                        if idx is not None and 0 <= idx < 12:
+                            out[idx] = float(v)
+                    vals = [x for x in out if isinstance(x, (int, float))]
+                    if vals:
+                        avg = sum(vals) / len(vals)
+                        return [float(x) if isinstance(x, (int, float)) else float(avg) for x in out]
+            except Exception:
+                pass
+
+            for k in [
+                "consumo_mensal_kwh_meses", "consumo_mes_a_mes_kwh", "consumo_kwh_mensal",
+                "consumo_kwh_12meses", "consumo_mensal_kwh_array"
+            ]:
+                v = proposta_data.get(k)
+                if isinstance(v, list) and len(v) >= 12:
+                    out = [parse_float(x, 0.0) for x in v[:12]]
+                    return [float(x) for x in out]
+
+            if isinstance(consumo_tbl, list) and len(consumo_tbl) == 12:
+                return [parse_float(x, 0.0) for x in consumo_tbl]
+
+            base = float(consumo_mes or 0.0)
+            return [base] * 12 if base > 0 else [0.0] * 12
+
+        consumo_vec = _extract_consumo_vec_local()
+        prod_vec = [float(v) for v in (prod_mes[:12] if prod_mes else [])]
+        if not prod_vec or len(prod_vec) != 12:
+            prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
+            prod_anual_kwh = float(prod_anual_kwh or 0.0)
+            prod_vec = [prod_anual_kwh / 12.0] * 12 if prod_anual_kwh > 0 else [0.0] * 12
+
+        idxs = [0, 4, 9, 14, 19, 24]
+        s03_vals = [float(cas[i]) for i in idxs] if len(cas) >= 25 else []
+        s03_labs = [f"Ano {i+1}" for i in idxs]
+        s04_vals = [float(v) for v in ca] if ca else []
+        s04_labs = [f"Ano {i+1}" for i in range(len(s04_vals))]
+        s06_vals = [float(v) for v in fca] if fca else []
+        s06_labs = [f"Ano {i+1}" for i in range(len(s06_vals))]
+        gasto_total_25 = float(cas[-1]) if cas else 0.0
+        investimento = float(core_payload_charts.get("preco_venda") or 0.0)
+        s09_vals = [gasto_total_25, investimento]
+        s09_labs = ["Sem energia solar (25 anos)", "Investimento (preço de venda)"]
+
+        charts_payload = {
+            "s03": {"labels": s03_labs, "values": s03_vals},
+            "s04": {"labels": s04_labs, "values": s04_vals},
+            "s05": {"labels": meses, "consumo": consumo_vec, "producao": prod_vec},
+            "s06": {"labels": s06_labs, "values": s06_vals},
+            "s09": {"labels": s09_labs, "values": s09_vals},
+        }
+    except Exception as e:
+        warnings.append(f"Falha ao montar charts_payload: {e}")
+        charts_payload = {}
+
+    pagamentos_persistidos = {
+        "valor_avista_cartao": proposta_data.get("valor_avista_cartao"),
+        "parcelas_cartao": proposta_data.get("parcelas_cartao"),
+        "menor_parcela_financiamento": proposta_data.get("menor_parcela_financiamento"),
+        "parcelas_financiamento": proposta_data.get("parcelas_financiamento"),
+    }
+    pagamentos_calculados = {}
+    formas_pagamento_usadas = None
+    try:
+        try:
+            formas_pagamento_usadas = _load_formas_pagamento()
+        except Exception as e:
+            warnings.append(f"Falha ao carregar formas_pagamento do DB: {e}")
+            formas_pagamento_usadas = None
+        pagamentos_calculados = calcular_parcelas_pagamento(preco_final_real, formas_pagamento_usadas)
+    except Exception as e:
+        warnings.append(f"Falha ao calcular parcelas_pagamento: {e}")
+        pagamentos_calculados = {}
+
+    metrics_html = (core_html.get("metrics") or {}) if isinstance(core_html, dict) else {}
+    tabelas_html = (core_html.get("tabelas") or {}) if isinstance(core_html, dict) else {}
+    metrics_charts = (core_charts.get("metrics") or {}) if isinstance(core_charts, dict) else {}
+    tabelas_charts = (core_charts.get("tabelas") or {}) if isinstance(core_charts, dict) else {}
+
+    report = {
+        "meta": {
+            "generated_at": datetime.now().isoformat(),
+            "has_consumo_mes_a_mes": isinstance(proposta_data.get("consumo_mes_a_mes"), list) and len(proposta_data.get("consumo_mes_a_mes")) > 0,
+        },
+        "payload_raw": payload_raw,
+        "pricing": {
+            "preco_final_real": preco_final_real,
+            "preco_final_formatado": format_brl(preco_final_real),
+            "sources": preco_sources,
+        },
+        "dimensionamento": {
+            "html": {
+                "core_payload": _json_safe(core_payload_html),
+                "metrics": _json_safe(metrics_html),
+                "tabelas": _json_safe(tabelas_html),
+            },
+            "charts": {
+                "core_payload": _json_safe(core_payload_charts),
+                "irradiancia_mensal_kwh_m2_dia": _json_safe(irr_vec),
+                "metrics": _json_safe(metrics_charts),
+                "tabelas": _json_safe(tabelas_charts),
+            },
+        },
+        "graficos": {
+            "charts_payload": _json_safe(charts_payload),
+        },
+        "pagamentos": {
+            "persistidos_no_payload": _json_safe(pagamentos_persistidos),
+            "formas_pagamento": _json_safe(formas_pagamento_usadas),
+            "calculado_no_backend": _json_safe(pagamentos_calculados),
+        },
+        "warnings": warnings,
+    }
+    # Diagnóstico opcional: roda o render completo e informa placeholders restantes (sem retornar HTML)
+    if include_render:
+        try:
+            import copy
+            html = process_template_html(copy.deepcopy(proposta_data))
+            restantes = re.findall(r"\{\{[^}]+\}\}", html or "")
+            uniq = []
+            seen = set()
+            for x in restantes:
+                if x not in seen:
+                    seen.add(x)
+                    uniq.append(x)
+            report["render_diagnostics"] = {
+                "html_size_chars": len(html or ""),
+                "placeholders_remaining_count": len(restantes),
+                "placeholders_remaining_unique": uniq[:200],
+                "placeholders_unique_truncated": len(uniq) > 200,
+            }
+        except Exception as e:
+            warnings.append(f"Falha ao gerar render_diagnostics: {e}")
+    return _json_safe(report)
+
+
+@app.route('/admin/propostas/<proposta_id>/calculos', methods=['GET'])
+def admin_relatorio_calculos_proposta(proposta_id):
+    """
+    Endpoint ADMIN para exibir os cálculos usados pelo backend para gerar a proposta.
+    Não altera nada no banco; apenas lê e retorna um relatório detalhado para conferência/debug.
+    Requer role admin/gestor quando USE_DB.
+    """
+    try:
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+            role = (me.role or "").strip().lower()
+            if role not in ("admin", "gestor"):
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
+
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                proposta_data = json.load(f)
+
+        include_render = str(request.args.get("render") or "").strip().lower() in ("1", "true", "yes", "y")
+        report = build_relatorio_calculos_proposta(proposta_data, include_render=include_render)
+        return jsonify({"success": True, "proposta_id": proposta_id, "report": report})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route('/debug/slide10/<proposta_id>', methods=['GET'])
 def debug_slide10(proposta_id):
     """

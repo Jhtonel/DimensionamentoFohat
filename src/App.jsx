@@ -11,6 +11,7 @@ import Configuracoes from './pages/Configuracoes.jsx';
 import PropostaView from './pages/PropostaView.jsx';
 import AdminUsuarios from './pages/admin/Usuarios.jsx';
 import AdminTaxas from './pages/admin/Taxas.jsx';
+import AdminCalculos from './pages/admin/Calculos.jsx';
 import Pipeline from './pages/Pipeline.jsx';
 import './index.css';
 import ForgotPassword from './pages/auth/ForgotPassword.jsx';
@@ -108,6 +109,7 @@ function AppWithAuth() {
         {/* Rotas admin */}
         <Route path="/admin/usuarios" element={<Layout><RequireRole roles={['admin']}><AdminUsuarios /></RequireRole></Layout>} />
         <Route path="/admin/taxas" element={<Layout><RequireRole roles={['admin']}><AdminTaxas /></RequireRole></Layout>} />
+        <Route path="/admin/calculos" element={<Layout><RequireRole roles={['admin','gestor']}><AdminCalculos /></RequireRole></Layout>} />
         
         {/* Rota independente para proposta (sem Layout) */}
         <Route path="/proposta/:propostaId" element={<PropostaView />} />
