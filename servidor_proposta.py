@@ -2184,7 +2184,6 @@ def _load_formas_pagamento():
         finally:
             db.close()
 
-        # value pode ser dict, string JSON, ou outro; normalizar
         if isinstance(value, str):
             try:
                 value = json.loads(value)
@@ -2725,7 +2724,7 @@ def anexar_graficos_a_proposta(proposta_id):
 def salvar_proposta():
     try:
         print("🔍 DEBUG: Iniciando endpoint /salvar-proposta")
-        data = request.get_json()
+        data = request.get_json() or {}
         print(f"🔍 DEBUG: Dados recebidos: {data}")
 
         # Owner sempre vem do usuário logado (Postgres/JWT)
@@ -2737,6 +2736,35 @@ def salvar_proposta():
         incoming_id = (data.get("id") or data.get("proposta_id") or data.get("projeto_id") or "").strip()
         proposta_id = incoming_id if incoming_id else str(uuid.uuid4())
         print(f"🔍 DEBUG: ID da proposta: {proposta_id} (incoming={bool(incoming_id)})")
+
+        # Para updates (rascunho/autosave), o frontend pode enviar payload parcial.
+        # Não podemos sobrescrever campos ausentes com defaults/zeros.
+        existing_payload = {}
+        try:
+            if incoming_id:
+                if USE_DB:
+                    db0 = SessionLocal()
+                    try:
+                        row0 = db0.get(PropostaDB, proposta_id)
+                        existing_payload = (row0.payload or {}) if row0 else {}
+                    finally:
+                        db0.close()
+                else:
+                    proposta_file0 = PROPOSTAS_DIR / f"{proposta_id}.json"
+                    if proposta_file0.exists():
+                        with open(proposta_file0, "r", encoding="utf-8") as f:
+                            existing_payload = json.load(f) or {}
+        except Exception:
+            existing_payload = {}
+
+        _S = object()
+        def _pick(key: str, default=_S):
+            # usa o valor enviado se a chave existe no payload; senão cai para o existente; senão default
+            if isinstance(data, dict) and key in data:
+                return data.get(key)
+            if isinstance(existing_payload, dict) and key in existing_payload:
+                return existing_payload.get(key)
+            return None if default is _S else default
         
         # Validação obrigatória: concessionária e tarifa válidas
         def _to_float(v, d=0.0):
@@ -2745,11 +2773,23 @@ def salvar_proposta():
                     s = v.strip()
                     for token in ['R$', 'r$', ' ']:
                         s = s.replace(token, '')
+                    # BR: "892.857" (milhar) e "10.495,50" (milhar+decimal)
+                    # Heurística: se tiver ponto e não tiver vírgula, e o sufixo do último ponto tem 3 dígitos -> é milhar.
+                    if ('.' in s) and (',' not in s):
+                        try:
+                            tail = s.split('.')[-1]
+                            if tail.isdigit() and len(tail) == 3:
+                                s = s.replace('.', '')
+                        except Exception:
+                            pass
                     s = s.replace('.', '').replace(',', '.')
                     return float(s)
                 return float(v)
             except Exception:
                 return d
+
+        def _to_money(v, d=0.0):
+            return _to_float(v, d)
         status_payload = (data.get("status") or "").strip().lower() or "dimensionamento"
         is_draft = status_payload in ("rascunho", "draft")
 
@@ -2783,6 +2823,28 @@ def salvar_proposta():
 
         consumo_mes_a_mes_norm = _normalize_consumo_mes_a_mes(data.get("consumo_mes_a_mes"))
 
+        # Potência e preço: aceitar múltiplos nomes (rascunho/autosave usa potencia_kw, etc.)
+        potencia_sistema_in = _pick("potencia_sistema", _S)
+        if potencia_sistema_in is _S:
+            potencia_sistema_in = _pick("potencia_kw", _S)
+        if potencia_sistema_in is _S:
+            potencia_sistema_in = _pick("potencia_sistema_kwp", _S)
+        if potencia_sistema_in is _S:
+            potencia_sistema_in = _pick("potencia_kwp", 0)
+
+        preco_final_in = _pick("preco_final", _S)
+        if preco_final_in is _S:
+            preco_final_in = _pick("preco_venda", _S)
+        if preco_final_in is _S:
+            preco_final_in = _pick("precoVenda", _S)
+        if preco_final_in is _S:
+            preco_final_in = _pick("precoTotal", 0)
+
+        cliente_nome_default = "" if is_draft else "Cliente"
+        cliente_tel_default = "" if is_draft else "Telefone não informado"
+        cliente_end_default = "" if is_draft else "Endereço não informado"
+        cidade_default = "" if is_draft else "Projeto"
+
         proposta_data = {
             'id': proposta_id,
             'data_criacao': datetime.now().isoformat(),
@@ -2793,60 +2855,58 @@ def salvar_proposta():
             'user_id': (me.uid if USE_DB and me else data.get('created_by') or data.get('user_id')),
             'status': status_payload,
             # Campos do CRM (persistir para edição)
-            'nome_projeto': data.get('nome_projeto') or data.get('nome') or None,
-            'cep': data.get('cep') or None,
-            'logradouro': data.get('logradouro') or None,
-            'numero': data.get('numero') or None,
-            'complemento': data.get('complemento') or None,
-            'bairro': data.get('bairro') or None,
-            'cliente_id': data.get('cliente_id'),
-            'cliente_nome': data.get('cliente_nome', 'Cliente'),
-            'cliente_endereco': data.get('cliente_endereco', 'Endereço não informado'),
-            'cliente_telefone': data.get('cliente_telefone', 'Telefone não informado'),
-            'potencia_sistema': data.get('potencia_sistema', 0),
-            'preco_final': data.get('preco_final', 0),
-            'preco_venda': data.get('preco_venda', data.get('preco_final', 0)),  # Preço de venda para cálculo do payback
-            'cidade': data.get('cidade', 'Projeto'),
+            'nome_projeto': _pick('nome_projeto') or _pick('nome') or None,
+            'cep': _pick('cep') or None,
+            'logradouro': _pick('logradouro') or None,
+            'numero': _pick('numero') or None,
+            'complemento': _pick('complemento') or None,
+            'bairro': _pick('bairro') or None,
+            'cliente_id': _pick('cliente_id'),
+            'cliente_nome': _pick('cliente_nome', cliente_nome_default) or cliente_nome_default,
+            'cliente_endereco': _pick('cliente_endereco', cliente_end_default) or cliente_end_default,
+            'cliente_telefone': _pick('cliente_telefone', cliente_tel_default) or cliente_tel_default,
+            'potencia_sistema': _to_float(potencia_sistema_in, 0.0) or 0.0,
+            'preco_final': _to_money(preco_final_in, 0.0) or 0.0,
+            'preco_venda': _to_money(_pick('preco_venda', preco_final_in or 0) or (preco_final_in or 0), 0.0) or 0.0,
+            'cidade': _pick('cidade', cidade_default) or cidade_default,
             'concessionaria': concessionaria_payload,
-            'tipo_telhado': data.get('tipo_telhado', ''),
-            'estado': data.get('estado') or data.get('uf') or '',
-            'tensao': data.get('tensao') or None,
-            'vendedor_nome': data.get('vendedor_nome', 'Representante Comercial'),
-            'vendedor_cargo': data.get('vendedor_cargo', 'Especialista em Energia Solar'),
-            'vendedor_telefone': data.get('vendedor_telefone', '(11) 99999-9999'),
-            'vendedor_email': data.get('vendedor_email', 'contato@empresa.com'),
+            'tipo_telhado': _pick('tipo_telhado', ''),
+            'estado': _pick('estado') or _pick('uf') or '',
+            'tensao': _pick('tensao') or None,
+            'vendedor_nome': _pick('vendedor_nome', 'Representante Comercial'),
+            'vendedor_cargo': _pick('vendedor_cargo', 'Especialista em Energia Solar'),
+            'vendedor_telefone': _pick('vendedor_telefone', '(11) 99999-9999'),
+            'vendedor_email': _pick('vendedor_email', 'contato@empresa.com'),
             'data_proposta': datetime.now().strftime('%d/%m/%Y'),
             # Dados financeiros
-            'conta_atual_anual': data.get('conta_atual_anual', 0),
-            # Calcular payback automaticamente usando preço de venda
-            'preco_venda': data.get('preco_venda', data.get('preco_final', 0)),
-            'anos_payback': data.get('anos_payback', 0),
-            'gasto_acumulado_payback': data.get('gasto_acumulado_payback', 0),
-            'consumo_mensal_kwh': data.get('consumo_mensal_kwh', 0),
+            'conta_atual_anual': _pick('conta_atual_anual', 0) or 0,
+            'anos_payback': _pick('anos_payback', 0) or 0,
+            'gasto_acumulado_payback': _pick('gasto_acumulado_payback', 0) or 0,
+            'consumo_mensal_kwh': _pick('consumo_mensal_kwh', 0) or 0,
             # Persistir também o consumo mês a mês (quando informado)
             'consumo_mes_a_mes': consumo_mes_a_mes_norm,
             'tarifa_energia': tarifa_payload,
-            'economia_mensal_estimada': data.get('economia_mensal_estimada', 0),
+            'economia_mensal_estimada': _pick('economia_mensal_estimada', 0) or 0,
             # Dados do kit
-            'quantidade_placas': data.get('quantidade_placas', 0),
-            'potencia_placa_w': data.get('potencia_placa_w', 0),
-            'area_necessaria': data.get('area_necessaria', 0),
-            'irradiacao_media': data.get('irradiacao_media', 5.15),
-            'geracao_media_mensal': data.get('geracao_media_mensal', 0),
-            'creditos_anuais': data.get('creditos_anuais', 0),
-            'economia_total_25_anos': data.get('economia_total_25_anos', 0),
-            'payback_meses': data.get('payback_meses', 0),
+            'quantidade_placas': _pick('quantidade_placas', 0) or 0,
+            'potencia_placa_w': _pick('potencia_placa_w', 0) or 0,
+            'area_necessaria': _pick('area_necessaria', 0) or 0,
+            'irradiacao_media': _pick('irradiacao_media', 5.15) or 5.15,
+            'geracao_media_mensal': _pick('geracao_media_mensal', 0) or 0,
+            'creditos_anuais': _pick('creditos_anuais', 0) or 0,
+            'economia_total_25_anos': _pick('economia_total_25_anos', 0) or 0,
+            'payback_meses': _pick('payback_meses', 0) or 0,
             # Custos
-            'custo_total_projeto': data.get('custo_total_projeto', 0),
-            'custo_equipamentos': data.get('custo_equipamentos', 0),
-            'custo_instalacao': data.get('custo_instalacao', 0),
-            'custo_homologacao': data.get('custo_homologacao', 0),
-            'custo_outros': data.get('custo_outros', 0),
-            'margem_lucro': data.get('margem_lucro', 0),
-            'comissao_vendedor': data.get('comissao_vendedor', 5),
+            'custo_total_projeto': _to_money(_pick('custo_total_projeto', 0) or 0, 0.0) or 0.0,
+            'custo_equipamentos': _to_money(_pick('custo_equipamentos', 0) or 0, 0.0) or 0.0,
+            'custo_instalacao': _to_money(_pick('custo_instalacao', 0) or 0, 0.0) or 0.0,
+            'custo_homologacao': _to_money(_pick('custo_homologacao', 0) or 0, 0.0) or 0.0,
+            'custo_outros': _to_money(_pick('custo_outros', 0) or 0, 0.0) or 0.0,
+            'margem_lucro': _to_money(_pick('margem_lucro', 0) or 0, 0.0) or 0.0,
+            'comissao_vendedor': _pick('comissao_vendedor', 5) or 5,
             # Preservar gráficos e métricas gerados na etapa de análise (se enviados pelo frontend)
-            'graficos_base64': data.get('graficos_base64') or {},
-            'metrics': data.get('metrics') or {}
+            'graficos_base64': _pick('graficos_base64') or {},
+            'metrics': _pick('metrics') or {}
         }
 
         # ====== Padronização: garantir que SEMPRE exista cliente_id (e vincular por ID, não por nome) ======
@@ -2866,6 +2926,9 @@ def salvar_proposta():
 
                 tel_norm = _norm_phone(tel_c)
 
+                # Em rascunho/autosave, NÃO criar cliente automaticamente (evita "Cliente" fictício voltando).
+                allow_create = (not is_draft)
+
                 if USE_DB:
                     db2 = SessionLocal()
                     try:
@@ -2882,7 +2945,7 @@ def salvar_proposta():
 
                         if match:
                             proposta_data['cliente_id'] = match.id
-                        else:
+                        elif allow_create and (nome_c or tel_norm or email_c):
                             # criar cliente novo para garantir vínculo por ID
                             new_cid = str(uuid.uuid4())
                             db2.add(ClienteDB(
@@ -2920,7 +2983,7 @@ def salvar_proposta():
                             break
                     if found:
                         proposta_data['cliente_id'] = found
-                    else:
+                    elif allow_create and (nome_c or tel_norm or email_c):
                         new_cid = str(uuid.uuid4())
                         now_iso = datetime.now().isoformat()
                         clientes_map[new_cid] = {

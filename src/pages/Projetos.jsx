@@ -452,7 +452,7 @@ export default function Projetos() {
                         <div>
                           <p className="text-xs text-gray-600">Valor</p>
                           <p className="font-bold text-gray-900">
-                            R$ {projeto.preco_final.toLocaleString('pt-BR')}
+                            {Number(projeto.preco_final || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                           </p>
                         </div>
                       </div>
@@ -565,7 +565,7 @@ export default function Projetos() {
                           {projeto.preco_final && (
                             <div className="flex items-center gap-1.5 text-sm text-gray-700">
                               <DollarSign className="w-3 h-3 text-green-500" />
-                              R$ {projeto.preco_final.toLocaleString('pt-BR')}
+                              {Number(projeto.preco_final || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>
                           )}
                         </div>

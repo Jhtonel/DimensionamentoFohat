@@ -36,6 +36,22 @@ export default function NovoProjeto() {
   const [activeTab, setActiveTab] = useState("basico");
   const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
+
+  // Não permitir avançar de aba sem concessionária selecionada
+  const hasConcessionaria = useCallback(() => {
+    return String(formData?.concessionaria || "").trim().length > 0;
+  }, [formData?.concessionaria]);
+
+  const goToTab = useCallback((nextTab) => {
+    // Só exigimos concessionária para sair do "basico"
+    const requiresConcessionaria = nextTab !== "basico";
+    if (requiresConcessionaria && !hasConcessionaria()) {
+      alert("Selecione a concessionária para avançar.");
+      setActiveTab("basico");
+      return;
+    }
+    setActiveTab(nextTab);
+  }, [hasConcessionaria]);
   
   // Hook para gerenciar custos via API Solaryum
   const {
@@ -1326,7 +1342,7 @@ export default function NovoProjeto() {
       setProgressValue(100);
       setProgressLabel('Concluído!');
       setTimeout(() => setProgressOpen(false), 500);
-      setActiveTab('equipamentos');
+      goToTab('equipamentos');
       
     } catch (error) {
       console.error('❌ Erro ao buscar kit customizado:', error);
@@ -2259,6 +2275,11 @@ export default function NovoProjeto() {
   // Função para gerar proposta e avançar para resultados
   const gerarPropostaEAvançar = async () => {
     try {
+      if (!hasConcessionaria()) {
+        alert("Selecione a concessionária para avançar.");
+        setActiveTab("basico");
+        return;
+      }
       setAutoGenerateProposta(true);
       setActiveTab('resultados');
     } catch (error) {
@@ -2327,7 +2348,7 @@ export default function NovoProjeto() {
 
         <Card className="glass-card border-0 shadow-2xl">
           <CardContent className="p-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={goToTab}>
               <TabsList className="grid w-full grid-cols-4 mb-6">
                 <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="equipamentos">Equipamentos</TabsTrigger>
@@ -3271,7 +3292,7 @@ export default function NovoProjeto() {
                     {produtosDisponiveis.length > 0 && (
                       <div className="sticky bottom-6 right-6 z-50 float-right">
                         <Button 
-                          onClick={() => setActiveTab('custos')}
+                          onClick={() => goToTab('custos')}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
                         >
                           Avançar para Custos
@@ -3330,7 +3351,7 @@ export default function NovoProjeto() {
                                 onClick={async () => {
                                   console.log('Botão Ver Custos clicado');
                                   await atualizarCustosComProdutosSelecionados();
-                                  setActiveTab('custos');
+                                  goToTab('custos');
                                 }}
                                 disabled={!produtosSelecionados.paineis || !produtosSelecionados.inversores}
                                 className="bg-blue-600 hover:bg-blue-700"

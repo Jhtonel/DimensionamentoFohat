@@ -284,8 +284,25 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           ? Number(formData.potencia_kw)
           : dadosSeguros.potencia_sistema_kwp,
         // A proposta deve usar o preço de venda; enviamos explicitamente
-        preco_venda: Number(formData?.preco_venda || dadosSeguros?.preco_final || 0),
-        preco_final: Number(formData?.preco_venda || dadosSeguros?.preco_final || 0),
+        // Importante: formData.preco_venda às vezes vem como string "892.857" (milhar BR).
+        // Number("892.857") => 892.857 (errado). Normalizar antes.
+        preco_venda: (() => {
+          const v = formData?.preco_venda ?? dadosSeguros?.preco_final ?? 0;
+          if (typeof v === 'number') return v;
+          const s = String(v || '').replace(/\s+/g, '').replace('R$', '');
+          // "10.495,50" -> "10495.50"; "892.857" -> "892857"
+          const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+          const n = Number(normalized);
+          return Number.isFinite(n) ? n : 0;
+        })(),
+        preco_final: (() => {
+          const v = formData?.preco_venda ?? dadosSeguros?.preco_final ?? 0;
+          if (typeof v === 'number') return v;
+          const s = String(v || '').replace(/\s+/g, '').replace('R$', '');
+          const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+          const n = Number(normalized);
+          return Number.isFinite(n) ? n : 0;
+        })(),
         concessionaria: formData?.concessionaria || '',
         cidade: formData?.cidade || 'Projeto',
         vendedor_nome: vendedorDados.nome,
