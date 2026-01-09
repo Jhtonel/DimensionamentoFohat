@@ -23,7 +23,7 @@ import time
 import csv
 #
 from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB, RoleDB, ConfigDB, DATABASE_URL
-from sqlalchemy import text
+from sqlalchemy import text, func
 # WeasyPrint comentado - requer: brew install cairo pango gdk-pixbuf libffi
 # from weasyprint import HTML, CSS
 # from weasyprint.text.fonts import FontConfiguration
@@ -4290,6 +4290,7 @@ def transferir_cliente(cliente_id):
             # Atualizar proprietário
             old_owner = row.created_by_email or row.created_by
             nome_cliente = row.nome
+            telefone_cliente = row.telefone
             row.created_by = new_owner_uid or row.created_by
             row.created_by_email = new_owner_email or row.created_by_email
             row.updated_at = datetime.now(timezone.utc)
@@ -4298,31 +4299,63 @@ def transferir_cliente(cliente_id):
             # Transferir também TODAS as propostas vinculadas a este cliente
             propostas_transferidas = 0
             try:
-                # Atualizar colunas principais (rápido)
-                propostas_transferidas = (
-                    db.query(PropostaDB)
-                    .filter(PropostaDB.cliente_id == cliente_id)
-                    .update(
-                        {
-                            PropostaDB.created_by: (new_owner_uid or PropostaDB.created_by),
-                            PropostaDB.created_by_email: (new_owner_email or PropostaDB.created_by_email),
-                        },
-                        synchronize_session=False,
-                    )
-                    or 0
+                def _norm_phone(s):
+                    try:
+                        return re.sub(r"\D+", "", str(s or ""))
+                    except Exception:
+                        return ""
+
+                nome_norm = (nome_cliente or "").strip().lower()
+                tel_norm = _norm_phone(telefone_cliente)
+
+                # Importante:
+                # - Muitas propostas antigas no Postgres não tinham cliente_id.
+                # - No frontend, se a proposta tem cliente_id, o match é estrito por ID.
+                # Portanto, ao transferir, também vinculamos cliente_id nas propostas legadas.
+                q = db.query(PropostaDB).filter(
+                    (PropostaDB.cliente_id == cliente_id) |
+                    (func.lower(PropostaDB.cliente_nome) == nome_norm)
                 )
-                # Atualizar também o payload (para consistência com ACL/filtros que usam payload)
-                # Best-effort: loop apenas nas propostas desse cliente.
-                rows = db.query(PropostaDB).filter(PropostaDB.cliente_id == cliente_id).all()
-                for p in rows:
+                cand = q.all()
+
+                updated_ids = set()
+                for p in cand:
+                    # confirmação extra por telefone quando cliente_id não bate
+                    if (p.cliente_id != cliente_id) and tel_norm:
+                        p_tel = _norm_phone(p.cliente_telefone)
+                        if p_tel and p_tel != tel_norm and len(tel_norm) > 8:
+                            continue
+
+                    changed = False
+                    if new_owner_uid and p.created_by != new_owner_uid:
+                        p.created_by = new_owner_uid
+                        changed = True
+                    if new_owner_email and p.created_by_email != new_owner_email:
+                        p.created_by_email = new_owner_email
+                        changed = True
+
+                    # Vincular cliente_id se estiver vazio/diferente (para o contador no frontend)
+                    if p.cliente_id != cliente_id:
+                        p.cliente_id = cliente_id
+                        changed = True
+
                     payload = p.payload or {}
                     if isinstance(payload, dict):
-                        if new_owner_uid:
+                        if new_owner_uid and payload.get("created_by") != new_owner_uid:
                             payload["created_by"] = new_owner_uid
-                        if new_owner_email:
+                            changed = True
+                        if new_owner_email and payload.get("created_by_email") != new_owner_email:
                             payload["created_by_email"] = new_owner_email
+                            changed = True
+                        if payload.get("cliente_id") != cliente_id:
+                            payload["cliente_id"] = cliente_id
+                            changed = True
                         p.payload = payload
-                # commit único
+
+                    if changed:
+                        updated_ids.add(p.id)
+
+                propostas_transferidas = len(updated_ids)
             except Exception as _e:
                 print(f"⚠️ [transferir_cliente] Falha ao transferir propostas do cliente {cliente_id}: {_e}")
             
