@@ -1039,7 +1039,8 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
             type:'bar',
             data: (C.s05.consumo || []),
             barWidth: '32%',
-            itemStyle: {{ color: brand.blue, borderRadius: [3,3,0,0] }}
+            itemStyle: {{ color: brand.blue, borderRadius: [3,3,0,0] }},
+            label: {{ show:true, position:'top', fontSize: 10, fontWeight: 700, color: brand.muted, formatter: (p)=>fmtNum0.format(p.value) }}
           }},
           {{
             name: 'Produção estimada',
