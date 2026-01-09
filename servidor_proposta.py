@@ -23,7 +23,7 @@ import time
 import csv
 #
 from db import init_db, SessionLocal, PropostaDB, ClienteDB, EnderecoDB, UserDB, RoleDB, ConfigDB, DATABASE_URL
-from sqlalchemy import text, func
+from sqlalchemy import text, func, or_
 # WeasyPrint comentado - requer: brew install cairo pango gdk-pixbuf libffi
 # from weasyprint import HTML, CSS
 # from weasyprint.text.fonts import FontConfiguration
@@ -2788,6 +2788,8 @@ def salvar_proposta():
             # Rastreamento do criador (para filtros por usuário)
             'created_by': (me.uid if USE_DB and me else data.get('created_by')),
             'created_by_email': (me.email if USE_DB and me else data.get('created_by_email')),
+            # Aliases estáveis (para padronização)
+            'user_id': (me.uid if USE_DB and me else data.get('created_by') or data.get('user_id')),
             'status': status_payload,
             # Campos do CRM (persistir para edição)
             'nome_projeto': data.get('nome_projeto') or data.get('nome') or None,
@@ -2845,6 +2847,102 @@ def salvar_proposta():
             'graficos_base64': data.get('graficos_base64') or {},
             'metrics': data.get('metrics') or {}
         }
+
+        # ====== Padronização: garantir que SEMPRE exista cliente_id (e vincular por ID, não por nome) ======
+        # Motivação: telas como Clientes/Projetos contam projetos por cliente_id (match estrito se existe).
+        # Se vier legado sem cliente_id, tentamos resolver; se não existir, criamos cliente e vinculamos.
+        try:
+            if not (proposta_data.get('cliente_id') or '').strip():
+                nome_c = (proposta_data.get('cliente_nome') or '').strip()
+                tel_c = (proposta_data.get('cliente_telefone') or '')
+                email_c = (data.get('cliente_email') or data.get('email_cliente') or '').strip()
+
+                def _norm_phone(s):
+                    try:
+                        return re.sub(r"\D+", "", str(s or ""))
+                    except Exception:
+                        return ""
+
+                tel_norm = _norm_phone(tel_c)
+
+                if USE_DB:
+                    db2 = SessionLocal()
+                    try:
+                        match = None
+                        if email_c:
+                            match = db2.query(ClienteDB).filter(func.lower(ClienteDB.email) == email_c.lower()).first()
+                        if (not match) and tel_norm and len(tel_norm) > 8:
+                            # comparar telefone normalizado (apenas dígitos)
+                            match = db2.query(ClienteDB).filter(
+                                func.regexp_replace(func.coalesce(ClienteDB.telefone, ""), r"\D", "", "g") == tel_norm
+                            ).first()
+                        if (not match) and nome_c:
+                            match = db2.query(ClienteDB).filter(func.lower(ClienteDB.nome) == nome_c.lower()).first()
+
+                        if match:
+                            proposta_data['cliente_id'] = match.id
+                        else:
+                            # criar cliente novo para garantir vínculo por ID
+                            new_cid = str(uuid.uuid4())
+                            db2.add(ClienteDB(
+                                id=new_cid,
+                                nome=nome_c or 'Cliente',
+                                telefone=tel_c or '',
+                                email=email_c or '',
+                                endereco_completo=proposta_data.get('cliente_endereco'),
+                                cep=data.get('cep') or None,
+                                tipo=data.get('tipo') or data.get('cliente_tipo') or None,
+                                observacoes=data.get('observacoes') or None,
+                                created_by=proposta_data.get('created_by') or '',
+                                created_by_email=proposta_data.get('created_by_email') or None,
+                            ))
+                            db2.commit()
+                            proposta_data['cliente_id'] = new_cid
+                    finally:
+                        db2.close()
+                else:
+                    # modo arquivo: criar/ligar no clientes.json
+                    clientes_map = _load_clientes()
+                    found = None
+                    for _cid, c in (clientes_map or {}).items():
+                        if not isinstance(c, dict):
+                            continue
+                        if email_c and (str(c.get('email') or '').strip().lower() == email_c.lower()):
+                            found = c.get('id') or _cid
+                            break
+                        if tel_norm and len(tel_norm) > 8:
+                            if _norm_phone(c.get('telefone')) == tel_norm:
+                                found = c.get('id') or _cid
+                                break
+                        if nome_c and (str(c.get('nome') or '').strip().lower() == nome_c.lower()):
+                            found = c.get('id') or _cid
+                            break
+                    if found:
+                        proposta_data['cliente_id'] = found
+                    else:
+                        new_cid = str(uuid.uuid4())
+                        now_iso = datetime.now().isoformat()
+                        clientes_map[new_cid] = {
+                            "id": new_cid,
+                            "nome": nome_c or "Cliente",
+                            "telefone": tel_c or "",
+                            "email": email_c or "",
+                            "endereco_completo": proposta_data.get('cliente_endereco'),
+                            "cep": data.get('cep') or "",
+                            "tipo": data.get('tipo') or "",
+                            "observacoes": data.get('observacoes') or "",
+                            "created_by": proposta_data.get('created_by'),
+                            "created_by_email": proposta_data.get('created_by_email'),
+                            "created_at": now_iso,
+                            "updated_at": now_iso,
+                        }
+                        _save_clientes(clientes_map)
+                        proposta_data['cliente_id'] = new_cid
+
+            # manter alias no payload
+            proposta_data['cliente_id'] = str(proposta_data.get('cliente_id') or '').strip() or proposta_data.get('cliente_id')
+        except Exception as _e:
+            print(f"⚠️ [salvar-proposta] Falha ao garantir cliente_id: {_e}")
         # Garantir que a proposta use apenas o preço de venda
         try:
             _pv = float(proposta_data.get('preco_venda', 0) or 0)
@@ -4030,6 +4128,7 @@ def listar_clientes():
             for r in rows:
                 clientes.append({
                     "id": r.id,
+                    "cliente_id": r.id,
                     "nome": r.nome,
                     "telefone": r.telefone,
                     "email": r.email,
@@ -4039,6 +4138,7 @@ def listar_clientes():
                     "observacoes": r.observacoes,
                     "created_by": r.created_by,
                     "created_by_email": r.created_by_email,
+                    "user_id": r.created_by,
                     "created_at": (r.created_at.isoformat() if r.created_at else None),
                     "updated_at": (r.updated_at.isoformat() if r.updated_at else None),
                 })
@@ -4312,19 +4412,40 @@ def transferir_cliente(cliente_id):
                 # - Muitas propostas antigas no Postgres não tinham cliente_id.
                 # - No frontend, se a proposta tem cliente_id, o match é estrito por ID.
                 # Portanto, ao transferir, também vinculamos cliente_id nas propostas legadas.
-                q = db.query(PropostaDB).filter(
-                    (PropostaDB.cliente_id == cliente_id) |
-                    (func.lower(PropostaDB.cliente_nome) == nome_norm)
-                )
+                # Candidatos:
+                # - match por cliente_id (ideal)
+                # - match por telefone normalizado (mais confiável em dados legados)
+                # - match por nome (fallback)
+                conds = [PropostaDB.cliente_id == cliente_id]
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.cliente_telefone, ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+
+                q = db.query(PropostaDB).filter(or_(*conds))
                 cand = q.all()
 
                 updated_ids = set()
                 for p in cand:
                     # confirmação extra por telefone quando cliente_id não bate
-                    if (p.cliente_id != cliente_id) and tel_norm:
-                        p_tel = _norm_phone(p.cliente_telefone)
-                        if p_tel and p_tel != tel_norm and len(tel_norm) > 8:
-                            continue
+                    if p.cliente_id != cliente_id:
+                        # se temos telefone, exigir match de telefone quando possível
+                        if tel_norm and len(tel_norm) > 8:
+                            p_tel = _norm_phone(p.cliente_telefone)
+                            if p_tel and p_tel != tel_norm:
+                                continue
+                        else:
+                            # sem telefone, exigir match estrito por nome
+                            p_nome = (p.cliente_nome or "").strip().lower()
+                            if not nome_norm or p_nome != nome_norm:
+                                continue
 
                     changed = False
                     if new_owner_uid and p.created_by != new_owner_uid:
@@ -4428,6 +4549,127 @@ def transferir_cliente(cliente_id):
             "cliente_id": cliente_id,
             "new_owner": new_owner_email or new_owner_uid,
             "propostas_transferidas": int(propostas_transferidas),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/clientes/backfill-propostas/<cliente_id>', methods=['POST'])
+def backfill_propostas_cliente(cliente_id):
+    """
+    Re-vincula propostas legadas a um cliente específico preenchendo cliente_id.
+    Use quando existe proposta antiga no Postgres sem cliente_id (contador fica 0 no frontend).
+    Apenas admin.
+    """
+    try:
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+        role = (me.role or "").strip().lower()
+        if role != "admin":
+            return jsonify({"success": False, "message": "Apenas admins podem executar backfill"}), 403
+
+        def _norm_phone(s):
+            try:
+                return re.sub(r"\D+", "", str(s or ""))
+            except Exception:
+                return ""
+
+        if USE_DB:
+            db = SessionLocal()
+            try:
+                c = db.get(ClienteDB, cliente_id)
+                if not c:
+                    return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+
+                nome_norm = (c.nome or "").strip().lower()
+                tel_norm = _norm_phone(c.telefone)
+
+                conds = [PropostaDB.cliente_id == cliente_id]
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.cliente_telefone, ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+
+                cand = db.query(PropostaDB).filter(or_(*conds)).all()
+                updated = []
+                for p in cand:
+                    changed = False
+                    if p.cliente_id != cliente_id:
+                        p.cliente_id = cliente_id
+                        changed = True
+                    payload = p.payload or {}
+                    if isinstance(payload, dict) and payload.get("cliente_id") != cliente_id:
+                        payload["cliente_id"] = cliente_id
+                        p.payload = payload
+                        changed = True
+                    if changed:
+                        updated.append(p.id)
+
+                db.commit()
+                return jsonify({
+                    "success": True,
+                    "cliente_id": cliente_id,
+                    "propostas_vinculadas": len(updated),
+                    "propostas_ids": updated[:50],
+                    "source": "db",
+                })
+            finally:
+                db.close()
+
+        # modo arquivo
+        clientes = _load_clientes()
+        cliente = clientes.get(cliente_id)
+        if not cliente:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+
+        cliente_nome = (cliente.get("nome", "") or "").lower().strip()
+        cliente_tel = _norm_phone(cliente.get("telefone"))
+        cliente_email = (cliente.get("email") or "").strip().lower()
+
+        updated = []
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    proposta = json.load(f) or {}
+                vinculado = False
+                if proposta.get("cliente_id") == cliente_id:
+                    vinculado = True
+                else:
+                    p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                    if cliente_nome and p_nome and (p_nome == cliente_nome):
+                        vinculado = True
+                    p_tel = _norm_phone(proposta.get("cliente_telefone"))
+                    if (not vinculado) and cliente_tel and p_tel and p_tel == cliente_tel and len(cliente_tel) > 8:
+                        vinculado = True
+                    p_email = (proposta.get("cliente_email") or proposta.get("email_cliente") or "").strip().lower()
+                    if (not vinculado) and cliente_email and p_email and p_email == cliente_email:
+                        vinculado = True
+                if not vinculado:
+                    continue
+
+                if proposta.get("cliente_id") != cliente_id:
+                    proposta["cliente_id"] = cliente_id
+                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    with open(file, "w", encoding="utf-8") as f:
+                        json.dump(proposta, f, ensure_ascii=False, indent=2)
+                    updated.append(file.stem)
+            except Exception:
+                continue
+
+        return jsonify({
+            "success": True,
+            "cliente_id": cliente_id,
+            "propostas_vinculadas": len(updated),
+            "propostas_ids": updated[:50],
+            "source": "file",
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -4594,6 +4836,7 @@ def listar_projetos():
                 data = r.payload or {}
                 projetos.append({
                     "id": r.id,
+                    "proposta_id": r.id,
                     "nome_projeto": data.get("nome_projeto") or f"Projeto - {r.cliente_nome or 'Cliente'}",
                     "cliente_id": r.cliente_id,
                     "cliente": {
@@ -4631,6 +4874,7 @@ def listar_projetos():
                     "preco_venda": (data.get("preco_venda") or r.preco_final or 0),
                     "created_by": r.created_by,
                     "created_by_email": r.created_by_email,
+                    "user_id": r.created_by,
                     "vendedor_email": data.get("vendedor_email"),
                 })
             return jsonify(projetos)
