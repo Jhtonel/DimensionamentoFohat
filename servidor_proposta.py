@@ -749,7 +749,11 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         cas = tabelas.get("custo_acumulado_sem_solar_r") or []
         ca = tabelas.get("custo_anual_sem_solar_r") or []
         fca = tabelas.get("fluxo_caixa_acumulado_r") or []  # Fluxo com Lei 14.300
-        consumo_mes = (tabelas.get("consumo_mensal_kwh") or [0])[0] if tabelas else 0
+        consumo_tbl = (tabelas.get("consumo_mensal_kwh") or []) if tabelas else []
+        # `consumo_mensal_kwh` no núcleo pode vir como:
+        # - número único (média mensal) -> [avg]
+        # - vetor 12 meses -> [jan..dez]
+        consumo_mes = float(consumo_tbl[0]) if (isinstance(consumo_tbl, list) and len(consumo_tbl) >= 1) else 0
         prod_mes = (tabelas.get("producao_mensal_kwh_ano1") or [])
 
         meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -774,8 +778,89 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         s04_labs = [f"Ano {i+1}" for i in range(len(s04_vals))]
 
         # Slide 05 — Consumo vs Produção (kWh/mês - Ano 1)
-        # Produção já considera o Performance Ratio de 82%
-        consumo_vec = [float(consumo_mes)] * 12 if float(consumo_mes or 0) > 0 else [0.0] * 12
+        # Requisito: quando o usuário informa consumo mês a mês, usar o vetor real (não a média).
+        def _extract_consumo_vec() -> list[float]:
+            # 1) Preferir consumo mês-a-mês vindo do frontend (lista de dicts)
+            try:
+                cmm = proposta_data.get("consumo_mes_a_mes")
+                if isinstance(cmm, list) and len(cmm) > 0:
+                    out = [None] * 12
+                    months_map = {
+                        "jan": 0, "janeiro": 0,
+                        "fev": 1, "fevereiro": 1,
+                        "mar": 2, "março": 2, "marco": 2,
+                        "abr": 3, "abril": 3,
+                        "mai": 4, "maio": 4,
+                        "jun": 5, "junho": 5,
+                        "jul": 6, "julho": 6,
+                        "ago": 7, "agosto": 7,
+                        "set": 8, "setembro": 8,
+                        "out": 9, "outubro": 9,
+                        "nov": 10, "novembro": 10,
+                        "dez": 11, "dezembro": 11,
+                    }
+                    seq_i = 0
+                    for item in cmm[:24]:
+                        if not isinstance(item, dict):
+                            continue
+                        v = parse_float(item.get("kwh", item.get("valor", item.get("value", 0))), None)
+                        if v is None:
+                            continue
+                        mes_raw = (item.get("mes") or item.get("month") or item.get("label") or "")
+                        mes_s = str(mes_raw).strip().lower()
+                        idx = None
+                        # abreviações e nomes
+                        if mes_s in months_map:
+                            idx = months_map[mes_s]
+                        else:
+                            # "Jan/2026", "01/2026", "2026-01" etc.
+                            m = re.search(r"(\d{1,2})", mes_s)
+                            if m:
+                                try:
+                                    n = int(m.group(1))
+                                    if 1 <= n <= 12:
+                                        idx = n - 1
+                                except Exception:
+                                    idx = None
+                            if idx is None:
+                                # tentar por prefixo "jan", "fev", etc.
+                                for k, i in months_map.items():
+                                    if mes_s.startswith(k):
+                                        idx = i
+                                        break
+                        if idx is None:
+                            # fallback: assume ordem de inserção
+                            if seq_i < 12:
+                                idx = seq_i
+                                seq_i += 1
+                        if idx is not None and 0 <= idx < 12:
+                            out[idx] = float(v)
+                    vals = [x for x in out if isinstance(x, (int, float))]
+                    if vals:
+                        avg = sum(vals) / len(vals)
+                        return [float(x) if isinstance(x, (int, float)) else float(avg) for x in out]
+            except Exception:
+                pass
+
+            # 2) Vetores alternativos (legado/compat)
+            for k in [
+                "consumo_mensal_kwh_meses", "consumo_mes_a_mes_kwh", "consumo_kwh_mensal",
+                "consumo_kwh_12meses", "consumo_mensal_kwh_array"
+            ]:
+                v = proposta_data.get(k)
+                if isinstance(v, list) and len(v) >= 12:
+                    out = [parse_float(x, 0.0) for x in v[:12]]
+                    return [float(x) for x in out]
+
+            # 3) Se o núcleo já devolveu 12 meses, usar
+            if isinstance(consumo_tbl, list) and len(consumo_tbl) == 12:
+                return [parse_float(x, 0.0) for x in consumo_tbl]
+
+            # 4) Fallback: média mensal replicada
+            base = float(consumo_mes or 0.0)
+            return [base] * 12 if base > 0 else [0.0] * 12
+
+        consumo_vec = _extract_consumo_vec()
         prod_vec = [float(v) for v in (prod_mes[:12] if prod_mes else [])]
         if not prod_vec or len(prod_vec) != 12:
             prod_anual_kwh = (tabelas.get("producao_anual_kwh") or [0])[0] if tabelas else 0
@@ -2225,7 +2310,7 @@ def _save_formas_pagamento(data):
             logging.warning(f"Erro ao salvar formas de pagamento: {e}")
         except Exception:
             print(f"⚠️ Erro ao salvar formas de pagamento: {e}")
-        return False
+    return False
 
 @app.route('/config/formas-pagamento', methods=['GET'])
 def get_formas_pagamento():

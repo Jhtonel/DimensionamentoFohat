@@ -193,7 +193,7 @@ export default function AdminTaxas() {
           <CardHeader className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-t-lg">
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5" />
-              Cartão (PagSeguro - PoloCombate 50k)
+              Cartão (PagSeguro)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
