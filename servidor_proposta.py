@@ -34,7 +34,11 @@ import urllib.error
 from urllib.parse import urljoin
 from datetime import date
 import jwt
-import bcrypt
+try:
+    import bcrypt
+except Exception:
+    # bcrypt pode não existir em ambiente de dev/sandbox. Para geração de proposta isso não é necessário.
+    bcrypt = None
 
 app = Flask(__name__)
 CORS(app)
@@ -342,11 +346,15 @@ def _require_admin_access_app() -> bool:
         return False
 
 def _hash_password(password: str) -> str:
+    if not bcrypt:
+        raise RuntimeError("bcrypt não está disponível neste ambiente.")
     salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 def _check_password(password: str, password_hash: str) -> bool:
     try:
+        if not bcrypt:
+            return False
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except Exception:
         return False
@@ -1145,7 +1153,7 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         print(f"⚠️ Erro ao aplicar gráficos analise_financeira: {e}")
         return template_html
 
-def process_template_html(proposta_data):
+def process_template_html(proposta_data, template_filename: str = "template.html"):
     """
     Processa template HTML com todas as substituições de variáveis e gráficos.
     Esta função centraliza toda a lógica de processamento para ser reutilizada
@@ -1159,7 +1167,9 @@ def process_template_html(proposta_data):
     """
     try:
         # Carregar template HTML
-        template_path = Path(__file__).parent / "public" / "template.html"
+        # Permite usar um template alternativo (ex.: "template copy.html") para testes sem afetar o template oficial.
+        safe_name = (template_filename or "template.html").strip()
+        template_path = Path(__file__).parent / "public" / safe_name
         if not template_path.exists():
             raise FileNotFoundError("Template não encontrado")
         
