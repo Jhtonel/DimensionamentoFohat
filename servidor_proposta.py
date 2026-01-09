@@ -4416,6 +4416,7 @@ def transferir_cliente(cliente_id):
                 # - match por cliente_id (ideal)
                 # - match por telefone normalizado (mais confiável em dados legados)
                 # - match por nome (fallback)
+                # - match via payload JSON (legado)
                 conds = [PropostaDB.cliente_id == cliente_id]
                 if tel_norm and len(tel_norm) > 8:
                     conds.append(
@@ -4428,6 +4429,19 @@ def transferir_cliente(cliente_id):
                     )
                 if nome_norm:
                     conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+                # Legado: alguns registros têm dados só no payload
+                conds.append(PropostaDB.payload.op("->>")("cliente_id") == cliente_id)
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")) == nome_norm)
 
                 q = db.query(PropostaDB).filter(or_(*conds))
                 cand = q.all()
@@ -4439,11 +4453,22 @@ def transferir_cliente(cliente_id):
                         # se temos telefone, exigir match de telefone quando possível
                         if tel_norm and len(tel_norm) > 8:
                             p_tel = _norm_phone(p.cliente_telefone)
+                            if not p_tel:
+                                # fallback: tentar pelo payload
+                                try:
+                                    p_tel = _norm_phone((p.payload or {}).get("cliente_telefone"))
+                                except Exception:
+                                    p_tel = ""
                             if p_tel and p_tel != tel_norm:
                                 continue
                         else:
                             # sem telefone, exigir match estrito por nome
                             p_nome = (p.cliente_nome or "").strip().lower()
+                            if not p_nome:
+                                try:
+                                    p_nome = ((p.payload or {}).get("cliente_nome") or "").strip().lower()
+                                except Exception:
+                                    p_nome = ""
                             if not nome_norm or p_nome != nome_norm:
                                 continue
 
@@ -4597,6 +4622,19 @@ def backfill_propostas_cliente(cliente_id):
                     )
                 if nome_norm:
                     conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+                # Legado via payload JSON
+                conds.append(PropostaDB.payload.op("->>")("cliente_id") == cliente_id)
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")) == nome_norm)
 
                 cand = db.query(PropostaDB).filter(or_(*conds)).all()
                 updated = []
