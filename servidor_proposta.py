@@ -2190,6 +2190,7 @@ def _load_formas_pagamento():
                 value = json.loads(value)
             except Exception:
                 value = None
+
         if isinstance(value, dict) and value.get("pagseguro"):
             return value
     except Exception as e:
@@ -2198,6 +2199,7 @@ def _load_formas_pagamento():
             logging.warning(f"Erro ao carregar formas de pagamento: {e}")
         except Exception:
             print(f"⚠️ Erro ao carregar formas de pagamento: {e}")
+
     return DEFAULT_FORMAS_PAGAMENTO
 
 def _save_formas_pagamento(data):
@@ -2211,15 +2213,14 @@ def _save_formas_pagamento(data):
         db = SessionLocal()
         try:
             row = db.get(ConfigDB, "formas_pagamento")
-            payload = data
             if row:
-                row.data = payload
+                row.data = data
             else:
-                db.add(ConfigDB(id="formas_pagamento", data=payload))
+                db.add(ConfigDB(id="formas_pagamento", data=data))
             db.commit()
+            return True
         finally:
             db.close()
-        return True
     except Exception as e:
         try:
             logging.warning(f"Erro ao salvar formas de pagamento: {e}")
@@ -2316,9 +2317,9 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
                 formas_pagamento = inner
     except Exception:
         formas_pagamento = None
-
+    
     print(f"💳 [PAGAMENTO] Valor total: {valor_total}, Formas: {type(formas_pagamento)}")
-
+    
     # Garantir que temos os dados padrão se necessário
     if not isinstance(formas_pagamento, dict) or not formas_pagamento.get("pagseguro"):
         print("⚠️ [PAGAMENTO] Usando taxas padrão")
@@ -2329,7 +2330,7 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     parcelas_cartao_html = ""
     pagseguro_list = formas_pagamento.get("pagseguro", DEFAULT_FORMAS_PAGAMENTO["pagseguro"])
     print(f"💳 [PAGAMENTO] PagSeguro: {len(pagseguro_list)} opções")
-
+    
     # Montar mapa 1..18: defaults + override do config (se existir)
     default_ps = DEFAULT_FORMAS_PAGAMENTO.get("pagseguro") or []
     default_map = {}
@@ -4511,7 +4512,7 @@ def transferir_cliente(cliente_id):
             # IMPORTANTE: não acessar atributos do ORM após fechar a sessão (evita DetachedInstanceError)
             print(f"✅ Cliente '{nome_cliente}' transferido de '{old_owner}' para '{new_owner}'. Propostas transferidas: {propostas_transferidas}")
             return jsonify({
-                "success": True,
+                "success": True, 
                 "message": "Cliente transferido com sucesso",
                 "cliente_id": cliente_id,
                 "new_owner": new_owner,
@@ -4866,28 +4867,82 @@ def listar_projetos():
                 # Regra de negócio:
                 # - Se o CLIENTE é do usuário, ele deve conseguir ver as propostas desse cliente.
                 # - Além disso, suportar legado onde created_by/cliente_id existam apenas no payload.
-                owned_client_ids = db.query(ClienteDB.id).filter(
+                # Nota: materializar ids evita casos onde IN(subquery) + JSON ops não casam bem
+                # em alguns planos/tipos no Postgres.
+                owned_rows = db.query(ClienteDB.id, ClienteDB.nome, ClienteDB.telefone).filter(
                     (ClienteDB.created_by_email == me.email) |
                     (ClienteDB.created_by == me.uid)
-                )
+                ).all()
+                owned_ids = [r[0] for r in (owned_rows or []) if r and r[0]]
+
+                def _norm_phone(s):
+                    try:
+                        return re.sub(r"\D+", "", str(s or ""))
+                    except Exception:
+                        return ""
+
+                def _norm_name(s):
+                    return str(s or "").strip().lower()
+
+                phone_to_client_id = {}
+                name_to_client_id = {}
+                for cid, nome, tel in (owned_rows or []):
+                    n = _norm_name(nome)
+                    if n and len(n) >= 3:
+                        name_to_client_id.setdefault(n, cid)
+                    t = _norm_phone(tel)
+                    if t and len(t) > 8:
+                        phone_to_client_id.setdefault(t, cid)
+
                 q = q.filter(or_(
                     (PropostaDB.created_by_email == me.email),
                     (PropostaDB.created_by == me.uid),
                     (PropostaDB.payload.op("->>")("created_by_email") == me.email),
                     (PropostaDB.payload.op("->>")("created_by") == me.uid),
-                    (PropostaDB.cliente_id.in_(owned_client_ids)),
-                    (PropostaDB.payload.op("->>")("cliente_id").in_(owned_client_ids)),
+                    (PropostaDB.cliente_id.in_(owned_ids) if owned_ids else text("1=0")),
+                    (PropostaDB.payload.op("->>")("cliente_id").in_(owned_ids) if owned_ids else text("1=0")),
+                    # Legado: incluir propostas do usuário pelo vínculo do cliente via telefone/nome
+                    (
+                        func.regexp_replace(func.coalesce(PropostaDB.cliente_telefone, ""), r"\D", "", "g").in_(list(phone_to_client_id.keys()))
+                        if phone_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.lower(func.coalesce(PropostaDB.cliente_nome, "")).in_(list(name_to_client_id.keys()))
+                        if name_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.regexp_replace(func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""), r"\D", "", "g").in_(list(phone_to_client_id.keys()))
+                        if phone_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")).in_(list(name_to_client_id.keys()))
+                        if name_to_client_id else text("1=0")
+                    ),
                 ))
             rows = q.order_by(PropostaDB.created_at.desc()).all()
             db.close()
             projetos = []
             for r in rows:
                 data = r.payload or {}
+                # Inferir cliente_id correto para propostas legadas (para o contador na tela de Clientes)
+                inferred_cliente_id = r.cliente_id or (data.get("cliente_id") if isinstance(data, dict) else None)
+                if role not in ("admin", "gestor") and owned_ids:
+                    if inferred_cliente_id not in owned_ids:
+                        try:
+                            p_tel = _norm_phone(r.cliente_telefone) or _norm_phone((data or {}).get("cliente_telefone"))
+                            if p_tel and p_tel in phone_to_client_id:
+                                inferred_cliente_id = phone_to_client_id[p_tel]
+                            else:
+                                p_nome = _norm_name(r.cliente_nome) or _norm_name((data or {}).get("cliente_nome"))
+                                if p_nome and p_nome in name_to_client_id:
+                                    inferred_cliente_id = name_to_client_id[p_nome]
+                        except Exception:
+                            pass
                 projetos.append({
                     "id": r.id,
                     "proposta_id": r.id,
                     "nome_projeto": data.get("nome_projeto") or f"Projeto - {r.cliente_nome or 'Cliente'}",
-                    "cliente_id": r.cliente_id or (data.get("cliente_id") if isinstance(data, dict) else None),
+                    "cliente_id": inferred_cliente_id,
                     "cliente": {
                         "nome": r.cliente_nome,
                         "telefone": r.cliente_telefone,
