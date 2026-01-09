@@ -4863,10 +4863,21 @@ def listar_projetos():
             q = db.query(PropostaDB)
             role = (me.role or "").strip().lower()
             if role not in ("admin", "gestor"):
-                q = q.filter(
-                    (PropostaDB.created_by_email == me.email) |
-                    (PropostaDB.created_by == me.uid)
+                # Regra de negócio:
+                # - Se o CLIENTE é do usuário, ele deve conseguir ver as propostas desse cliente.
+                # - Além disso, suportar legado onde created_by/cliente_id existam apenas no payload.
+                owned_client_ids = db.query(ClienteDB.id).filter(
+                    (ClienteDB.created_by_email == me.email) |
+                    (ClienteDB.created_by == me.uid)
                 )
+                q = q.filter(or_(
+                    (PropostaDB.created_by_email == me.email),
+                    (PropostaDB.created_by == me.uid),
+                    (PropostaDB.payload.op("->>")("created_by_email") == me.email),
+                    (PropostaDB.payload.op("->>")("created_by") == me.uid),
+                    (PropostaDB.cliente_id.in_(owned_client_ids)),
+                    (PropostaDB.payload.op("->>")("cliente_id").in_(owned_client_ids)),
+                ))
             rows = q.order_by(PropostaDB.created_at.desc()).all()
             db.close()
             projetos = []
@@ -4876,7 +4887,7 @@ def listar_projetos():
                     "id": r.id,
                     "proposta_id": r.id,
                     "nome_projeto": data.get("nome_projeto") or f"Projeto - {r.cliente_nome or 'Cliente'}",
-                    "cliente_id": r.cliente_id,
+                    "cliente_id": r.cliente_id or (data.get("cliente_id") if isinstance(data, dict) else None),
                     "cliente": {
                         "nome": r.cliente_nome,
                         "telefone": r.cliente_telefone,
