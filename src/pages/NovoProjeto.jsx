@@ -421,21 +421,60 @@ export default function NovoProjeto() {
           };
 
           const normalized = { ...projetoEdit };
+          
           // Normalizações de campos (payload da proposta vs form do CRM)
           if (!normalized.nome_projeto && normalized.nome) normalized.nome_projeto = normalized.nome;
           if (!normalized.endereco_completo && normalized.cliente_endereco) normalized.endereco_completo = normalized.cliente_endereco;
           if (!normalized.cidade && normalized.cliente_cidade) normalized.cidade = normalized.cliente_cidade;
           if (!normalized.estado && (normalized.uf || normalized.cliente_estado)) normalized.estado = normalized.uf || normalized.cliente_estado;
           if (!normalized.potencia_kw && normalized.potencia_sistema) normalized.potencia_kw = normalized.potencia_sistema;
-          if ((!normalized.cep || !normalized.logradouro || !normalized.numero || !normalized.estado) && normalized.endereco_completo) {
-            const parsed = parseEnderecoCompleto(normalized.endereco_completo);
-            normalized.cep = normalized.cep || parsed.cep;
-            normalized.logradouro = normalized.logradouro || parsed.logradouro;
-            normalized.numero = normalized.numero || parsed.numero;
-            normalized.bairro = normalized.bairro || parsed.bairro;
-            normalized.cidade = normalized.cidade || parsed.cidade;
-            normalized.estado = normalized.estado || parsed.estado;
+          
+          // Tentar extrair dados do endereço completo se campos estiverem faltando
+          const enderecoParaParse = normalized.endereco_completo || normalized.cliente_endereco;
+          if (enderecoParaParse) {
+            const parsed = parseEnderecoCompleto(enderecoParaParse);
+            console.log('📋 [EDITAR] Parsed endereco:', parsed);
+            if (!normalized.cep && parsed.cep) normalized.cep = parsed.cep;
+            if (!normalized.logradouro && parsed.logradouro) normalized.logradouro = parsed.logradouro;
+            if (!normalized.numero && parsed.numero) normalized.numero = parsed.numero;
+            if (!normalized.bairro && parsed.bairro) normalized.bairro = parsed.bairro;
+            if (!normalized.cidade && parsed.cidade) normalized.cidade = parsed.cidade;
+            if (!normalized.estado && parsed.estado) normalized.estado = parsed.estado;
           }
+          
+          // Buscar dados do cliente se cliente_id existe e dados estão faltando
+          if (normalized.cliente_id && clientesData.length > 0) {
+            const clienteInfo = clientesData.find(c => c.id === normalized.cliente_id);
+            if (clienteInfo) {
+              console.log('📋 [EDITAR] Dados do cliente encontrados:', clienteInfo);
+              if (!normalized.cep && clienteInfo.cep) normalized.cep = clienteInfo.cep;
+              if (!normalized.cidade && clienteInfo.cidade) normalized.cidade = clienteInfo.cidade;
+              if (!normalized.estado && clienteInfo.estado) normalized.estado = clienteInfo.estado;
+              if (!normalized.endereco_completo && clienteInfo.endereco_completo) {
+                normalized.endereco_completo = clienteInfo.endereco_completo;
+                // Parse novamente se veio do cliente
+                const parsedCliente = parseEnderecoCompleto(clienteInfo.endereco_completo);
+                if (!normalized.logradouro && parsedCliente.logradouro) normalized.logradouro = parsedCliente.logradouro;
+                if (!normalized.numero && parsedCliente.numero) normalized.numero = parsedCliente.numero;
+                if (!normalized.bairro && parsedCliente.bairro) normalized.bairro = parsedCliente.bairro;
+                if (!normalized.cidade && parsedCliente.cidade) normalized.cidade = parsedCliente.cidade;
+                if (!normalized.estado && parsedCliente.estado) normalized.estado = parsedCliente.estado;
+                if (!normalized.cep && parsedCliente.cep) normalized.cep = parsedCliente.cep;
+              }
+              if (!normalized.cliente_telefone && clienteInfo.telefone) normalized.cliente_telefone = clienteInfo.telefone;
+              if (!normalized.cliente_nome && clienteInfo.nome) normalized.cliente_nome = clienteInfo.nome;
+            }
+          }
+          
+          console.log('📋 [EDITAR] Dados normalizados finais:', {
+            cep: normalized.cep,
+            cidade: normalized.cidade,
+            estado: normalized.estado,
+            logradouro: normalized.logradouro,
+            concessionaria: normalized.concessionaria,
+            consumo_mensal_kwh: normalized.consumo_mensal_kwh,
+            cliente_id: normalized.cliente_id,
+          });
 
           setFormData(prev => ({ ...prev, ...normalized }));
 

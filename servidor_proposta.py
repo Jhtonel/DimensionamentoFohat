@@ -6297,10 +6297,30 @@ def get_projeto(projeto_id):
                 return jsonify({"success": False, "message": "Não autorizado"}), 403
 
         data = row.payload or {}
-        db.close()
-
+        
         if not isinstance(data, dict):
             data = {}
+
+        # Buscar dados do cliente para preencher campos faltantes
+        cliente_id = row.cliente_id or data.get("cliente_id")
+        cliente_data = {}
+        if cliente_id:
+            try:
+                cliente_row = db.get(ClienteDB, cliente_id)
+                if cliente_row:
+                    cliente_data = {
+                        "cep": cliente_row.cep,
+                        "endereco_completo": cliente_row.endereco_completo,
+                        "cidade": cliente_row.cidade,
+                        "estado": cliente_row.estado,
+                        "telefone": cliente_row.telefone,
+                        "nome": cliente_row.nome,
+                    }
+                    print(f"📋 [get_projeto] Dados do cliente {cliente_id}: {cliente_data}")
+            except Exception as e:
+                print(f"⚠️ [get_projeto] Erro ao buscar cliente: {e}")
+        
+        db.close()
 
         # Fallbacks úteis para edição - incluir campos das colunas do banco
         if not data.get("nome_projeto"):
@@ -6335,6 +6355,23 @@ def get_projeto(projeto_id):
             data["potencia_placa_w"] = row.potencia_placa_w
         if not data.get("area_necessaria") and row.area_necessaria:
             data["area_necessaria"] = row.area_necessaria
+
+        # Fallback de dados do cliente (para propostas antigas sem esses campos)
+        if cliente_data:
+            if not data.get("cep") and cliente_data.get("cep"):
+                data["cep"] = cliente_data["cep"]
+            if not data.get("endereco_completo") and cliente_data.get("endereco_completo"):
+                data["endereco_completo"] = cliente_data["endereco_completo"]
+            if not data.get("cliente_endereco") and cliente_data.get("endereco_completo"):
+                data["cliente_endereco"] = cliente_data["endereco_completo"]
+            if not data.get("cidade") and cliente_data.get("cidade"):
+                data["cidade"] = cliente_data["cidade"]
+            if not data.get("estado") and cliente_data.get("estado"):
+                data["estado"] = cliente_data["estado"]
+            if not data.get("cliente_telefone") and cliente_data.get("telefone"):
+                data["cliente_telefone"] = cliente_data["telefone"]
+            if not data.get("cliente_nome") and cliente_data.get("nome"):
+                data["cliente_nome"] = cliente_data["nome"]
 
         # Retornar payload completo (mergeando id)
         result = {"id": row.id, **data}
