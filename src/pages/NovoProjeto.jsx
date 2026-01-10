@@ -36,22 +36,6 @@ export default function NovoProjeto() {
   const [activeTab, setActiveTab] = useState("basico");
   const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
-
-  // Não permitir avançar de aba sem concessionária selecionada
-  const hasConcessionaria = useCallback(() => {
-    return String(formData?.concessionaria || "").trim().length > 0;
-  }, [formData?.concessionaria]);
-
-  const goToTab = useCallback((nextTab) => {
-    // Só exigimos concessionária para sair do "basico"
-    const requiresConcessionaria = nextTab !== "basico";
-    if (requiresConcessionaria && !hasConcessionaria()) {
-      alert("Selecione a concessionária para avançar.");
-      setActiveTab("basico");
-      return;
-    }
-    setActiveTab(nextTab);
-  }, [hasConcessionaria]);
   
   // Hook para gerenciar custos via API Solaryum
   const {
@@ -85,6 +69,22 @@ export default function NovoProjeto() {
     percentual_margem_lucro: 30,
     status: "dimensionamento"
   });
+
+  // Não permitir avançar de aba sem concessionária selecionada
+  const hasConcessionaria = useCallback(() => {
+    return String(formData?.concessionaria || "").trim().length > 0;
+  }, [formData?.concessionaria]);
+
+  const goToTab = useCallback((nextTab) => {
+    // Só exigimos concessionária para sair do "basico"
+    const requiresConcessionaria = nextTab !== "basico";
+    if (requiresConcessionaria && !hasConcessionaria()) {
+      alert("Selecione a concessionária para avançar.");
+      setActiveTab("basico");
+      return;
+    }
+    setActiveTab(nextTab);
+  }, [hasConcessionaria]);
 
   // Cria um rascunho de projeto ao entrar na tela (se não existir)
   useEffect(() => {
