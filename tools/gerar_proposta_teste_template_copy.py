@@ -136,8 +136,8 @@ def main():
         "menor_parcela_financiamento": menor_parcela,
     }
 
-    html = process_template_html(proposta_data, template_filename="template copy.html")
-    out_path = Path(__file__).resolve().parent.parent / "public" / "proposta_teste_template_copy_rendered.html"
+    html = process_template_html(proposta_data, template_filename="template.html")
+    out_path = Path(__file__).resolve().parent.parent / "public" / "proposta_teste_rendered.html"
     out_path.write_text(html, encoding="utf-8")
 
     print(f"✅ Proposta teste gerada em: {out_path}")

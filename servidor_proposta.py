@@ -1548,7 +1548,9 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             core_calc = calcular_dimensionamento(core_payload)
             tabelas = core_calc.get("tabelas") or {}
             kpis_core = core_calc.get("metrics") or {}
-        except Exception:
+        except Exception as _calc_err:
+            print(f"⚠️ [ECON25] Erro ao calcular dimensionamento: {_calc_err}")
+            core_calc = {"tabelas": {}, "metrics": {}}
             tabelas = {}
             kpis_core = {}
 
@@ -1906,13 +1908,19 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                             color=label_color
                         )
 
-                tables = core_calc.get("tabelas") or {}
-                metrics = core_calc.get("metrics") or {}
+                # Usar as variáveis já calculadas anteriormente (tabelas, kpis_core)
+                # em vez de re-extrair de core_calc (que pode não existir se houve erro)
+                tables = tabelas if tabelas else (core_calc.get("tabelas") if 'core_calc' in dir() else {})
+                metrics = kpis_core if kpis_core else (core_calc.get("metrics") if 'core_calc' in dir() else {})
+                
+                print(f"📊 [GRAFICOS] Gerando gráficos estáticos - tabelas disponíveis: {list(tables.keys()) if tables else 'NENHUMA'}")
 
                 cas = tables.get("custo_acumulado_sem_solar_r") or []
                 ca = tables.get("custo_anual_sem_solar_r") or []
                 fca = tables.get("fluxo_caixa_acumulado_r") or []
                 prod = (tables.get("producao_mensal_kwh_ano1") or [])[:12]
+                
+                print(f"📊 [GRAFICOS] Dados: cas={len(cas)} itens, ca={len(ca)} itens, fca={len(fca)} itens, prod={len(prod)} itens")
 
                 # Consumo mês a mês (se existir) — senão média
                 consumo_vec = proposta_data.get("consumo_mes_a_mes_kwh")
@@ -2159,15 +2167,22 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                     print(f"⚠️ Falha ao gerar grafico5 estático: {_e}")
 
                 # Injetar os PNGs no HTML substituindo os containers por <img>
+                print(f"📊 [GRAFICOS] Gráficos gerados: {list(g.keys()) if g else 'NENHUM'}")
                 if g:
                     proposta_data.setdefault("graficos_base64", {})
                     proposta_data["graficos_base64"].update(g)
                     # reutilizar id_map + helper já definidos acima
                     for k, v in g.items():
                         if k in id_map and v:
-                            template_html = _inject_img_src(template_html, id_map[k], v)
+                            element_id = id_map[k]
+                            print(f"📊 [GRAFICOS] Injetando {k} -> #{element_id}")
+                            template_html = _inject_img_src(template_html, element_id, v)
+                else:
+                    print(f"⚠️ [GRAFICOS] Nenhum gráfico foi gerado!")
             except Exception as _e:
+                import traceback
                 print(f"⚠️ Falha ao gerar/injetar gráficos estáticos: {_e}")
+                traceback.print_exc()
         else:
             template_html = apply_analise_financeira_graphs(template_html, proposta_data)
         
