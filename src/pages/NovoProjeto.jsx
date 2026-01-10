@@ -387,126 +387,111 @@ export default function NovoProjeto() {
       try {
         const projetoEdit = await Projeto.getById(projetoId);
         console.log('📋 [EDITAR] Dados recebidos do backend:', projetoEdit);
-        console.log('📋 [EDITAR] Campos importantes:', {
-          cliente_id: projetoEdit?.cliente_id,
-          cep: projetoEdit?.cep,
-          endereco_completo: projetoEdit?.endereco_completo,
-          cliente_endereco: projetoEdit?.cliente_endereco,
-          concessionaria: projetoEdit?.concessionaria,
-          consumo_mensal_kwh: projetoEdit?.consumo_mensal_kwh,
-        });
+        
         if (projetoEdit) {
-          const parseEnderecoCompleto = (addr) => {
-            if (!addr || typeof addr !== 'string') return {};
-            const raw = addr.trim();
-            const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
-            const out = {};
-            // CEP (último token geralmente)
-            const cepMatch = raw.match(/\b(\d{5}-?\d{3})\b/);
-            if (cepMatch?.[1]) {
-              const v = cepMatch[1].replace('-', '');
-              out.cep = v.length === 8 ? `${v.slice(0, 5)}-${v.slice(5)}` : cepMatch[1];
-            }
-            // UF (token isolado tipo "SP")
-            const uf = parts.find(p => /^[A-Z]{2}$/.test(p));
-            if (uf) out.estado = uf;
-            // Cidade (um token antes do UF, no padrão "... Cidade, UF, CEP")
-            if (uf) {
-              const ufIdx = parts.findIndex(p => p === uf);
-              if (ufIdx > 0) out.cidade = parts[ufIdx - 1];
-            }
-            // Bairro (token antes da cidade)
-            if (out.cidade) {
-              const cityIdx = parts.findIndex(p => p === out.cidade);
-              if (cityIdx > 0) out.bairro = parts[cityIdx - 1];
-            }
-            // Logradouro + número: geralmente "Rua X" e depois "60"
-            if (parts.length > 0) out.logradouro = parts[0];
-            const numeroToken = parts.find(p => /^\d+[A-Za-z]?$/.test(p)) || parts[1];
-            if (numeroToken && /^\d/.test(numeroToken)) out.numero = numeroToken;
-            return out;
-          };
-
-          const normalized = { ...projetoEdit };
+          // PASSO 1: Copiar todos os dados do backend
+          const formFinal = { ...projetoEdit };
           
-          // Normalizações de campos (payload da proposta vs form do CRM)
-          if (!normalized.nome_projeto && normalized.nome) normalized.nome_projeto = normalized.nome;
-          if (!normalized.endereco_completo && normalized.cliente_endereco) normalized.endereco_completo = normalized.cliente_endereco;
-          if (!normalized.cidade && normalized.cliente_cidade) normalized.cidade = normalized.cliente_cidade;
-          if (!normalized.estado && (normalized.uf || normalized.cliente_estado)) normalized.estado = normalized.uf || normalized.cliente_estado;
-          if (!normalized.potencia_kw && normalized.potencia_sistema) normalized.potencia_kw = normalized.potencia_sistema;
+          // PASSO 2: Normalizações de nomes de campos
+          formFinal.nome_projeto = formFinal.nome_projeto || formFinal.nome || '';
+          formFinal.endereco_completo = formFinal.endereco_completo || formFinal.cliente_endereco || '';
+          formFinal.potencia_kw = formFinal.potencia_kw || formFinal.potencia_sistema || '';
+          formFinal.estado = formFinal.estado || formFinal.uf || formFinal.cliente_estado || '';
+          formFinal.cidade = formFinal.cidade || formFinal.cliente_cidade || '';
           
-          // Tentar extrair dados do endereço completo se campos estiverem faltando
-          const enderecoParaParse = normalized.endereco_completo || normalized.cliente_endereco;
-          if (enderecoParaParse) {
-            const parsed = parseEnderecoCompleto(enderecoParaParse);
-            console.log('📋 [EDITAR] Parsed endereco:', parsed);
-            if (!normalized.cep && parsed.cep) normalized.cep = parsed.cep;
-            if (!normalized.logradouro && parsed.logradouro) normalized.logradouro = parsed.logradouro;
-            if (!normalized.numero && parsed.numero) normalized.numero = parsed.numero;
-            if (!normalized.bairro && parsed.bairro) normalized.bairro = parsed.bairro;
-            if (!normalized.cidade && parsed.cidade) normalized.cidade = parsed.cidade;
-            if (!normalized.estado && parsed.estado) normalized.estado = parsed.estado;
-          }
+          // PASSO 3: Buscar dados do cliente (SEMPRE, se tiver cliente_id)
+          const clienteId = formFinal.cliente_id;
+          console.log('📋 [EDITAR] Buscando cliente:', clienteId, 'em', clientesData.length, 'clientes');
           
-          // Buscar dados do cliente se cliente_id existe e dados estão faltando
-          if (normalized.cliente_id && clientesData.length > 0) {
-            const clienteInfo = clientesData.find(c => c.id === normalized.cliente_id);
+          if (clienteId) {
+            const clienteInfo = clientesData.find(c => c.id === clienteId);
+            console.log('📋 [EDITAR] Cliente encontrado:', clienteInfo);
+            
             if (clienteInfo) {
-              console.log('📋 [EDITAR] Dados do cliente encontrados:', clienteInfo);
-              if (!normalized.cep && clienteInfo.cep) normalized.cep = clienteInfo.cep;
-              if (!normalized.cidade && clienteInfo.cidade) normalized.cidade = clienteInfo.cidade;
-              if (!normalized.estado && clienteInfo.estado) normalized.estado = clienteInfo.estado;
-              if (!normalized.endereco_completo && clienteInfo.endereco_completo) {
-                normalized.endereco_completo = clienteInfo.endereco_completo;
-                // Parse novamente se veio do cliente
-                const parsedCliente = parseEnderecoCompleto(clienteInfo.endereco_completo);
-                if (!normalized.logradouro && parsedCliente.logradouro) normalized.logradouro = parsedCliente.logradouro;
-                if (!normalized.numero && parsedCliente.numero) normalized.numero = parsedCliente.numero;
-                if (!normalized.bairro && parsedCliente.bairro) normalized.bairro = parsedCliente.bairro;
-                if (!normalized.cidade && parsedCliente.cidade) normalized.cidade = parsedCliente.cidade;
-                if (!normalized.estado && parsedCliente.estado) normalized.estado = parsedCliente.estado;
-                if (!normalized.cep && parsedCliente.cep) normalized.cep = parsedCliente.cep;
+              // Preencher TODOS os campos do cliente que estiverem faltando
+              formFinal.cliente_nome = formFinal.cliente_nome || clienteInfo.nome || '';
+              formFinal.cliente_telefone = formFinal.cliente_telefone || clienteInfo.telefone || '';
+              formFinal.cep = formFinal.cep || clienteInfo.cep || '';
+              formFinal.cidade = formFinal.cidade || clienteInfo.cidade || '';
+              formFinal.estado = formFinal.estado || clienteInfo.estado || '';
+              formFinal.endereco_completo = formFinal.endereco_completo || clienteInfo.endereco_completo || '';
+              
+              // Parse do endereço completo do cliente para extrair campos individuais
+              if (clienteInfo.endereco_completo && (!formFinal.logradouro || !formFinal.bairro)) {
+                const addr = clienteInfo.endereco_completo;
+                const parts = addr.split(',').map(p => p.trim()).filter(Boolean);
+                
+                // CEP
+                const cepMatch = addr.match(/\b(\d{5}-?\d{3})\b/);
+                if (cepMatch?.[1] && !formFinal.cep) {
+                  const v = cepMatch[1].replace('-', '');
+                  formFinal.cep = v.length === 8 ? `${v.slice(0, 5)}-${v.slice(5)}` : cepMatch[1];
+                }
+                
+                // UF (estado)
+                const uf = parts.find(p => /^[A-Z]{2}$/.test(p));
+                if (uf && !formFinal.estado) formFinal.estado = uf;
+                
+                // Cidade (antes do UF)
+                if (uf && !formFinal.cidade) {
+                  const ufIdx = parts.findIndex(p => p === uf);
+                  if (ufIdx > 0) formFinal.cidade = parts[ufIdx - 1];
+                }
+                
+                // Bairro (antes da cidade)
+                if (formFinal.cidade && !formFinal.bairro) {
+                  const cityIdx = parts.findIndex(p => p === formFinal.cidade);
+                  if (cityIdx > 0) formFinal.bairro = parts[cityIdx - 1];
+                }
+                
+                // Logradouro (primeiro elemento)
+                if (parts.length > 0 && !formFinal.logradouro) formFinal.logradouro = parts[0];
+                
+                // Número (segundo elemento ou primeiro número)
+                if (!formFinal.numero) {
+                  const numeroToken = parts.find(p => /^\d+[A-Za-z]?$/.test(p)) || parts[1];
+                  if (numeroToken && /^\d/.test(numeroToken)) formFinal.numero = numeroToken;
+                }
               }
-              if (!normalized.cliente_telefone && clienteInfo.telefone) normalized.cliente_telefone = clienteInfo.telefone;
-              if (!normalized.cliente_nome && clienteInfo.nome) normalized.cliente_nome = clienteInfo.nome;
             }
           }
           
-          console.log('📋 [EDITAR] Dados normalizados finais:', {
-            cep: normalized.cep,
-            cidade: normalized.cidade,
-            estado: normalized.estado,
-            logradouro: normalized.logradouro,
-            concessionaria: normalized.concessionaria,
-            consumo_mensal_kwh: normalized.consumo_mensal_kwh,
-            cliente_id: normalized.cliente_id,
+          console.log('📋 [EDITAR] Dados finais para o formulário:', {
+            cliente_id: formFinal.cliente_id,
+            cliente_nome: formFinal.cliente_nome,
+            cep: formFinal.cep,
+            cidade: formFinal.cidade,
+            estado: formFinal.estado,
+            logradouro: formFinal.logradouro,
+            concessionaria: formFinal.concessionaria,
+            consumo_mensal_kwh: formFinal.consumo_mensal_kwh,
           });
 
-          setFormData(prev => ({ ...prev, ...normalized }));
+          // PASSO 4: Atualizar o formulário com TODOS os dados
+          setFormData(prev => ({ ...prev, ...formFinal }));
           
           // Marcar que os dados foram carregados (habilita auto-save)
           setTimeout(() => setDadosCarregados(true), 500);
 
-          if (Array.isArray(normalized.consumo_mes_a_mes) && normalized.consumo_mes_a_mes.length > 0) {
+          if (Array.isArray(formFinal.consumo_mes_a_mes) && formFinal.consumo_mes_a_mes.length > 0) {
             setTipoConsumo("mes_a_mes");
           }
 
-          const pot = normalized.potencia_sistema_kwp || normalized.potencia_sistema || normalized.potencia_kw;
+          const pot = formFinal.potencia_sistema_kwp || formFinal.potencia_sistema || formFinal.potencia_kw;
           if (pot) {
             setResultados({
-              potencia_sistema_kwp: normalized.potencia_sistema_kwp || normalized.potencia_sistema || normalized.potencia_kw,
-              quantidade_placas: normalized.quantidade_placas,
-              custo_total: normalized.custo_total,
-              preco_final: normalized.preco_final || normalized.preco_venda,
-              economia_mensal_estimada: normalized.economia_mensal_estimada,
-              payback_meses: normalized.payback_meses,
-              custo_equipamentos: normalized.custo_equipamentos,
-              custo_instalacao: normalized.custo_instalacao,
-              custo_homologacao: normalized.custo_homologacao,
-              custo_ca: normalized.custo_ca,
-              custo_plaquinhas: normalized.custo_plaquinhas,
-              custo_obra: normalized.custo_obra
+              potencia_sistema_kwp: formFinal.potencia_sistema_kwp || formFinal.potencia_sistema || formFinal.potencia_kw,
+              quantidade_placas: formFinal.quantidade_placas,
+              custo_total: formFinal.custo_total,
+              preco_final: formFinal.preco_final || formFinal.preco_venda,
+              economia_mensal_estimada: formFinal.economia_mensal_estimada,
+              payback_meses: formFinal.payback_meses,
+              custo_equipamentos: formFinal.custo_equipamentos,
+              custo_instalacao: formFinal.custo_instalacao,
+              custo_homologacao: formFinal.custo_homologacao,
+              custo_ca: formFinal.custo_ca,
+              custo_plaquinhas: formFinal.custo_plaquinhas,
+              custo_obra: formFinal.custo_obra
             });
           }
         }
