@@ -1466,11 +1466,12 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             # 3) Se é um <div id="..."> (container do gráfico), substituir por <img>
             # Regex mais robusto: captura divs vazios (com espaços/newlines) ou com comentários
             pattern3 = re.compile(
-                r'<div\b(?P<attrs>[^>]*\bid=["\']%s["\'][^>]*)>(?:\s|<!--[^>]*-->)*</div>' % re.escape(element_id),
+                r'<div\b(?P<attrs>[^>]*\bid=["\']%s["\'][^>]*)>\s*</div>' % re.escape(element_id),
                 flags=re.IGNORECASE
             )
             m = pattern3.search(html)
             if m:
+                print(f"   ✅ Pattern3 matched for {element_id}")
                 attrs = m.group('attrs') or ''
                 alt = "Gráfico"
                 m_alt = re.search(r'aria-label=["\']([^"\']+)["\']', attrs, flags=re.IGNORECASE)
@@ -1484,13 +1485,14 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                 )
                 return html[:m.start()] + img_tag + html[m.end():]
             
-            # 4) Fallback: Tentar encontrar o elemento por ID e substituir todo o tag
+            # 4) Fallback: Tentar encontrar o elemento por ID e substituir todo o tag (aceita conteúdo)
             pattern4 = re.compile(
-                r'<div\b[^>]*\bid=["\']%s["\'][^>]*>.*?</div>' % re.escape(element_id),
-                flags=re.IGNORECASE | re.DOTALL
+                r'<div\b[^>]*\bid=["\']%s["\'][^>]*>[\s\S]*?</div>' % re.escape(element_id),
+                flags=re.IGNORECASE
             )
             m = pattern4.search(html)
             if m:
+                print(f"   ✅ Pattern4 (fallback) matched for {element_id}")
                 img_tag = (
                     f'<img id="{element_id}" '
                     f'src="{new_src}" '
@@ -1499,17 +1501,29 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                 )
                 return html[:m.start()] + img_tag + html[m.end():]
             
+            print(f"   ⚠️ No pattern matched for {element_id} - element not found in HTML")
             return html
 
-        # ====== Sem gerar novos gráficos: aplicar somente os já fornecidos (se existirem) ======
+        # ====== Verificar se há gráficos pré-salvos (graficos_base64) ======
+        # NOTA: Esses gráficos podem estar vazios ou desatualizados.
+        # A geração de gráficos estáticos abaixo vai sobrescrever se necessário.
         try:
-            graficos = proposta_data.get('graficos_base64')
-            if isinstance(graficos, dict):
-                for k, v in graficos.items():
-                    if k in id_map and v:
+            graficos_salvos = proposta_data.get('graficos_base64')
+            if isinstance(graficos_salvos, dict) and graficos_salvos:
+                print(f"📊 [GRAFICOS] Encontrados gráficos pré-salvos: {list(graficos_salvos.keys())}")
+                # Verificar se os gráficos são válidos (strings base64 não vazias)
+                graficos_validos = {k: v for k, v in graficos_salvos.items() 
+                                   if k in id_map and isinstance(v, str) and len(v) > 100}
+                if graficos_validos:
+                    print(f"📊 [GRAFICOS] Gráficos válidos para injeção: {list(graficos_validos.keys())}")
+                    for k, v in graficos_validos.items():
                         template_html = _inject_img_src(template_html, id_map[k], v)
+                else:
+                    print(f"⚠️ [GRAFICOS] Nenhum gráfico pré-salvo é válido - serão regenerados")
+            else:
+                print(f"📊 [GRAFICOS] Nenhum gráfico pré-salvo encontrado - serão gerados")
         except Exception as _e:
-            print(f"⚠️ Falha ao injetar gráficos prontos: {_e}")
+            print(f"⚠️ Falha ao verificar gráficos prontos: {_e}")
         
         # Substituir variáveis restantes com dados REAIS calculados pelo núcleo (sem mocks)
         try:
@@ -1785,12 +1799,18 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         if use_static_charts:
             try:
                 # Gerar PNGs estáticos (Matplotlib) a partir das tabelas do núcleo
-                import matplotlib
-                matplotlib.use("Agg")
-                import matplotlib.pyplot as plt
-                from matplotlib.ticker import FuncFormatter
-                from matplotlib.patches import FancyBboxPatch
-                import numpy as np
+                try:
+                    import matplotlib
+                    matplotlib.use("Agg")
+                    import matplotlib.pyplot as plt
+                    from matplotlib.ticker import FuncFormatter
+                    from matplotlib.patches import FancyBboxPatch
+                    import numpy as np
+                    print("📊 [GRAFICOS] Matplotlib carregado com sucesso")
+                except ImportError as import_err:
+                    print(f"❌ [GRAFICOS] ERRO CRÍTICO: Matplotlib não instalado! {import_err}")
+                    print("❌ [GRAFICOS] Adicione 'matplotlib' e 'numpy' ao requirements.txt")
+                    raise
 
                 # ====== TEMA VISUAL PREMIUM - Design Moderno 2024 ======
                 # Paleta de cores vibrante e moderna
