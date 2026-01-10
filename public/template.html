@@ -68,10 +68,35 @@
   @page {
     size: A4 landscape;
     margin: 0;
+    padding: 0;
+  }
+  @page :first {
+    margin: 0;
+    padding: 0;
   }
   @media print {
-    body { background: none; }
-    .page { box-shadow: none; margin: 0; page-break-after: always; }
+    html, body { 
+      margin: 0 !important; 
+      padding: 0 !important;
+      background: none;
+    }
+    .page { 
+      box-shadow: none !important; 
+      margin: 0 !important; 
+      page-break-after: always;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    /* Garantir que a capa não tenha margem extra */
+    .slide-01-cover {
+      margin: 0 !important;
+      padding: 0 !important;
+      page-break-before: avoid;
+    }
+    #slide-01 {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
   }
 
   /* --- Estrutura da Página (Slide) --- */
@@ -1243,8 +1268,6 @@
       </div>
     </div>
   </section>
-
-</div>
 
 </body>
 </html>

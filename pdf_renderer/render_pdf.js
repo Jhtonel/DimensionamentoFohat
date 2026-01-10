@@ -61,25 +61,41 @@ async function main() {
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1.5 });
 
     console.error("Setting HTML content...");
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
     
-    // Aguardar scripts executarem
+    // Aguardar scripts executarem completamente
     console.error("Waiting for scripts...");
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1500));
     
-    // Aguardar ECharts (com timeout curto)
+    // Aguardar ECharts renderizar os gráficos
     try {
       await page.waitForFunction(
         "window.__FOHAT_ECHARTS_READY__ === true",
-        { timeout: 5000 }
+        { timeout: 10000 }
       );
       console.error("ECharts ready!");
+      // Dar tempo extra para os gráficos SVG serem renderizados
+      await new Promise(r => setTimeout(r, 1000));
     } catch (_) {
-      console.error("ECharts timeout - continuing...");
+      console.error("ECharts timeout - continuing anyway...");
     }
     
-    // Delay final
-    await new Promise(r => setTimeout(r, 200));
+    // Aguardar todas as imagens e SVGs carregarem
+    try {
+      await page.evaluate(() => {
+        return Promise.all([
+          ...Array.from(document.images).filter(img => !img.complete).map(img => 
+            new Promise(resolve => { img.onload = img.onerror = resolve; })
+          ),
+          ...Array.from(document.querySelectorAll('svg')).map(() => Promise.resolve())
+        ]);
+      });
+    } catch (_) {
+      console.error("Image wait error - continuing...");
+    }
+    
+    // Delay final para garantir renderização completa
+    await new Promise(r => setTimeout(r, 500));
 
     console.error("Generating PDF...");
     const pdf = await page.pdf({
