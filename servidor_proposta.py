@@ -6302,13 +6302,39 @@ def get_projeto(projeto_id):
         if not isinstance(data, dict):
             data = {}
 
-        # Fallbacks úteis para edição (não dependem do CRM ter enviado antes)
+        # Fallbacks úteis para edição - incluir campos das colunas do banco
         if not data.get("nome_projeto"):
             data["nome_projeto"] = data.get("nome") or f"Projeto - {row.cliente_nome or 'Cliente'}"
+        if not data.get("cliente_id") and row.cliente_id:
+            data["cliente_id"] = row.cliente_id
+        if not data.get("cliente_nome") and row.cliente_nome:
+            data["cliente_nome"] = row.cliente_nome
         if not data.get("cliente_endereco") and row.cliente_endereco:
             data["cliente_endereco"] = row.cliente_endereco
+        if not data.get("cliente_telefone") and row.cliente_telefone:
+            data["cliente_telefone"] = row.cliente_telefone
         if not data.get("cidade") and row.cidade:
             data["cidade"] = row.cidade
+        if not data.get("potencia_sistema") and row.potencia_sistema:
+            data["potencia_sistema"] = row.potencia_sistema
+        if not data.get("preco_venda") and row.preco_venda:
+            data["preco_venda"] = row.preco_venda
+        if not data.get("preco_final") and row.preco_venda:
+            data["preco_final"] = row.preco_venda
+        if not data.get("consumo_mensal_kwh") and row.consumo_mensal_kwh:
+            data["consumo_mensal_kwh"] = row.consumo_mensal_kwh
+        if not data.get("tarifa_energia") and row.tarifa_energia:
+            data["tarifa_energia"] = row.tarifa_energia
+        if not data.get("concessionaria") and row.concessionaria:
+            data["concessionaria"] = row.concessionaria
+        if not data.get("geracao_media_mensal") and row.geracao_media_mensal:
+            data["geracao_media_mensal"] = row.geracao_media_mensal
+        if not data.get("quantidade_placas") and row.quantidade_placas:
+            data["quantidade_placas"] = row.quantidade_placas
+        if not data.get("potencia_placa_w") and row.potencia_placa_w:
+            data["potencia_placa_w"] = row.potencia_placa_w
+        if not data.get("area_necessaria") and row.area_necessaria:
+            data["area_necessaria"] = row.area_necessaria
 
         # Retornar payload completo (mergeando id)
         return jsonify({

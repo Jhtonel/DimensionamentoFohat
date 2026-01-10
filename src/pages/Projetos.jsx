@@ -161,25 +161,16 @@ export default function Projetos() {
         });
       }
       
-      // 3. Filtro Vendedor (vê apenas seus projetos ou projetos onde é vendedor)
-      // Nota: projetos legados sem vendedor_email/created_by são mostrados para todos
+      // 3. Filtro Vendedor/Instalador - o backend já filtra corretamente
+      // Confia no backend que retorna apenas propostas que o usuário pode ver:
+      // - Propostas onde ele é o criador
+      // - Propostas de clientes que pertencem a ele
+      // Não precisamos filtrar novamente aqui
       if (user && user.uid) {
-        return arr.filter(p => {
-          const hasOwner = p.vendedor_email || p.created_by || p.payload?.vendedor_email;
-          // Projetos legados (sem dono) são exibidos para todos os vendedores
-          if (!hasOwner) return true;
-          // Projetos com dono: verificar se pertence ao usuário atual
-          const userEmailLower = (user.email || '').toLowerCase();
-          return (
-            (p.vendedor_email && p.vendedor_email.toLowerCase() === userEmailLower) || 
-            p.created_by === user.uid ||
-            (p.payload?.vendedor_email && p.payload.vendedor_email.toLowerCase() === userEmailLower) ||
-            (p.created_by_email && p.created_by_email.toLowerCase() === userEmailLower)
-          );
-        });
+        return arr; // Backend já filtrou
       }
 
-      return []; // Segurança
+      return []; // Segurança - usuário não autenticado
     })();
     
     if (!searchTerm) {
