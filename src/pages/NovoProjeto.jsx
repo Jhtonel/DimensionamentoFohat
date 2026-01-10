@@ -388,6 +388,17 @@ export default function NovoProjeto() {
         const projetoEdit = await Projeto.getById(projetoId);
         console.log('📋 [EDITAR] Dados recebidos do backend:', projetoEdit);
         
+        // DEBUG: Mostrar alerta com dados recebidos
+        const camposDebug = {
+          cliente_id: projetoEdit?.cliente_id,
+          cidade: projetoEdit?.cidade,
+          cep: projetoEdit?.cep,
+          concessionaria: projetoEdit?.concessionaria,
+          consumo_mensal_kwh: projetoEdit?.consumo_mensal_kwh,
+        };
+        console.log('🔍 DEBUG - Campos do backend:', JSON.stringify(camposDebug, null, 2));
+        alert(`DEBUG - Dados do backend:\n${JSON.stringify(camposDebug, null, 2)}`);
+        
         if (projetoEdit) {
           // PASSO 1: Copiar todos os dados do backend
           const formFinal = { ...projetoEdit };
@@ -468,7 +479,14 @@ export default function NovoProjeto() {
           });
 
           // PASSO 4: Atualizar o formulário com TODOS os dados
-          setFormData(prev => ({ ...prev, ...formFinal }));
+          console.log('🔥 [EDITAR] ANTES do setFormData');
+          setFormData(prev => {
+            console.log('🔥 [EDITAR] Estado anterior:', { cidade: prev.cidade, cep: prev.cep, cliente_id: prev.cliente_id });
+            const novoEstado = { ...prev, ...formFinal };
+            console.log('🔥 [EDITAR] Novo estado:', { cidade: novoEstado.cidade, cep: novoEstado.cep, cliente_id: novoEstado.cliente_id });
+            return novoEstado;
+          });
+          console.log('🔥 [EDITAR] DEPOIS do setFormData (assíncrono)');
           
           // Marcar que os dados foram carregados (habilita auto-save)
           setTimeout(() => setDadosCarregados(true), 500);
