@@ -372,8 +372,7 @@ export default function Clientes() {
   const ClienteDetailsModal = ({ cliente, onClose }) => {
     const [transferring, setTransferring] = useState(false);
     const [selectedNewOwner, setSelectedNewOwner] = useState('');
-    const [downloadingPdf, setDownloadingPdf] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState(0);
+    const [showDownloadPopup, setShowDownloadPopup] = useState(false);
     
     if (!cliente) return null;
     const projetosCliente = getProjetosDoCliente(cliente.id);
@@ -460,20 +459,21 @@ export default function Clientes() {
           className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden relative"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Overlay de Download */}
-          {downloadingPdf && (
-            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-              <div className="text-center">
-                <div className="w-16 h-16 border-4 border-fohat-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">Gerando PDF...</h3>
-                <p className="text-sm text-gray-500 mb-4">Aguarde enquanto preparamos sua proposta</p>
-                <div className="w-64 h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-fohat-blue to-blue-500 transition-all duration-300 rounded-full"
-                    style={{ width: `${downloadProgress}%` }}
-                  ></div>
+          {/* Popup de Download */}
+          {showDownloadPopup && (
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Download className="w-8 h-8 text-green-600" />
                 </div>
-                <p className="text-sm font-medium text-fohat-blue mt-2">{downloadProgress}%</p>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Download Iniciado!</h3>
+                <p className="text-sm text-gray-500 mb-6">O PDF será baixado automaticamente.<br/>Aguarde alguns segundos.</p>
+                <Button
+                  onClick={() => setShowDownloadPopup(false)}
+                  className="bg-fohat-blue hover:bg-fohat-dark text-white px-8"
+                >
+                  OK
+                </Button>
               </div>
             </div>
           )}
@@ -664,12 +664,11 @@ export default function Clientes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                disabled={downloadingPdf}
                                 onClick={async () => {
+                                  // Mostrar popup informativo
+                                  setShowDownloadPopup(true);
+                                  
                                   try {
-                                    setDownloadingPdf(true);
-                                    setDownloadProgress(0);
-                                    
                                     // Extrair proposta_id da URL
                                     const urlParts = projeto.url_proposta.split('/');
                                     const propostaId = urlParts[urlParts.length - 1];
@@ -685,28 +684,7 @@ export default function Clientes() {
                                       throw new Error(err.message || 'Erro ao baixar PDF');
                                     }
                                     
-                                    // Ler com progresso
-                                    const contentLength = response.headers.get('content-length');
-                                    const total = contentLength ? parseInt(contentLength, 10) : 0;
-                                    const reader = response.body.getReader();
-                                    const chunks = [];
-                                    let received = 0;
-                                    
-                                    while (true) {
-                                      const { done, value } = await reader.read();
-                                      if (done) break;
-                                      chunks.push(value);
-                                      received += value.length;
-                                      if (total > 0) {
-                                        setDownloadProgress(Math.round((received / total) * 100));
-                                      } else {
-                                        // Se não temos content-length, simular progresso
-                                        setDownloadProgress(Math.min(95, received / 10000));
-                                      }
-                                    }
-                                    
-                                    setDownloadProgress(100);
-                                    const blob = new Blob(chunks, { type: 'application/pdf' });
+                                    const blob = await response.blob();
                                     const url = window.URL.createObjectURL(blob);
                                     const a = document.createElement('a');
                                     a.href = url;
@@ -717,10 +695,8 @@ export default function Clientes() {
                                     document.body.removeChild(a);
                                   } catch (error) {
                                     console.error('Erro ao baixar PDF:', error);
+                                    setShowDownloadPopup(false);
                                     alert('Erro ao baixar PDF: ' + error.message);
-                                  } finally {
-                                    setDownloadingPdf(false);
-                                    setDownloadProgress(0);
                                   }
                                 }}
                                 className="text-orange-600 hover:bg-orange-50 h-8 w-8"
