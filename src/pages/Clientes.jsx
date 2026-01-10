@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Clock,
   User,
-  Home
+  Home,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -630,15 +631,26 @@ export default function Clientes() {
                         </div>
                         <div className="flex gap-1">
                           {projeto.url_proposta && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(projeto.url_proposta, '_blank')}
-                              className="text-green-600 hover:bg-green-50 h-8 w-8"
-                              title="Ver Proposta"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(projeto.url_proposta, '_blank')}
+                                className="text-green-600 hover:bg-green-50 h-8 w-8"
+                                title="Ver Proposta"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`${projeto.url_proposta}?download=pdf`, '_blank')}
+                                className="text-orange-600 hover:bg-orange-50 h-8 w-8"
+                                title="Baixar Proposta (PDF)"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                           <Button
                             variant="ghost"

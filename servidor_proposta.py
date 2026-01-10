@@ -15,7 +15,7 @@ import math
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, redirect
 from flask_cors import CORS
 import io
 import re
@@ -4497,6 +4497,12 @@ def gerar_pdf(proposta_id):
 def visualizar_proposta(proposta_id):
     try:
         print(f"🔎 [visualizar_proposta] GET /proposta/{proposta_id}")
+        
+        # Verificar se é um pedido de download de PDF
+        download_mode = request.args.get('download', '').lower()
+        if download_mode == 'pdf':
+            # Redirecionar para o endpoint de PDF
+            return redirect(f'/propostas/{proposta_id}/pdf')
         
         # Registrar visualização para métricas
         metrics = _registrar_visualizacao(proposta_id, request)
