@@ -549,6 +549,67 @@
     line-height: 1.3;
   }
 
+  /* --- Google Reviews Card (Detalhado) --- */
+  .google-reviews-container {
+    background: white;
+    border: 1px solid var(--n-200);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    width: 100%;
+    text-align: left;
+  }
+  .review-item {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--n-100);
+    display: flex;
+    gap: 12px;
+  }
+  .review-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  .review-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--n-200);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .review-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .review-content {
+    flex: 1;
+  }
+  .review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .review-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--n-900);
+  }
+  .review-stars {
+    color: #F59E0B;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  .review-text {
+    font-size: 12px;
+    color: var(--n-700);
+    line-height: 1.4;
+    margin: 0;
+  }
+
   /* --- Timeline Horizontal (Restaurada) --- */
   .cronograma-content{
     width: 100%;
@@ -700,13 +761,150 @@
     </div>
   </section>
 
+  <!-- ====== SLIDE EXTRA: POR QUE A FOHAT ====== -->
+  <section class="page" id="slide-fohat">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Por que escolher a Fohat?</h2>
+        <div class="header-meta">{{cliente_nome}} | 02</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <div class="col">
+          <div class="card highlight" style="display:flex; flex-direction:column; justify-content:center; gap:28px; padding: 36px;">
+            <div>
+              <h3 class="card-title" style="margin-bottom:12px;">A opção mais confiável e segura</h3>
+              <p class="lead-text" style="font-size:16px; opacity:0.9;">
+                Não somos apenas instaladores. Somos uma <strong>empresa de engenharia completa</strong>, comprometida com a segurança do seu patrimônio.
+              </p>
+            </div>
+            
+            <div style="width:100%; height:1px; background:rgba(0,0,0,0.06);"></div>
+
+            <div style="display:flex; flex-direction:column; gap:28px;">
+              <!-- Item 1 -->
+              <div style="display:flex; gap:18px; align-items:flex-start;">
+                <div style="background:white; width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--brand-primary); box-shadow:var(--shadow-sm); flex-shrink:0;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                </div>
+                <div>
+                  <h4 style="font-size:15px; font-weight:800; color:var(--n-900); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Equipe Própria e Especializada</h4>
+                  <p style="font-size:14px; color:var(--n-700); line-height:1.5; margin:0;">
+                    Nossos engenheiros e técnicos são treinados para seguir as normas mais rigorosas de segurança (NR-10, NR-35).
+                  </p>
+                </div>
+              </div>
+
+              <!-- Item 2 -->
+              <div style="display:flex; gap:18px; align-items:flex-start;">
+                <div style="background:white; width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--brand-primary); box-shadow:var(--shadow-sm); flex-shrink:0;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <div>
+                  <h4 style="font-size:15px; font-weight:800; color:var(--n-900); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Segurança Jurídica</h4>
+                  <p style="font-size:14px; color:var(--n-700); line-height:1.5; margin:0;">
+                    Contratos transparentes, homologação garantida e equipamentos de primeira linha com garantias reais.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Item 3 -->
+              <div style="display:flex; gap:18px; align-items:flex-start;">
+                <div style="background:white; width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--brand-primary); box-shadow:var(--shadow-sm); flex-shrink:0;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                </div>
+                <div>
+                  <h4 style="font-size:15px; font-weight:800; color:var(--n-900); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Equipamentos Premium</h4>
+                  <p style="font-size:14px; color:var(--n-700); line-height:1.5; margin:0;">
+                    Trabalhamos apenas com marcas Tier 1 globais, garantindo máxima eficiência e durabilidade para o seu sistema.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 24px 24px 0 24px;">
+              <h3 class="card-title">Reconhecimento do Mercado</h3>
+              <p>A satisfação dos nossos clientes é o nosso maior selo de qualidade.</p>
+            </div>
+
+            <div class="google-reviews-container" style="border:none; box-shadow:none; padding-top:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--n-200);">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" style="height:24px;">
+                    <div style="text-align:left;">
+                      <div style="font-weight:700; font-size:16px; color:#5f6368; line-height:1;">Google Avaliações</div>
+                      <div style="font-size:12px; color:#5f6368;">Excelência comprovada</div>
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:24px; font-weight:800; color:#1E3A8A; line-height:1;">5.0</div>
+                    <div style="color:#F59E0B; font-size:14px;">★★★★★</div>
+                  </div>
+                </div>
+
+                <!-- Review 1 -->
+                <div class="review-item">
+                  <div class="review-avatar">
+                    <img src="img/luyanne.webp" alt="Luyanne Azevedo">
+                  </div>
+                  <div class="review-content">
+                    <div class="review-header">
+                      <span class="review-name">Luyanne Azevedo</span>
+                      <span class="review-stars">★★★★★</span>
+                    </div>
+                    <p class="review-text">"Empresa espetacular. Ágil na instalação, equipe de engenharia qualificada. Já no primeiro mês tive redução da minha conta de luz, antes eu pagava em média R$ 500, agora pago R$ 65."</p>
+                  </div>
+                </div>
+
+                <!-- Review 2 -->
+                <div class="review-item">
+                  <div class="review-avatar">
+                    <img src="img/rachel.webp" alt="Rachel Rattes">
+                  </div>
+                  <div class="review-content">
+                    <div class="review-header">
+                      <span class="review-name">Rachel Rattes</span>
+                      <span class="review-stars">★★★★★</span>
+                    </div>
+                    <p class="review-text">"Equipe solícita e atenciosa do início ao fim. A instalação foi bem feita, e todo o processo ocorreu sem problemas. Recomendo!"</p>
+                  </div>
+                </div>
+
+                <!-- Review 3 -->
+                <div class="review-item">
+                  <div class="review-avatar">
+                    <img src="img/ana.webp" alt="Ana Cristina Nogueira">
+                  </div>
+                  <div class="review-content">
+                    <div class="review-header">
+                      <span class="review-name">Ana Cristina Nogueira</span>
+                      <span class="review-stars">★★★★★</span>
+                    </div>
+                    <p class="review-text">"Atenciosos, competentes, profissionais. Passam todas as informações com propriedade e segurança. Tiram todas as dúvidas de forma clara e direta. Super recomendo. Agende uma visita."</p>
+                  </div>
+                </div>
+                
+                <div style="text-align:center; margin-top:16px;">
+                  <a href="https://www.google.com/search?kgmid=%2Fg%2F11x0q082f3" target="_blank" style="display:inline-block; padding:8px 24px; background:#1a73e8; color:white; text-decoration:none; border-radius:20px; font-weight:600; font-size:13px;">Ver todas no Google</a>
+                </div>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ====== SLIDE 02: O PROBLEMA ====== -->
   <section class="page" id="slide-02">
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">O Problema</h2>
         <div class="header-meta">
-          {{cliente_nome}} | 02
+          {{cliente_nome}} | 03
         </div>
       </div>
 
@@ -745,12 +943,12 @@
               <span class="stat-label">Reajuste médio (dados históricos)</span>
               <span class="stat-value">7% ao ano</span>
             </div>
-            <div class="stats-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <div class="stats-row">
               <span class="stat-label">Gasto total em 25 anos</span>
-              <span class="stat-value large" style="color:var(--danger-text); font-size: 28px;">{{gasto_total_25_anos}}</span>
+              <span class="stat-value large" style="color:var(--danger-text);">{{gasto_total_25_anos}}</span>
             </div>
             <div class="stats-row">
-              <span class="stat-label">Conta mensal daqui 25 anos:</span>
+              <span class="stat-label">Conta anual daqui 25 anos:</span>
               <span class="stat-value">{{conta_futura_25_anos}}</span>
             </div>
           </div>
@@ -768,7 +966,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Impacto Financeiro Real</h2>
-        <div class="header-meta">{{cliente_nome}} | 03</div>
+        <div class="header-meta">{{cliente_nome}} | 04</div>
       </div>
 
       <div class="content-area grid-text-chart">
@@ -815,7 +1013,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">A Solução: Energia Solar</h2>
-        <div class="header-meta">{{cliente_nome}} | 04</div>
+        <div class="header-meta">{{cliente_nome}} | 05</div>
       </div>
 
       <div class="content-area grid-2">
@@ -856,7 +1054,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">O que muda na prática</h2>
-        <div class="header-meta">{{cliente_nome}} | 05</div>
+        <div class="header-meta">{{cliente_nome}} | 06</div>
       </div>
 
       <div class="content-area grid-text-chart">
@@ -933,7 +1131,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Economia Imediata</h2>
-        <div class="header-meta">{{cliente_nome}} | 06</div>
+        <div class="header-meta">{{cliente_nome}} | 07</div>
       </div>
 
       <div class="content-area grid-2">
@@ -992,7 +1190,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Retorno do Investimento (Payback)</h2>
-        <div class="header-meta">{{cliente_nome}} | 07</div>
+        <div class="header-meta">{{cliente_nome}} | 08</div>
       </div>
 
       <div class="content-area grid-text-chart">
@@ -1028,7 +1226,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Especificações do Sistema</h2>
-        <div class="header-meta">{{cliente_nome}} | 08</div>
+        <div class="header-meta">{{cliente_nome}} | 09</div>
       </div>
 
       <div class="content-area grid-2">
@@ -1106,7 +1304,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Solução Completa</h2>
-        <div class="header-meta">{{cliente_nome}} | 09</div>
+        <div class="header-meta">{{cliente_nome}} | 10</div>
       </div>
 
       <div class="content-area grid-2">
@@ -1210,7 +1408,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Comparativo Final</h2>
-        <div class="header-meta">{{cliente_nome}} | 10</div>
+        <div class="header-meta">{{cliente_nome}} | 11</div>
       </div>
 
       <div class="content-area grid-text-chart">
@@ -1254,7 +1452,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Formas de Pagamento</h2>
-        <div class="header-meta">{{cliente_nome}} | 11</div>
+        <div class="header-meta">{{cliente_nome}} | 12</div>
       </div>
 
       <div class="content-area grid-2">
@@ -1302,7 +1500,7 @@
     <div class="page-inner">
       <div class="slide-header">
         <h2 class="slide-title">Próximo Passo</h2>
-        <div class="header-meta">{{cliente_nome}} | 12</div>
+        <div class="header-meta">{{cliente_nome}} | 13</div>
       </div>
 
       <div class="content-area" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
@@ -1359,7 +1557,7 @@
         </div>
 
         <div style="margin-top:40px; text-align:center; background: var(--n-50); padding: 20px 40px; border-radius: 16px; border: 1px solid var(--n-200); width: 100%; max-width: 600px;">
-          <h4 style="color:var(--n-600); text-transform:uppercase; font-size:12px; letter-spacing:1px; margin-bottom:8px;">Fale com seu consultor</h4>
+          <h4 style="color:var(--n-600); text-transform:uppercase; font-size:12px; letter-spacing:1px; margin-bottom:8px;">Fale com seu consultor credenciado:</h4>
           <div style="font-size:24px; font-weight:700; color:var(--brand-primary);">{{vendedor_nome}}</div>
           <div style="font-size:16px; margin-top:4px;">{{vendedor_telefone}}</div>
           <div style="font-size:16px;">{{vendedor_email}}</div>
