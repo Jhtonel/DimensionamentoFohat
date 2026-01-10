@@ -6311,14 +6311,35 @@ def get_projeto(projeto_id):
                     cliente_data = {
                         "cep": cliente_row.cep,
                         "endereco_completo": cliente_row.endereco_completo,
-                        "cidade": cliente_row.cidade,
-                        "estado": cliente_row.estado,
                         "telefone": cliente_row.telefone,
                         "nome": cliente_row.nome,
                     }
+                    # Buscar cidade/estado do endereço (se existir)
+                    if cliente_row.enderecos and len(cliente_row.enderecos) > 0:
+                        endereco = cliente_row.enderecos[0]  # Primeiro endereço
+                        cliente_data["cidade"] = endereco.cidade
+                        cliente_data["estado"] = endereco.estado
+                        cliente_data["logradouro"] = endereco.logradouro
+                        cliente_data["numero"] = endereco.numero
+                        cliente_data["bairro"] = endereco.bairro
+                        if endereco.cep:
+                            cliente_data["cep"] = endereco.cep
+                    # Tentar extrair cidade/estado do endereco_completo se não veio do endereço
+                    if not cliente_data.get("cidade") and cliente_row.endereco_completo:
+                        parts = cliente_row.endereco_completo.split(',')
+                        parts = [p.strip() for p in parts if p.strip()]
+                        # Procurar UF (2 letras maiúsculas)
+                        for i, p in enumerate(parts):
+                            if len(p) == 2 and p.isupper():
+                                cliente_data["estado"] = p
+                                if i > 0:
+                                    cliente_data["cidade"] = parts[i - 1]
+                                break
                     print(f"📋 [get_projeto] Dados do cliente {cliente_id}: {cliente_data}")
             except Exception as e:
+                import traceback
                 print(f"⚠️ [get_projeto] Erro ao buscar cliente: {e}")
+                traceback.print_exc()
         
         db.close()
 
@@ -6368,6 +6389,12 @@ def get_projeto(projeto_id):
                 data["cidade"] = cliente_data["cidade"]
             if not data.get("estado") and cliente_data.get("estado"):
                 data["estado"] = cliente_data["estado"]
+            if not data.get("logradouro") and cliente_data.get("logradouro"):
+                data["logradouro"] = cliente_data["logradouro"]
+            if not data.get("numero") and cliente_data.get("numero"):
+                data["numero"] = cliente_data["numero"]
+            if not data.get("bairro") and cliente_data.get("bairro"):
+                data["bairro"] = cliente_data["bairro"]
             if not data.get("cliente_telefone") and cliente_data.get("telefone"):
                 data["cliente_telefone"] = cliente_data["telefone"]
             if not data.get("cliente_nome") and cliente_data.get("nome"):
