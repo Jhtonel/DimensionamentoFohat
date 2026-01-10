@@ -3967,6 +3967,12 @@ def salvar_proposta():
             'potencia_sistema': _to_float(potencia_sistema_in, 0.0) or 0.0,
             'preco_final': _to_money(preco_final_in, 0.0) or 0.0,
             'preco_venda': _to_money(_pick('preco_venda', preco_final_in or 0) or (preco_final_in or 0), 0.0) or 0.0,
+            # Equipamentos
+            'modulo_marca': _pick('modulo_marca'),
+            'modulo_modelo': _pick('modulo_modelo'),
+            'inversor_marca': _pick('inversor_marca'),
+            'inversor_modelo': _pick('inversor_modelo'),
+            'tipo_inversor': _pick('tipo_inversor'),
             'cidade': _pick('cidade', cidade_default) or cidade_default,
             'concessionaria': concessionaria_payload,
             'tipo_telhado': _pick('tipo_telhado', ''),
