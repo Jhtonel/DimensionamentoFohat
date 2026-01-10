@@ -379,6 +379,15 @@ export default function NovoProjeto() {
       // Buscar por ID com payload completo (DB-first)
       try {
         const projetoEdit = await Projeto.getById(projetoId);
+        console.log('📋 [EDITAR] Dados recebidos do backend:', projetoEdit);
+        console.log('📋 [EDITAR] Campos importantes:', {
+          cliente_id: projetoEdit?.cliente_id,
+          cep: projetoEdit?.cep,
+          endereco_completo: projetoEdit?.endereco_completo,
+          cliente_endereco: projetoEdit?.cliente_endereco,
+          concessionaria: projetoEdit?.concessionaria,
+          consumo_mensal_kwh: projetoEdit?.consumo_mensal_kwh,
+        });
         if (projetoEdit) {
           const parseEnderecoCompleto = (addr) => {
             if (!addr || typeof addr !== 'string') return {};

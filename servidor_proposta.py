@@ -6337,9 +6337,12 @@ def get_projeto(projeto_id):
             data["area_necessaria"] = row.area_necessaria
 
         # Retornar payload completo (mergeando id)
+        result = {"id": row.id, **data}
+        print(f"📋 [get_projeto] Retornando projeto {row.id} com campos: {list(result.keys())}")
+        print(f"📋 [get_projeto] cliente_id={result.get('cliente_id')}, cep={result.get('cep')}, concessionaria={result.get('concessionaria')}")
         return jsonify({
             "success": True,
-            "projeto": {"id": row.id, **data},
+            "projeto": result,
             "source": "db"
         })
     except Exception as e:
