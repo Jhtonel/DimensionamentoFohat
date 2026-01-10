@@ -649,7 +649,7 @@ export default function Clientes() {
                                     // Extrair proposta_id da URL
                                     const urlParts = projeto.url_proposta.split('/');
                                     const propostaId = urlParts[urlParts.length - 1];
-                                    const serverUrl = systemConfig.getBackendUrl();
+                                    const serverUrl = getBackendUrl();
                                     const token = localStorage.getItem('app_jwt_token');
                                     
                                     const response = await fetch(`${serverUrl}/propostas/${propostaId}/pdf`, {
