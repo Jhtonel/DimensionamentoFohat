@@ -1375,9 +1375,25 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         template_html = template_html.replace('{{economia_mensal_estimada}}', f"R$ {proposta_data.get('economia_mensal_estimada', 0):,.2f}")
         
         # Substituir variáveis do kit
-        template_html = template_html.replace('{{quantidade_placas}}', str(proposta_data.get('quantidade_placas', 0)))
-        template_html = template_html.replace('{{potencia_placa_w}}', str(proposta_data.get('potencia_placa_w', 0)))
-        template_html = template_html.replace('{{area_necessaria}}', str(proposta_data.get('area_necessaria', 0)))
+        # Tenta pegar da raiz, se não der, tenta em metrics
+        qtd_placas = proposta_data.get('quantidade_placas')
+        if not qtd_placas:
+             metrics = proposta_data.get('metrics') or {}
+             qtd_placas = metrics.get('quantidade_placas', 0)
+
+        pot_placa = proposta_data.get('potencia_placa_w')
+        if not pot_placa:
+             metrics = proposta_data.get('metrics') or {}
+             pot_placa = metrics.get('potencia_placa_w', 0)
+        
+        area_nec = proposta_data.get('area_necessaria')
+        if not area_nec:
+             metrics = proposta_data.get('metrics') or {}
+             area_nec = metrics.get('area_necessaria', 0)
+
+        template_html = template_html.replace('{{quantidade_placas}}', str(qtd_placas))
+        template_html = template_html.replace('{{potencia_placa_w}}', str(pot_placa))
+        template_html = template_html.replace('{{area_necessaria}}', str(area_nec))
         template_html = template_html.replace('{{irradiacao_media}}', f"{proposta_data.get('irradiacao_media', 5.15):.2f}")
         # Equipamentos (marca/modelo/tipo) — podem não existir em propostas legadas
         template_html = template_html.replace('{{modulo_marca}}', str(proposta_data.get('modulo_marca') or 'Não informado'))
