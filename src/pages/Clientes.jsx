@@ -644,7 +644,37 @@ export default function Clientes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => window.open(`${projeto.url_proposta}?download=pdf`, '_blank')}
+                                onClick={async () => {
+                                  try {
+                                    // Extrair proposta_id da URL
+                                    const urlParts = projeto.url_proposta.split('/');
+                                    const propostaId = urlParts[urlParts.length - 1];
+                                    const serverUrl = systemConfig.getBackendUrl();
+                                    const token = localStorage.getItem('app_jwt_token');
+                                    
+                                    const response = await fetch(`${serverUrl}/propostas/${propostaId}/pdf`, {
+                                      headers: token ? { Authorization: `Bearer ${token}` } : {}
+                                    });
+                                    
+                                    if (!response.ok) {
+                                      const err = await response.json().catch(() => ({}));
+                                      throw new Error(err.message || 'Erro ao baixar PDF');
+                                    }
+                                    
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${cliente.nome || 'Proposta'} - FOHAT ENERGIA SOLAR.pdf`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    document.body.removeChild(a);
+                                  } catch (error) {
+                                    console.error('Erro ao baixar PDF:', error);
+                                    alert('Erro ao baixar PDF: ' + error.message);
+                                  }
+                                }}
                                 className="text-orange-600 hover:bg-orange-50 h-8 w-8"
                                 title="Baixar Proposta (PDF)"
                               >
