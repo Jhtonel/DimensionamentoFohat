@@ -5256,3 +5256,1069 @@ def listar_clientes():
             for r in rows:
                 clientes.append({
                     "id": r.id,
+                    "cliente_id": r.id,
+                    "nome": r.nome,
+                    "telefone": r.telefone,
+                    "email": r.email,
+                    "endereco_completo": r.endereco_completo,
+                    "cep": r.cep,
+                    "tipo": r.tipo,
+                    "observacoes": r.observacoes,
+                    "created_by": r.created_by,
+                    "created_by_email": r.created_by_email,
+                    "user_id": r.created_by,
+                    "created_at": (r.created_at.isoformat() if r.created_at else None),
+                    "updated_at": (r.updated_at.isoformat() if r.updated_at else None),
+                })
+            return jsonify(clientes)
+
+        clientes_dict = _load_clientes()
+        clientes = list(clientes_dict.values())
+        clientes.sort(key=lambda c: c.get("created_at", ""), reverse=True)
+        return jsonify(clientes)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/create', methods=['POST'])
+def criar_cliente():
+    """Cria um novo cliente."""
+    try:
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+        data = request.get_json() or {}
+        cliente_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        cliente = {
+            "id": cliente_id,
+            "nome": data.get("nome", ""),
+            "telefone": data.get("telefone", ""),
+            "email": data.get("email"),
+            "endereco_completo": data.get("endereco_completo"),
+            "cep": data.get("cep"),
+            "tipo": data.get("tipo"),
+            "observacoes": data.get("observacoes"),
+            # Vincular sempre ao usuário logado
+            "created_by": (me.uid if USE_DB and me else data.get("created_by")),
+            "created_by_email": (me.email if USE_DB and me else data.get("created_by_email")),
+            "created_at": now,
+            "updated_at": now
+        }
+
+        if USE_DB:
+            db = SessionLocal()
+            db.add(ClienteDB(
+                id=cliente_id,
+                nome=cliente.get("nome"),
+                telefone=cliente.get("telefone"),
+                email=cliente.get("email"),
+                created_by=cliente.get("created_by"),
+                created_by_email=cliente.get("created_by_email"),
+                endereco_completo=cliente.get("endereco_completo"),
+                cep=cliente.get("cep"),
+                tipo=cliente.get("tipo"),
+                observacoes=cliente.get("observacoes"),
+            ))
+            db.commit()
+            db.close()
+        else:
+            clientes = _load_clientes()
+            clientes[cliente_id] = cliente
+            _save_clientes(clientes)
+        
+        print(f"✅ Cliente criado: {cliente['nome']} ({cliente_id})")
+        return jsonify({"success": True, "cliente": cliente})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/update/<cliente_id>', methods=['PUT', 'POST'])
+def atualizar_cliente(cliente_id):
+    """Atualiza um cliente existente."""
+    try:
+        data = request.get_json() or {}
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+            db = SessionLocal()
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            # ACL: só admin/gestor ou dono do cliente
+            role = (me.role or "").strip().lower()
+            is_owner = (row.created_by_email == me.email) or (row.created_by == me.uid)
+            if role not in ("admin", "gestor") and not is_owner:
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
+            row.nome = data.get("nome", row.nome)
+            row.telefone = data.get("telefone", row.telefone)
+            row.email = data.get("email", row.email)
+            row.endereco_completo = data.get("endereco_completo", row.endereco_completo)
+            row.cep = data.get("cep", row.cep)
+            row.tipo = data.get("tipo", row.tipo)
+            row.observacoes = data.get("observacoes", row.observacoes)
+            db.commit()
+            cliente = {
+                "id": row.id,
+                "nome": row.nome,
+                "telefone": row.telefone,
+                "email": row.email,
+                "endereco_completo": row.endereco_completo,
+                "cep": row.cep,
+                "tipo": row.tipo,
+                "observacoes": row.observacoes,
+                "created_by": row.created_by,
+                "created_by_email": row.created_by_email,
+                "created_at": (row.created_at.isoformat() if row.created_at else None),
+                "updated_at": (row.updated_at.isoformat() if row.updated_at else None),
+            }
+            db.close()
+            return jsonify({"success": True, "cliente": cliente})
+
+        clientes = _load_clientes()
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+
+        cliente = clientes[cliente_id]
+        cliente.update({
+            "nome": data.get("nome", cliente.get("nome")),
+            "telefone": data.get("telefone", cliente.get("telefone")),
+            "email": data.get("email", cliente.get("email")),
+            "endereco_completo": data.get("endereco_completo", cliente.get("endereco_completo")),
+            "cep": data.get("cep", cliente.get("cep")),
+            "tipo": data.get("tipo", cliente.get("tipo")),
+            "observacoes": data.get("observacoes", cliente.get("observacoes")),
+            "updated_at": datetime.now().isoformat()
+        })
+
+        clientes[cliente_id] = cliente
+        _save_clientes(clientes)
+        return jsonify({"success": True, "cliente": cliente})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/delete/<cliente_id>', methods=['DELETE'])
+def deletar_cliente(cliente_id):
+    """Exclui um cliente e todas as propostas vinculadas (cascata)."""
+    try:
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+            db = SessionLocal()
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            role = (me.role or "").strip().lower()
+            is_owner = (row.created_by_email == me.email) or (row.created_by == me.uid)
+            if role not in ("admin", "gestor") and not is_owner:
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
+            # (best-effort) apagar propostas vinculadas no DB
+            try:
+                db.query(PropostaDB).filter(PropostaDB.cliente_id == cliente_id).delete(synchronize_session=False)
+            except Exception as _e:
+                print(f"⚠️ Falha ao remover propostas do DB (cliente_id={cliente_id}): {_e}")
+            db.delete(row)
+            db.commit()
+            db.close()
+            return jsonify({"success": True, "propostas_excluidas": None})
+
+        clientes = _load_clientes()
+        
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+        
+        cliente = clientes[cliente_id]
+        cliente_nome = cliente.get("nome", "").lower().strip()
+        cliente_telefone = (cliente.get("telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        
+        # Excluir propostas vinculadas (cascata)
+        propostas_excluidas = 0
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    proposta = json.load(f)
+                
+                # Verificar vinculação
+                vinculado = False
+                if proposta.get("cliente_id") == cliente_id:
+                    vinculado = True
+                else:
+                    # Match por nome
+                    p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                    if cliente_nome and p_nome == cliente_nome:
+                        vinculado = True
+                    # Match por telefone
+                    p_tel = (proposta.get("cliente_telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    if cliente_telefone and p_tel == cliente_telefone and len(cliente_telefone) > 8:
+                        vinculado = True
+                
+                if vinculado:
+                    file.unlink()
+                    propostas_excluidas += 1
+                    # Remover do banco também
+                    try:
+                        db = SessionLocal()
+                        row = db.get(PropostaDB, file.stem)
+                        if row:
+                            db.delete(row)
+                            db.commit()
+                        db.close()
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"⚠️ Erro ao verificar proposta {file.name}: {e}")
+        
+        # Excluir cliente
+        del clientes[cliente_id]
+        _save_clientes(clientes)
+        
+        print(f"🗑️ Cliente excluído: {cliente.get('nome')} - {propostas_excluidas} propostas removidas")
+        return jsonify({"success": True, "propostas_excluidas": propostas_excluidas})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/clientes/transfer/<cliente_id>', methods=['POST'])
+def transferir_cliente(cliente_id):
+    """
+    Transfere um cliente para outro usuário.
+    Apenas admins podem realizar esta operação.
+    Body: { "new_owner_uid": "uid_do_novo_dono", "new_owner_email": "email_do_novo_dono" }
+    """
+    try:
+        # Verificar autenticação e permissão de admin
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+        
+        role = (me.role or "").strip().lower()
+        if role != "admin":
+            return jsonify({"success": False, "message": "Apenas admins podem transferir clientes"}), 403
+        
+        data = request.get_json() or {}
+        new_owner_uid = data.get("new_owner_uid", "").strip()
+        new_owner_email = data.get("new_owner_email", "").strip()
+        
+        if not new_owner_uid and not new_owner_email:
+            return jsonify({"success": False, "message": "Informe new_owner_uid ou new_owner_email"}), 400
+        
+        if USE_DB:
+            db = SessionLocal()
+            # Buscar cliente
+            row = db.get(ClienteDB, cliente_id)
+            if not row:
+                db.close()
+                return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+            
+            # Atualizar proprietário
+            old_owner = row.created_by_email or row.created_by
+            nome_cliente = row.nome
+            telefone_cliente = row.telefone
+            row.created_by = new_owner_uid or row.created_by
+            row.created_by_email = new_owner_email or row.created_by_email
+            row.updated_at = datetime.now(timezone.utc)
+            new_owner = new_owner_email or new_owner_uid
+
+            # Transferir também TODAS as propostas vinculadas a este cliente
+            propostas_transferidas = 0
+            try:
+                def _norm_phone(s):
+                    try:
+                        return re.sub(r"\D+", "", str(s or ""))
+                    except Exception:
+                        return ""
+
+                nome_norm = (nome_cliente or "").strip().lower()
+                tel_norm = _norm_phone(telefone_cliente)
+
+                # Importante:
+                # - Muitas propostas antigas no Postgres não tinham cliente_id.
+                # - No frontend, se a proposta tem cliente_id, o match é estrito por ID.
+                # Portanto, ao transferir, também vinculamos cliente_id nas propostas legadas.
+                # Candidatos:
+                # - match por cliente_id (ideal)
+                # - match por telefone normalizado (mais confiável em dados legados)
+                # - match por nome (fallback)
+                # - match via payload JSON (legado)
+                conds = [PropostaDB.cliente_id == cliente_id]
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.cliente_telefone, ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+                # Legado: alguns registros têm dados só no payload
+                conds.append(PropostaDB.payload.op("->>")("cliente_id") == cliente_id)
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")) == nome_norm)
+
+                q = db.query(PropostaDB).filter(or_(*conds))
+                cand = q.all()
+
+                updated_ids = set()
+                for p in cand:
+                    # confirmação extra por telefone quando cliente_id não bate
+                    if p.cliente_id != cliente_id:
+                        # se temos telefone, exigir match de telefone quando possível
+                        if tel_norm and len(tel_norm) > 8:
+                            p_tel = _norm_phone(p.cliente_telefone)
+                            if not p_tel:
+                                # fallback: tentar pelo payload
+                                try:
+                                    p_tel = _norm_phone((p.payload or {}).get("cliente_telefone"))
+                                except Exception:
+                                    p_tel = ""
+                            if p_tel and p_tel != tel_norm:
+                                continue
+                        else:
+                            # sem telefone, exigir match estrito por nome
+                            p_nome = (p.cliente_nome or "").strip().lower()
+                            if not p_nome:
+                                try:
+                                    p_nome = ((p.payload or {}).get("cliente_nome") or "").strip().lower()
+                                except Exception:
+                                    p_nome = ""
+                            if not nome_norm or p_nome != nome_norm:
+                                continue
+
+                    changed = False
+                    if new_owner_uid and p.created_by != new_owner_uid:
+                        p.created_by = new_owner_uid
+                        changed = True
+                    if new_owner_email and p.created_by_email != new_owner_email:
+                        p.created_by_email = new_owner_email
+                        changed = True
+
+                    # Vincular cliente_id se estiver vazio/diferente (para o contador no frontend)
+                    if p.cliente_id != cliente_id:
+                        p.cliente_id = cliente_id
+                        changed = True
+
+                    payload = p.payload or {}
+                    if isinstance(payload, dict):
+                        if new_owner_uid and payload.get("created_by") != new_owner_uid:
+                            payload["created_by"] = new_owner_uid
+                            changed = True
+                        if new_owner_email and payload.get("created_by_email") != new_owner_email:
+                            payload["created_by_email"] = new_owner_email
+                            changed = True
+                        if payload.get("cliente_id") != cliente_id:
+                            payload["cliente_id"] = cliente_id
+                            changed = True
+                        p.payload = payload
+
+                    if changed:
+                        updated_ids.add(p.id)
+
+                propostas_transferidas = len(updated_ids)
+            except Exception as _e:
+                print(f"⚠️ [transferir_cliente] Falha ao transferir propostas do cliente {cliente_id}: {_e}")
+            
+            db.commit()
+            db.close()
+            
+            # IMPORTANTE: não acessar atributos do ORM após fechar a sessão (evita DetachedInstanceError)
+            print(f"✅ Cliente '{nome_cliente}' transferido de '{old_owner}' para '{new_owner}'. Propostas transferidas: {propostas_transferidas}")
+            return jsonify({
+                "success": True, 
+                "message": "Cliente transferido com sucesso",
+                "cliente_id": cliente_id,
+                "new_owner": new_owner,
+                "propostas_transferidas": int(propostas_transferidas),
+            })
+        
+        # Fallback para arquivo JSON
+        clientes = _load_clientes()
+        if cliente_id not in clientes:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+        
+        cliente = clientes[cliente_id]
+        old_owner = cliente.get("created_by_email") or cliente.get("created_by")
+        cliente["created_by"] = new_owner_uid or cliente.get("created_by")
+        cliente["created_by_email"] = new_owner_email or cliente.get("created_by_email")
+        cliente["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        _save_clientes(clientes)
+
+        # Transferir propostas vinculadas (modo arquivo)
+        propostas_transferidas = 0
+        try:
+            cliente_nome = (cliente.get("nome", "") or "").lower().strip()
+            cliente_telefone = (cliente.get("telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+            for file in PROPOSTAS_DIR.glob("*.json"):
+                try:
+                    with open(file, "r", encoding="utf-8") as f:
+                        proposta = json.load(f) or {}
+                    # Verificar vinculação pelo cliente_id e, fallback, por nome/telefone
+                    vinculado = False
+                    if proposta.get("cliente_id") == cliente_id:
+                        vinculado = True
+                    else:
+                        p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                        if cliente_nome and p_nome == cliente_nome:
+                            vinculado = True
+                        p_tel = (proposta.get("cliente_telefone") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                        if (not vinculado) and cliente_telefone and p_tel == cliente_telefone and len(cliente_telefone) > 8:
+                            vinculado = True
+                    if not vinculado:
+                        continue
+
+                    if new_owner_uid:
+                        proposta["created_by"] = new_owner_uid
+                    if new_owner_email:
+                        proposta["created_by_email"] = new_owner_email
+                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    with open(file, "w", encoding="utf-8") as f:
+                        json.dump(proposta, f, ensure_ascii=False, indent=2)
+                    propostas_transferidas += 1
+                except Exception:
+                    continue
+        except Exception as _e:
+            print(f"⚠️ [transferir_cliente] Falha ao transferir propostas (arquivo): {_e}")
+        
+        print(f"✅ Cliente '{cliente.get('nome')}' transferido de '{old_owner}' para '{new_owner_email or new_owner_uid}'")
+        return jsonify({
+            "success": True, 
+            "message": f"Cliente transferido com sucesso",
+            "cliente_id": cliente_id,
+            "new_owner": new_owner_email or new_owner_uid,
+            "propostas_transferidas": int(propostas_transferidas),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/clientes/backfill-propostas/<cliente_id>', methods=['POST'])
+def backfill_propostas_cliente(cliente_id):
+    """
+    Re-vincula propostas legadas a um cliente específico preenchendo cliente_id.
+    Use quando existe proposta antiga no Postgres sem cliente_id (contador fica 0 no frontend).
+    Apenas admin.
+    """
+    try:
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+        role = (me.role or "").strip().lower()
+        if role != "admin":
+            return jsonify({"success": False, "message": "Apenas admins podem executar backfill"}), 403
+
+        def _norm_phone(s):
+            try:
+                return re.sub(r"\D+", "", str(s or ""))
+            except Exception:
+                return ""
+
+        if USE_DB:
+            db = SessionLocal()
+            try:
+                c = db.get(ClienteDB, cliente_id)
+                if not c:
+                    return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+
+                nome_norm = (c.nome or "").strip().lower()
+                tel_norm = _norm_phone(c.telefone)
+
+                conds = [PropostaDB.cliente_id == cliente_id]
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.cliente_telefone, ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.cliente_nome, "")) == nome_norm)
+                # Legado via payload JSON
+                conds.append(PropostaDB.payload.op("->>")("cliente_id") == cliente_id)
+                if tel_norm and len(tel_norm) > 8:
+                    conds.append(
+                        func.regexp_replace(
+                            func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""),
+                            r"\D",
+                            "",
+                            "g",
+                        ) == tel_norm
+                    )
+                if nome_norm:
+                    conds.append(func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")) == nome_norm)
+
+                cand = db.query(PropostaDB).filter(or_(*conds)).all()
+                updated = []
+                for p in cand:
+                    changed = False
+                    if p.cliente_id != cliente_id:
+                        p.cliente_id = cliente_id
+                        changed = True
+                    payload = p.payload or {}
+                    if isinstance(payload, dict) and payload.get("cliente_id") != cliente_id:
+                        payload["cliente_id"] = cliente_id
+                        p.payload = payload
+                        changed = True
+                    if changed:
+                        updated.append(p.id)
+
+                db.commit()
+                return jsonify({
+                    "success": True,
+                    "cliente_id": cliente_id,
+                    "propostas_vinculadas": len(updated),
+                    "propostas_ids": updated[:50],
+                    "source": "db",
+                })
+            finally:
+                db.close()
+
+        # modo arquivo
+        clientes = _load_clientes()
+        cliente = clientes.get(cliente_id)
+        if not cliente:
+            return jsonify({"success": False, "message": "Cliente não encontrado"}), 404
+
+        cliente_nome = (cliente.get("nome", "") or "").lower().strip()
+        cliente_tel = _norm_phone(cliente.get("telefone"))
+        cliente_email = (cliente.get("email") or "").strip().lower()
+
+        updated = []
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    proposta = json.load(f) or {}
+                vinculado = False
+                if proposta.get("cliente_id") == cliente_id:
+                    vinculado = True
+                else:
+                    p_nome = (proposta.get("cliente_nome") or "").lower().strip()
+                    if cliente_nome and p_nome and (p_nome == cliente_nome):
+                        vinculado = True
+                    p_tel = _norm_phone(proposta.get("cliente_telefone"))
+                    if (not vinculado) and cliente_tel and p_tel and p_tel == cliente_tel and len(cliente_tel) > 8:
+                        vinculado = True
+                    p_email = (proposta.get("cliente_email") or proposta.get("email_cliente") or "").strip().lower()
+                    if (not vinculado) and cliente_email and p_email and p_email == cliente_email:
+                        vinculado = True
+                if not vinculado:
+                    continue
+
+                if proposta.get("cliente_id") != cliente_id:
+                    proposta["cliente_id"] = cliente_id
+                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    with open(file, "w", encoding="utf-8") as f:
+                        json.dump(proposta, f, ensure_ascii=False, indent=2)
+                    updated.append(file.stem)
+            except Exception:
+                continue
+
+        return jsonify({
+            "success": True,
+            "cliente_id": cliente_id,
+            "propostas_vinculadas": len(updated),
+            "propostas_ids": updated[:50],
+            "source": "file",
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Proxy para busca de CEP (ViaCEP)
+# ─────────────────────────────────────────────────────────────────────────────
+import ssl
+
+# Cache de códigos IBGE por cidade (para evitar requisições repetidas)
+_IBGE_CACHE = {}
+
+import gzip
+
+def _buscar_ibge_por_cidade(cidade: str, uf: str, ssl_context) -> str:
+    """Busca código IBGE de uma cidade usando a API do IBGE."""
+    cache_key = f"{cidade.lower()}_{uf.lower()}"
+    if cache_key in _IBGE_CACHE:
+        return _IBGE_CACHE[cache_key]
+    
+    try:
+        # Normaliza nome da cidade para busca
+        from urllib.parse import quote
+        url = f"https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
+        
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+            'Accept-Encoding': 'gzip, deflate'
+        })
+        
+        with urllib.request.urlopen(req, timeout=15, context=ssl_context) as response:
+            # Verifica se a resposta está comprimida
+            raw_data = response.read()
+            encoding = response.info().get('Content-Encoding', '')
+            
+            if 'gzip' in encoding:
+                raw_data = gzip.decompress(raw_data)
+            
+            municipios = json.loads(raw_data.decode('utf-8'))
+            
+            # Busca a cidade no resultado
+            cidade_lower = cidade.lower().strip()
+            uf_lower = uf.lower().strip()
+            
+            for m in municipios:
+                nome_municipio = m.get('nome', '').lower()
+                sigla_uf = m.get('microrregiao', {}).get('mesorregiao', {}).get('UF', {}).get('sigla', '').lower()
+                
+                if nome_municipio == cidade_lower and sigla_uf == uf_lower:
+                    ibge_code = str(m.get('id', ''))
+                    _IBGE_CACHE[cache_key] = ibge_code
+                    print(f"✅ IBGE encontrado para {cidade}/{uf}: {ibge_code}")
+                    return ibge_code
+    except Exception as e:
+        print(f"⚠️ Falha ao buscar IBGE para {cidade}/{uf}: {e}")
+    
+    return ""
+
+@app.route('/cep/<cep>', methods=['GET'])
+def buscar_cep_proxy(cep):
+    """Proxy para busca de CEP - tenta múltiplas APIs."""
+    try:
+        # Limpa CEP (remove não-numéricos)
+        cep_limpo = re.sub(r'\D', '', cep)
+        
+        if len(cep_limpo) != 8:
+            return jsonify({"erro": True, "message": "CEP deve ter 8 dígitos"}), 400
+        
+        # Lista de APIs para tentar (em ordem de prioridade)
+        # ViaCEP retorna o código IBGE, então é prioridade
+        apis = [
+            (f"https://viacep.com.br/ws/{cep_limpo}/json/", "viacep"),
+            (f"https://brasilapi.com.br/api/cep/v2/{cep_limpo}", "brasilapi"),
+        ]
+        
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        last_error = None
+        for url, api_name in apis:
+            try:
+                req = urllib.request.Request(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/json'
+                })
+                
+                with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
+                    raw_data = json.loads(response.read().decode('utf-8'))
+                    
+                    # Normaliza resposta baseado na API
+                    if api_name == "viacep":
+                        if not raw_data.get('erro'):
+                            print(f"✅ CEP {cep_limpo} encontrado via {api_name}")
+                            return jsonify(raw_data)
+                    elif api_name == "brasilapi":
+                        if raw_data.get('cep'):
+                            # Tenta extrair IBGE da resposta v2
+                            ibge_code = ""
+                            location = raw_data.get('location', {})
+                            if location:
+                                ibge_data = location.get('ibge', {})
+                                if ibge_data and ibge_data.get('city', {}).get('id'):
+                                    ibge_code = str(ibge_data['city']['id'])
+                            
+                            cidade = raw_data.get('city', '')
+                            uf = raw_data.get('state', '')
+                            
+                            # Se não tiver IBGE na resposta, tenta buscar pela API do IBGE
+                            if not ibge_code and cidade and uf:
+                                ibge_code = _buscar_ibge_por_cidade(cidade, uf, ssl_context)
+                            
+                            cep_raw = raw_data.get('cep', '').replace('-', '')
+                            data = {
+                                "cep": f"{cep_raw[:5]}-{cep_raw[5:]}" if len(cep_raw) == 8 else cep_raw,
+                                "logradouro": raw_data.get('street', ''),
+                                "bairro": raw_data.get('neighborhood', ''),
+                                "localidade": cidade,
+                                "uf": uf,
+                                "ibge": ibge_code,
+                                "complemento": "",
+                                "ddd": "",
+                            }
+                            print(f"✅ CEP {cep_limpo} encontrado via {api_name} (IBGE: {ibge_code})")
+                            return jsonify(data)
+                    
+                    last_error = "CEP não encontrado"
+                    
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ Falha ao buscar CEP via {api_name}: {e}")
+                continue
+        
+        return jsonify({"erro": True, "message": last_error or "CEP não encontrado"}), 404
+    
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar CEP {cep}: {e}")
+        return jsonify({"erro": True, "message": str(e)}), 500
+
+@app.route('/projetos/list', methods=['GET'])
+def listar_projetos():
+    """
+    Lista projetos a partir dos arquivos JSON gerados em 'propostas/' para alimentar o dashboard.
+    Retorna uma coleção normalizada de projetos (não depende do Supabase).
+    """
+    try:
+        if USE_DB:
+            me = _current_user_row()
+            if not me:
+                return jsonify({"success": False, "message": "Não autenticado"}), 401
+            db = SessionLocal()
+            q = db.query(PropostaDB)
+            role = (me.role or "").strip().lower()
+            if role not in ("admin", "gestor"):
+                # Regra de negócio:
+                # - Se o CLIENTE é do usuário, ele deve conseguir ver as propostas desse cliente.
+                # - Além disso, suportar legado onde created_by/cliente_id existam apenas no payload.
+                # Nota: materializar ids evita casos onde IN(subquery) + JSON ops não casam bem
+                # em alguns planos/tipos no Postgres.
+                owned_rows = db.query(ClienteDB.id, ClienteDB.nome, ClienteDB.telefone).filter(
+                    (ClienteDB.created_by_email == me.email) |
+                    (ClienteDB.created_by == me.uid)
+                ).all()
+                owned_ids = [r[0] for r in (owned_rows or []) if r and r[0]]
+
+                def _norm_phone(s):
+                    try:
+                        return re.sub(r"\D+", "", str(s or ""))
+                    except Exception:
+                        return ""
+
+                def _norm_name(s):
+                    return str(s or "").strip().lower()
+
+                phone_to_client_id = {}
+                name_to_client_id = {}
+                for cid, nome, tel in (owned_rows or []):
+                    n = _norm_name(nome)
+                    if n and len(n) >= 3:
+                        name_to_client_id.setdefault(n, cid)
+                    t = _norm_phone(tel)
+                    if t and len(t) > 8:
+                        phone_to_client_id.setdefault(t, cid)
+
+                q = q.filter(or_(
+                    (PropostaDB.created_by_email == me.email),
+                    (PropostaDB.created_by == me.uid),
+                    (PropostaDB.payload.op("->>")("created_by_email") == me.email),
+                    (PropostaDB.payload.op("->>")("created_by") == me.uid),
+                    (PropostaDB.cliente_id.in_(owned_ids) if owned_ids else text("1=0")),
+                    (PropostaDB.payload.op("->>")("cliente_id").in_(owned_ids) if owned_ids else text("1=0")),
+                    # Legado: incluir propostas do usuário pelo vínculo do cliente via telefone/nome
+                    (
+                        func.regexp_replace(func.coalesce(PropostaDB.cliente_telefone, ""), r"\D", "", "g").in_(list(phone_to_client_id.keys()))
+                        if phone_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.lower(func.coalesce(PropostaDB.cliente_nome, "")).in_(list(name_to_client_id.keys()))
+                        if name_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.regexp_replace(func.coalesce(PropostaDB.payload.op("->>")("cliente_telefone"), ""), r"\D", "", "g").in_(list(phone_to_client_id.keys()))
+                        if phone_to_client_id else text("1=0")
+                    ),
+                    (
+                        func.lower(func.coalesce(PropostaDB.payload.op("->>")("cliente_nome"), "")).in_(list(name_to_client_id.keys()))
+                        if name_to_client_id else text("1=0")
+                    ),
+                ))
+            rows = q.order_by(PropostaDB.created_at.desc()).all()
+            db.close()
+            projetos = []
+            for r in rows:
+                data = r.payload or {}
+                # Inferir cliente_id correto para propostas legadas (para o contador na tela de Clientes)
+                inferred_cliente_id = r.cliente_id or (data.get("cliente_id") if isinstance(data, dict) else None)
+                if role not in ("admin", "gestor") and owned_ids:
+                    if inferred_cliente_id not in owned_ids:
+                        try:
+                            p_tel = _norm_phone(r.cliente_telefone) or _norm_phone((data or {}).get("cliente_telefone"))
+                            if p_tel and p_tel in phone_to_client_id:
+                                inferred_cliente_id = phone_to_client_id[p_tel]
+                            else:
+                                p_nome = _norm_name(r.cliente_nome) or _norm_name((data or {}).get("cliente_nome"))
+                                if p_nome and p_nome in name_to_client_id:
+                                    inferred_cliente_id = name_to_client_id[p_nome]
+                        except Exception:
+                            pass
+                projetos.append({
+                    "id": r.id,
+                    "proposta_id": r.id,
+                    "nome_projeto": data.get("nome_projeto") or f"Projeto - {r.cliente_nome or 'Cliente'}",
+                    "cliente_id": inferred_cliente_id,
+                    "cliente": {
+                        "nome": r.cliente_nome,
+                        "telefone": r.cliente_telefone,
+                        "email": (data.get("cliente_email") or data.get("email_cliente")),
+                    },
+                    "cliente_nome": r.cliente_nome,
+                    "preco_final": r.preco_final or r.custo_total_projeto or 0,
+                    "cidade": r.cidade,
+                    "estado": data.get("estado"),
+                    "endereco_completo": r.cliente_endereco or data.get("endereco_completo"),
+                    "status": data.get("status") or "dimensionamento",
+                    "prioridade": data.get("prioridade") or "Normal",
+                    "created_date": (r.created_at.isoformat() if r.created_at else None),
+                    "url_proposta": f"/proposta/{r.id}",
+                    "potencia_sistema": r.potencia_sistema or 0,
+                    "potencia_sistema_kwp": r.potencia_sistema or 0,
+                    "economia_mensal_estimada": r.economia_mensal_estimada or 0,
+                    "anos_payback": r.anos_payback or 0,
+                    "payback_meses": r.payback_meses or 0,
+                    "consumo_mensal_kwh": r.consumo_mensal_kwh or 0,
+                    "tarifa_energia": r.tarifa_energia or 0,
+                    "quantidade_placas": r.quantidade_placas or 0,
+                    "potencia_placa_w": r.potencia_placa_w or 0,
+                    "geracao_media_mensal": r.geracao_media_mensal or 0,
+                    "area_necessaria": r.area_necessaria or 0,
+                    "irradiacao_media": r.irradiacao_media or 5.15,
+                    "economia_total_25_anos": r.economia_total_25_anos or 0,
+                    "tipo_telhado": data.get("tipo_telhado"),
+                    "concessionaria": data.get("concessionaria"),
+                    "conta_atual_anual": r.conta_atual_anual or 0,
+                    "custo_total_projeto": r.custo_total_projeto or 0,
+                    "gasto_acumulado_payback": r.gasto_acumulado_payback or 0,
+                    "preco_venda": (data.get("preco_venda") or r.preco_final or 0),
+                    "created_by": r.created_by,
+                    "created_by_email": r.created_by_email,
+                    "user_id": r.created_by,
+                    "vendedor_email": data.get("vendedor_email"),
+                })
+            return jsonify(projetos)
+
+        projetos = []
+        for file in PROPOSTAS_DIR.glob("*.json"):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                projeto = {
+                    "id": file.stem,
+                    "nome_projeto": data.get("nome_projeto") or f"Projeto - {data.get('cliente_nome','Cliente')}",
+                    "cliente_id": data.get("cliente_id"),
+                    "cliente": {
+                        "nome": data.get("cliente_nome"),
+                        "telefone": data.get("cliente_telefone"),
+                        "email": data.get("cliente_email") or data.get("email_cliente"),
+                    },
+                    "cliente_nome": data.get("cliente_nome"),
+                    "preco_final": data.get("preco_final") or data.get("custo_total_projeto") or 0,
+                    "cidade": data.get("cidade"),
+                    "estado": data.get("estado"),
+                    "endereco_completo": data.get("cliente_endereco") or data.get("endereco_completo"),
+                    # Requisito: recem gerados devem cair em "dimensionamento"
+                    "status": data.get("status") or "dimensionamento",
+                    "prioridade": data.get("prioridade") or "Normal",
+                    "created_date": data.get("data_criacao") or datetime.now().isoformat(),
+                    "url_proposta": f"/proposta/{file.stem}",
+                    # Dados técnicos
+                    "potencia_sistema": data.get("potencia_sistema") or 0,
+                    "potencia_sistema_kwp": data.get("potencia_sistema") or 0,
+                    "economia_mensal_estimada": data.get("economia_mensal_estimada") or 0,
+                    "anos_payback": data.get("anos_payback") or 0,
+                    "payback_meses": data.get("payback_meses") or 0,
+                    "consumo_mensal_kwh": data.get("consumo_mensal_kwh") or 0,
+                    "tarifa_energia": data.get("tarifa_energia") or 0,
+                    "quantidade_placas": data.get("quantidade_placas") or 0,
+                    "potencia_placa_w": data.get("potencia_placa_w") or 0,
+                    "geracao_media_mensal": data.get("geracao_media_mensal") or 0,
+                    "area_necessaria": data.get("area_necessaria") or 0,
+                    "irradiacao_media": data.get("irradiacao_media") or 5.15,
+                    "economia_total_25_anos": data.get("economia_total_25_anos") or 0,
+                    "tipo_telhado": data.get("tipo_telhado"),
+                    "concessionaria": data.get("concessionaria"),
+                    # Dados financeiros adicionais
+                    "conta_atual_anual": data.get("conta_atual_anual") or 0,
+                    "custo_total_projeto": data.get("custo_total_projeto") or 0,
+                    "gasto_acumulado_payback": data.get("gasto_acumulado_payback") or 0,
+                    "preco_venda": data.get("preco_venda") or data.get("preco_final") or 0,
+                    # Rastreamento
+                    "created_by": data.get("created_by"),
+                    "created_by_email": data.get("created_by_email"),
+                    "vendedor_email": data.get("vendedor_email"),
+                }
+                projetos.append(projeto)
+            except Exception as e:
+                print(f"⚠️ Falha ao ler proposta {file.name}: {e}")
+                continue
+        # ordenar por data (desc)
+        projetos.sort(key=lambda p: p.get("created_date") or "", reverse=True)
+        return jsonify(projetos)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/projetos/get/<projeto_id>', methods=['GET'])
+def get_projeto(projeto_id):
+    """
+    Retorna o payload completo de um projeto/proposta para edição no CRM.
+    Aplica ACL:
+    - admin/gestor: pode acessar qualquer proposta
+    - vendedor/instalador: apenas as próprias
+    """
+    try:
+        if not USE_DB:
+            proposta_file = PROPOSTAS_DIR / f"{projeto_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                data = {"id": projeto_id, **data}
+            return jsonify({"success": True, "projeto": data, "source": "file"})
+
+        me = _current_user_row()
+        if not me:
+            return jsonify({"success": False, "message": "Não autenticado"}), 401
+
+        db = SessionLocal()
+        row = db.get(PropostaDB, projeto_id)
+        if not row:
+            db.close()
+            return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+
+        role = (me.role or "").strip().lower()
+        if role not in ("admin", "gestor"):
+            # ACL por criador
+            if not (
+                (row.created_by_email and row.created_by_email == me.email) or
+                (row.created_by and row.created_by == me.uid)
+            ):
+                db.close()
+                return jsonify({"success": False, "message": "Não autorizado"}), 403
+
+        data = row.payload or {}
+        db.close()
+
+        if not isinstance(data, dict):
+            data = {}
+
+        # Fallbacks úteis para edição (não dependem do CRM ter enviado antes)
+        if not data.get("nome_projeto"):
+            data["nome_projeto"] = data.get("nome") or f"Projeto - {row.cliente_nome or 'Cliente'}"
+        if not data.get("cliente_endereco") and row.cliente_endereco:
+            data["cliente_endereco"] = row.cliente_endereco
+        if not data.get("cidade") and row.cidade:
+            data["cidade"] = row.cidade
+
+        # Retornar payload completo (mergeando id)
+        return jsonify({
+            "success": True,
+            "projeto": {"id": row.id, **data},
+            "source": "db"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# -----------------------------------------------------------------------------
+# Irradiância mensal (CSV)
+# -----------------------------------------------------------------------------
+_IRR_CSV_CACHE = None
+
+def _load_irradiancia_csv():
+    global _IRR_CSV_CACHE
+    if _IRR_CSV_CACHE is not None:
+        return _IRR_CSV_CACHE
+    try:
+        csv_path = Path(__file__).parent / "src" / "data" / "irradiancia.csv"
+        if not csv_path.exists():
+            return None
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = [r for r in reader]
+        _IRR_CSV_CACHE = rows
+        return rows
+    except Exception:
+        return None
+
+def _resolve_irr_vec_from_csv(cidade: str | None, irr_media_fallback: float = 5.15) -> list[float] | None:
+    """Retorna vetor [Jan..Dez] em kWh/m²/dia a partir do CSV. Fallback: média dos municípios.
+    """
+    df = _load_irradiancia_csv()
+    if df is None or len(df) == 0:
+        return None
+    cols = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+    try:
+        if cidade:
+            needle = str(cidade).lower()
+            for row in df:
+                name = str(row.get("NAME", "")).lower()
+                if needle and needle in name:
+                    return [float(row.get(c, 0) or 0) / 1000.0 for c in cols]
+
+        # fallback: média nacional (sem pandas)
+        sums = {c: 0.0 for c in cols}
+        count = 0
+        for row in df:
+            ok = True
+            vals_row = {}
+            for c in cols:
+                try:
+                    vals_row[c] = float(row.get(c, 0) or 0)
+                except Exception:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            for c in cols:
+                sums[c] += vals_row[c]
+            count += 1
+        if count <= 0:
+            return [irr_media_fallback] * 12
+        return [(sums[c] / count) / 1000.0 for c in cols]
+    except Exception:
+        return [irr_media_fallback] * 12
+
+# ---------------------------
+# Frontend (Vite build) - SPA
+# ---------------------------
+# Importante: manter estas rotas no FINAL do arquivo (mas ANTES do app.run)
+# para não capturar endpoints específicos do backend.
+_DIST_DIR = (Path(__file__).parent / "dist").resolve()
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_spa(path: str):
+    if not _DIST_DIR.exists():
+        return "Frontend não buildado (pasta dist ausente).", 404
+
+    # Se existir arquivo estático no dist, servir ele; caso contrário, fallback para SPA
+    requested = (_DIST_DIR / path).resolve()
+    if path and requested.exists() and str(requested).startswith(str(_DIST_DIR)):
+        return send_from_directory(_DIST_DIR, path)
+
+    return send_from_directory(_DIST_DIR, "index.html")
+
+if __name__ == '__main__':
+    # Inicializa o banco (SQLite por padrão; PostgreSQL via DATABASE_URL)
+    try:
+        init_db()
+        print('✅ Banco de dados inicializado')
+    except Exception as e:
+        print(f'⚠️ Falha ao inicializar DB: {e}')
+    # Railway injeta a porta via variável de ambiente PORT
+    port = int(os.environ.get('PORT', '8000'))
+    debug = os.environ.get('FLASK_DEBUG', '').strip() in ('1', 'true', 'True')
+    app.run(host='0.0.0.0', port=port, debug=debug)
