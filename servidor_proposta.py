@@ -4417,14 +4417,8 @@ def gerar_pdf_puppeteer(proposta_id):
             if not row:
                 return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
 
-            role = (me.role or "").strip().lower()
-            if role not in ("admin", "gestor"):
-                if not (
-                    (row.created_by_email and row.created_by_email == me.email)
-                    or (row.created_by and row.created_by == me.uid)
-                ):
-                    return jsonify({"success": False, "message": "Não autorizado"}), 403
-
+            # Qualquer usuário autenticado pode baixar PDF
+            # (se ele consegue ver a proposta na interface, pode baixar)
             proposta_data = row.payload or {}
         else:
             proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
