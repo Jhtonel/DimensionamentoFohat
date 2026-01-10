@@ -6275,11 +6275,24 @@ def get_projeto(projeto_id):
 
         role = (me.role or "").strip().lower()
         if role not in ("admin", "gestor"):
-            # ACL por criador
-            if not (
+            # ACL por criador OU por cliente pertencente ao usuário
+            is_owner = (
                 (row.created_by_email and row.created_by_email == me.email) or
                 (row.created_by and row.created_by == me.uid)
-            ):
+            )
+            
+            # Verificar se o cliente da proposta pertence ao usuário
+            is_client_owner = False
+            cliente_id = row.cliente_id or (row.payload or {}).get("cliente_id")
+            if cliente_id:
+                cliente = db.get(ClienteDB, cliente_id)
+                if cliente and (
+                    (cliente.created_by_email and cliente.created_by_email == me.email) or
+                    (cliente.created_by and cliente.created_by == me.uid)
+                ):
+                    is_client_owner = True
+            
+            if not is_owner and not is_client_owner:
                 db.close()
                 return jsonify({"success": False, "message": "Não autorizado"}), 403
 

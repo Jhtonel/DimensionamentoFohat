@@ -453,7 +453,14 @@ export default function NovoProjeto() {
           }
         }
       } catch (e) {
-        console.warn("⚠️ Falha ao carregar proposta para edição:", e?.message || e);
+        console.error("❌ Falha ao carregar proposta para edição:", e?.message || e);
+        if (e?.message?.includes('Não autorizado') || e?.message?.includes('403')) {
+          alert('Você não tem permissão para editar este projeto.');
+          navigate(createPageUrl("Projetos"));
+        } else if (e?.message?.includes('Não encontrada') || e?.message?.includes('404')) {
+          alert('Projeto não encontrado.');
+          navigate(createPageUrl("Projetos"));
+        }
       }
     } else if (clienteIdFromUrl) {
       // Se veio cliente_id na URL (do modal de cliente), pré-selecionar o cliente
