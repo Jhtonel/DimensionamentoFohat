@@ -105,21 +105,29 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     const projecoes = projecoesFinanceiras || {};
 
     // Calcular quantidade de placas e potência da placa
+    // Os componentes do kit usam 'agrupamento' = 'Painel' (não 'tipo')
     let quantidade_placas = 0;
     let potencia_placa_w = 0;
-    if (kit.composicao && Array.isArray(kit.composicao)) {
-      const painel = kit.composicao.find(item => item.tipo === 'painel');
-      if (painel) {
-        quantidade_placas = painel.quantidade || 0;
-        potencia_placa_w = painel.potencia || 0;
-      }
-    } else if (kit.componentes && Array.isArray(kit.componentes)) {
-      const painel = kit.componentes.find(item => item.tipo === 'painel');
-      if (painel) {
-        quantidade_placas = painel.quantidade || 0;
-        potencia_placa_w = painel.potencia || 0;
-      }
+    
+    // Tentar encontrar nos componentes do kit
+    const componentes = kit.componentes || kit.composicao || [];
+    if (Array.isArray(componentes)) {
+      // Filtrar todos os painéis e somar quantidades
+      const paineis = componentes.filter(item => 
+        item.agrupamento === 'Painel' || item.tipo === 'painel' || item.tipo === 'Painel'
+      );
+      paineis.forEach(painel => {
+        quantidade_placas += Number(painel.quantidade || painel.qtd || 0);
+        // Potência: pegar do primeiro painel que tiver
+        if (!potencia_placa_w && painel.potencia) {
+          potencia_placa_w = Number(painel.potencia) || 0;
+        }
+      });
     }
+    
+    console.log('📊 getDadosSeguros - Kit:', kit);
+    console.log('📊 getDadosSeguros - Componentes:', componentes);
+    console.log('📊 getDadosSeguros - Quantidade placas:', quantidade_placas, 'Potência:', potencia_placa_w);
 
     // Calcular economia mensal estimada alinhada com a aba de Custos
     const tarifaKwhCalc = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)

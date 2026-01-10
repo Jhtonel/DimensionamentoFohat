@@ -1381,15 +1381,27 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         
         # Substituir variáveis do kit
         # Tenta pegar da raiz, se não der, tenta em metrics
-        qtd_placas = proposta_data.get('quantidade_placas')
-        if not qtd_placas:
-             metrics = proposta_data.get('metrics') or {}
-             qtd_placas = metrics.get('quantidade_placas', 0)
-
-        pot_placa = proposta_data.get('potencia_placa_w')
+        metrics = proposta_data.get('metrics') or {}
+        
+        qtd_placas = proposta_data.get('quantidade_placas') or metrics.get('quantidade_placas', 0)
+        pot_placa = proposta_data.get('potencia_placa_w') or metrics.get('potencia_placa_w', 0)
+        
+        # Fallback: tentar extrair potência do módulo a partir do modelo (ex: "GOKIN 610W | BIFACIAL")
         if not pot_placa:
-             metrics = proposta_data.get('metrics') or {}
-             pot_placa = metrics.get('potencia_placa_w', 0)
+            modulo_modelo = proposta_data.get('modulo_modelo') or ''
+            import re as _re
+            match = _re.search(r'(\d{3,4})\s*[Ww]', str(modulo_modelo))
+            if match:
+                pot_placa = int(match.group(1))
+                print(f"[DEBUG] Potência extraída do modelo: {pot_placa}W")
+        
+        # Fallback: calcular quantidade de placas a partir da potência do sistema
+        if (not qtd_placas or qtd_placas == 0) and pot_placa > 0:
+            potencia_sistema = proposta_data.get('potencia_sistema') or 0
+            if potencia_sistema > 0:
+                # potencia_sistema está em kWp, pot_placa em W
+                qtd_placas = int(round((potencia_sistema * 1000) / pot_placa))
+                print(f"[DEBUG] Quantidade de placas calculada: {potencia_sistema}kWp / {pot_placa}W = {qtd_placas} placas")
         
         area_nec = proposta_data.get('area_necessaria')
         if not area_nec:
