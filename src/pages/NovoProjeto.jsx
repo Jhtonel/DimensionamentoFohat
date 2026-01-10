@@ -24,6 +24,7 @@ import DimensionamentoResults from "../components/projetos/DimensionamentoResult
 import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes.jsx";
 import CostsDetailed from "../components/projetos/CostsDetailed.jsx";
 import { useAuth } from "@/services/authService.jsx";
+import { getBackendUrl } from "@/services/backendUrl.js";
 
 export default function NovoProjeto() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export default function NovoProjeto() {
   const [clientes, setClientes] = useState([]);
   const [configs, setConfigs] = useState({});
   const [concessionariasLista, setConcessionariasLista] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [calculando, setCalculando] = useState(false);
   const [activeTab, setActiveTab] = useState("basico");
@@ -341,6 +343,26 @@ export default function NovoProjeto() {
     ]);
     
     setClientes(clientesData);
+    
+    // Carregar lista de usuários para dados do vendedor responsável
+    try {
+      const token = localStorage.getItem('app_jwt_token');
+      const resp = await fetch(`${getBackendUrl()}/admin/users?t=${Date.now()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (json?.success && Array.isArray(json.items)) {
+        setUsuarios(json.items.map(u => ({
+          uid: u.uid,
+          nome: u.nome || (u.email ? String(u.email).split('@')[0] : 'Usuário'),
+          email: u.email || '',
+          cargo: u.cargo || '',
+          telefone: u.telefone || ''
+        })));
+      }
+    } catch (e) {
+      console.warn('Não foi possível carregar usuários:', e);
+    }
     
     // Concessionárias oficiais ANEEL (ordenadas por ranking)
     if (concessionariasData && concessionariasData.length > 0) {
@@ -4116,6 +4138,7 @@ export default function NovoProjeto() {
                   autoGenerateProposta={autoGenerateProposta}
                   onAutoGenerateComplete={() => setAutoGenerateProposta(false)}
                   user={user}
+                  usuarios={usuarios}
                 />
               </TabsContent>
             </Tabs>

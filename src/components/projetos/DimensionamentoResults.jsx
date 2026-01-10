@@ -8,17 +8,61 @@ import { propostaService } from '../../services/propostaService';
 import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
 import { Projeto, Configuracao } from '../../entities';
 
-export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null }) {
-  // Dados do vendedor baseados no usuário logado
-  // O cargo vem do cadastro do usuário (Admin > Usuários)
-  const vendedorDados = {
-    // Preferir SEMPRE o nome cadastrado no Postgres (UserDB.nome).
-    // Só cair no e-mail como último fallback.
-    nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
-    cargo: user?.cargo || 'Consultor de Energia Solar',
-    email: user?.email || '',
-    telefone: user?.phone || user?.telefone || ''
+export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [] }) {
+  // Dados do vendedor: usar o RESPONSÁVEL pelo cliente (created_by), não o usuário logado
+  const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
+  
+  // Buscar dados do vendedor responsável pelo cliente
+  const getVendedorResponsavel = () => {
+    if (!clienteInfo) {
+      // Fallback para usuário logado se não tiver cliente
+      return {
+        nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
+        cargo: user?.cargo || 'Consultor de Energia Solar',
+        email: user?.email || '',
+        telefone: user?.phone || user?.telefone || ''
+      };
+    }
+    
+    // Buscar o usuário responsável pelo cliente
+    const responsavelEmail = clienteInfo.created_by_email || clienteInfo.created_by || '';
+    const responsavelUid = clienteInfo.created_by || '';
+    
+    // Tentar encontrar na lista de usuários
+    const responsavel = usuarios.find(u => 
+      (u.email && responsavelEmail && u.email.toLowerCase() === responsavelEmail.toLowerCase()) || 
+      (u.uid && responsavelUid && u.uid === responsavelUid)
+    );
+    
+    if (responsavel) {
+      return {
+        nome: responsavel.nome || responsavel.full_name || responsavel.email?.split('@')[0] || 'Consultor',
+        cargo: responsavel.cargo || 'Consultor de Energia Solar',
+        email: responsavel.email || '',
+        telefone: responsavel.telefone || responsavel.phone || ''
+      };
+    }
+    
+    // Se não encontrou o usuário, usar o email como nome
+    if (responsavelEmail && responsavelEmail.includes('@')) {
+      return {
+        nome: responsavelEmail.split('@')[0],
+        cargo: 'Consultor de Energia Solar',
+        email: responsavelEmail,
+        telefone: ''
+      };
+    }
+    
+    // Último fallback: usuário logado
+    return {
+      nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
+      cargo: user?.cargo || 'Consultor de Energia Solar',
+      email: user?.email || '',
+      telefone: user?.phone || user?.telefone || ''
+    };
   };
+  
+  const vendedorDados = getVendedorResponsavel();
   const [propostaSalva, setPropostaSalva] = useState(false);
   const [propostaId, setPropostaId] = useState(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
