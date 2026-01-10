@@ -34,11 +34,8 @@ import urllib.error
 from urllib.parse import urljoin
 from datetime import date
 import jwt
-try:
-    import bcrypt
-except Exception:
-    # bcrypt pode não existir em ambiente de dev/sandbox. Para geração de proposta isso não é necessário.
-    bcrypt = None
+# bcrypt é opcional; não é necessário para geração de propostas/gráficos estáticos
+bcrypt = None
 
 app = Flask(__name__)
 CORS(app)
@@ -1062,8 +1059,18 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
       }});
     }}
 
-    // ========== Gráfico 4 - Slide 06 (Economia Acumulada - linha) ==========
+    // ========== Gráfico 4 - Payback (fluxo de caixa acumulado - linha) ==========
     if (C.s06 && Array.isArray(C.s06.values) && C.s06.values.length) {{
+      // ponto de payback = primeiro índice em que o fluxo acumulado cruza 0 (>=0)
+      let payIdx = -1;
+      try {{
+        for (let i = 0; i < C.s06.values.length; i++) {{
+          const v = Number(C.s06.values[i] || 0);
+          if (v >= 0) {{ payIdx = i; break; }}
+        }}
+      }} catch (e) {{}}
+      const payAno = (payIdx >= 0) ? (payIdx + 1) : null;
+      const payName = (payAno != null) ? ('Payback\\nAno ' + payAno) : 'Payback';
       render(C.s06.el, {{
         animation: false,
         backgroundColor: 'transparent',
@@ -1079,8 +1086,11 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
         yAxis: {{
           type:'value',
           axisLine: {{ show:false }},
+          axisTick: {{ show:false }},
+          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: fmtCompact }},
           splitLine: {{ lineStyle: {{ color: brand.grid, opacity: 0.6 }} }},
-          axisLabel: {{ color: brand.muted, fontSize: 11, formatter: fmtCompact }}
+          // linha do zero = referência visual do payback
+          axisPointer: {{ show: false }}
         }},
         series: [{{
           type:'line',
@@ -1090,7 +1100,49 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
           symbolSize: 6,
           lineStyle: {{ width: 3, color: brand.green }},
           itemStyle: {{ color: brand.green }},
-          areaStyle: {{ color: {{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{{offset:0,color:'rgba(5,150,105,0.25)'}},{{offset:1,color:'rgba(5,150,105,0.02)'}}] }} }}
+          areaStyle: {{ color: {{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{{offset:0,color:'rgba(5,150,105,0.18)'}},{{offset:1,color:'rgba(5,150,105,0.02)'}}] }} }},
+          markLine: {{
+            silent: true,
+            symbol: ['none','none'],
+            lineStyle: {{ color: brand.grid, width: 2, type:'solid' }},
+            label: {{ show: false }},
+            data: (function() {{
+              const out = [{{ yAxis: 0 }}];
+              if (payIdx >= 0) {{
+                out.push({{
+                  xAxis: C.s06.labels[payIdx],
+                  lineStyle: {{ color: brand.blue, width: 2, type:'dashed' }},
+                  label: {{
+                    show: true,
+                    position: 'insideEndTop',
+                    color: brand.blue,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    formatter: 'Payback'
+                  }}
+                }});
+              }}
+              return out;
+            }})()
+          }},
+          markPoint: (payIdx >= 0) ? {{
+            symbol: 'circle',
+            symbolSize: 14,
+            itemStyle: {{ color: brand.blue, borderColor: '#fff', borderWidth: 3 }},
+            label: {{
+              show: true,
+              position: 'top',
+              distance: 10,
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 800,
+              padding: [6, 10],
+              backgroundColor: brand.blue,
+              borderRadius: 999,
+              formatter: (p) => (p && p.name) ? p.name.replace('\\n', ' • ') : 'Payback'
+            }},
+            data: [{{ coord: [C.s06.labels[payIdx], C.s06.values[payIdx]], name: payName }}]
+          }}
         }}]
       }});
     }}
@@ -1313,7 +1365,9 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta', datetime.now().strftime('%d/%m/%Y')))
         
         # Substituir variáveis financeiras
-        template_html = template_html.replace('{{conta_atual_anual}}', f"R$ {proposta_data.get('conta_atual_anual', 0):,.2f}")
+        conta_anual_val = float(proposta_data.get('conta_atual_anual', 0) or 0)
+        template_html = template_html.replace('{{conta_atual_anual}}', f"R$ {conta_anual_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        template_html = template_html.replace('{{conta_mensal_media}}', f"R$ {conta_anual_val/12:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
         template_html = template_html.replace('{{anos_payback}}', str(proposta_data.get('anos_payback', 0)))
         # Não substituir aqui o {{gasto_acumulado_payback}}. Vamos definir após calcular o gráfico
         template_html = template_html.replace('{{consumo_mensal_kwh}}', str(int(float(proposta_data.get('consumo_mensal_kwh', 0)))))
@@ -1325,6 +1379,12 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         template_html = template_html.replace('{{potencia_placa_w}}', str(proposta_data.get('potencia_placa_w', 0)))
         template_html = template_html.replace('{{area_necessaria}}', str(proposta_data.get('area_necessaria', 0)))
         template_html = template_html.replace('{{irradiacao_media}}', f"{proposta_data.get('irradiacao_media', 5.15):.2f}")
+        # Equipamentos (marca/modelo/tipo) — podem não existir em propostas legadas
+        template_html = template_html.replace('{{modulo_marca}}', str(proposta_data.get('modulo_marca') or 'Não informado'))
+        template_html = template_html.replace('{{modulo_modelo}}', str(proposta_data.get('modulo_modelo') or 'Não informado'))
+        template_html = template_html.replace('{{inversor_marca}}', str(proposta_data.get('inversor_marca') or 'Não informado'))
+        template_html = template_html.replace('{{inversor_modelo}}', str(proposta_data.get('inversor_modelo') or 'Não informado'))
+        template_html = template_html.replace('{{tipo_inversor}}', str(proposta_data.get('tipo_inversor') or 'Não informado'))
         # Somente substituir aqui se vier um valor positivo no payload.
         # Caso contrário, manter o placeholder para ser preenchido mais adiante
         # com o valor calculado do fluxo de caixa acumulado (economia_total_25_calc).
@@ -1374,35 +1434,60 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             _margem_desejada = 0.0
         template_html = template_html.replace('{{margem_desejada}}', f"{_margem_desejada:.1f}%")
         
+        # Mapeamento fixo: chaves -> ids do template
+        id_map = {
+            "grafico1": "grafico-slide-03",
+            "grafico2": "grafico-slide-04",
+            "grafico3": "grafico-slide-05",
+            "grafico4": "grafico-slide-06",
+            "grafico5": "grafico-slide-09",
+        }
+
+        # Helper robusto:
+        # - se existir <img id="..."> injeta/atualiza src
+        # - se existir <div id="..."></div> (container do gráfico), substitui por <img ... src="...">
+        def _inject_img_src(html: str, element_id: str, new_src: str) -> str:
+            # 1) Se já existe src no mesmo tag (ordem de atributos indiferente, aspas simples/duplas)
+            pattern1 = re.compile(
+                r'(<img\b[^>]*\bid=["\']%s["\'][^>]*\bsrc=["\'])([^"\']*)(["\'"][^>]*>)' % re.escape(element_id),
+                flags=re.IGNORECASE
+            )
+            if pattern1.search(html):
+                return pattern1.sub(r'\1' + new_src + r'\3', html)
+
+            # 2) Se não tem src ainda, injeta antes do fechamento do tag
+            pattern2 = re.compile(
+                r'(<img\b[^>]*\bid=["\']%s["\'][^>]*)(>)' % re.escape(element_id),
+                flags=re.IGNORECASE
+            )
+            if pattern2.search(html):
+                return pattern2.sub(r'\1 src="' + new_src + r'"\2', html)
+
+            # 3) Se é um <div id="..."> (container do gráfico), substituir por <img>
+            pattern3 = re.compile(
+                r'<div\b(?P<attrs>[^>]*\bid=["\']%s["\'][^>]*)>\s*</div>' % re.escape(element_id),
+                flags=re.IGNORECASE
+            )
+            m = pattern3.search(html)
+            if m:
+                attrs = m.group('attrs') or ''
+                alt = "Gráfico"
+                m_alt = re.search(r'aria-label=["\']([^"\']+)["\']', attrs, flags=re.IGNORECASE)
+                if m_alt and m_alt.group(1).strip():
+                    alt = m_alt.group(1).strip()
+                img_tag = (
+                    f'<img id="{element_id}" '
+                    f'src="{new_src}" '
+                    f'alt="{alt}" '
+                    f'style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;display:block;" />'
+                )
+                return html[:m.start()] + img_tag + html[m.end():]
+            return html
+
         # ====== Sem gerar novos gráficos: aplicar somente os já fornecidos (se existirem) ======
         try:
             graficos = proposta_data.get('graficos_base64')
             if isinstance(graficos, dict):
-                id_map = {
-                    "grafico1": "grafico-slide-03",
-                    "grafico2": "grafico-slide-04",
-                    "grafico3": "grafico-slide-05",
-                    "grafico4": "grafico-slide-06",
-                    "grafico5": "grafico-slide-09",
-                }
-                # Helper robusto para substituir src do <img id="...">
-                def _inject_img_src(html: str, element_id: str, new_src: str) -> str:
-                    # 1) Se já existe src no mesmo tag (ordem de atributos indiferente, aspas simples/duplas)
-                    pattern1 = re.compile(
-                        r'(<img\b[^>]*\bid=["\']%s["\'][^>]*\bsrc=["\'])([^"\']*)(["\'][^>]*>)' % re.escape(element_id),
-                        flags=re.IGNORECASE
-                    )
-                    if pattern1.search(html):
-                        return pattern1.sub(r'\1' + new_src + r'\3', html)
-                    # 2) Se não tem src ainda, injeta antes do fechamento do tag
-                    pattern2 = re.compile(
-                        r'(<img\b[^>]*\bid=["\']%s["\'][^>]*)(>)' % re.escape(element_id),
-                        flags=re.IGNORECASE
-                    )
-                    if pattern2.search(html):
-                        return pattern2.sub(r'\1 src="' + new_src + r'"\2', html)
-                    return html
-
                 for k, v in graficos.items():
                     if k in id_map and v:
                         template_html = _inject_img_src(template_html, id_map[k], v)
@@ -1676,9 +1761,400 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         
         # IMPORTANTE: Aplicar os gráficos ECharts (injetar JavaScript + dados)
         # Esta chamada injeta o script do ECharts e os dados JSON para renderização dos gráficos
-        template_html = apply_analise_financeira_graphs(template_html, proposta_data)
+        # Para o template copy (PDF estático), preferir gráficos PNG base64 gerados no backend.
+        use_static_charts = (str(template_filename).lower().strip() == "template copy.html")
+        if use_static_charts:
+            try:
+                # Gerar PNGs estáticos (Matplotlib) a partir das tabelas do núcleo
+                import matplotlib
+                matplotlib.use("Agg")
+                import matplotlib.pyplot as plt
+                from matplotlib.ticker import FuncFormatter
+                from matplotlib.patches import FancyBboxPatch
+                import numpy as np
+
+                # ====== TEMA VISUAL PREMIUM - Design Moderno 2024 ======
+                # Paleta de cores vibrante e moderna
+                BRAND_BLUE = "#2563EB"       # Azul vibrante (mais moderno)
+                BRAND_BLUE_DARK = "#1D4ED8"  # Azul escuro para contraste
+                BRAND_GREEN = "#10B981"      # Verde esmeralda vibrante
+                BRAND_GREEN_DARK = "#059669" # Verde escuro
+                BRAND_RED = "#EF4444"        # Vermelho coral moderno
+                BRAND_RED_DARK = "#DC2626"   # Vermelho escuro
+                BRAND_ORANGE = "#F59E0B"     # Laranja para destaque
+                BRAND_TEXT = "#1E293B"       # Texto principal (slate-800)
+                BRAND_MUTED = "#64748B"      # Texto secundário (slate-500)
+                BRAND_GRID = "#E2E8F0"       # Grid suave (slate-200)
+                BRAND_BG = "#FFFFFF"         # Fundo branco
+
+                # Configuração global de alta qualidade
+                plt.rcParams.update({
+                    "figure.facecolor": BRAND_BG,
+                    "axes.facecolor": BRAND_BG,
+                    "savefig.facecolor": BRAND_BG,
+                    "font.family": "sans-serif",
+                    "font.sans-serif": ["Poppins", "Inter", "Segoe UI", "DejaVu Sans", "Arial"],
+                    "font.size": 14,
+                    "font.weight": "medium",
+                    "axes.edgecolor": BRAND_GRID,
+                    "axes.labelcolor": BRAND_TEXT,
+                    "axes.labelweight": "bold",
+                    "axes.titleweight": "bold",
+                    "xtick.color": BRAND_MUTED,
+                    "ytick.color": BRAND_MUTED,
+                    "xtick.labelsize": 13,
+                    "ytick.labelsize": 13,
+                    "legend.fontsize": 14,
+                    "legend.frameon": False,
+                    "figure.dpi": 100,
+                })
+
+                def _to_data_uri(fig) -> str:
+                    buf = io.BytesIO()
+                    # DPI alto para máxima qualidade e nitidez
+                    fig.savefig(buf, format="png", dpi=220, bbox_inches="tight", 
+                               pad_inches=0.15, transparent=False)
+                    plt.close(fig)
+                    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    return "data:image/png;base64," + b64
+
+                def _fmt_compact(v, _pos=None):
+                    """Formatar valores em formato compacto e legível"""
+                    try:
+                        v = float(v)
+                    except Exception:
+                        return ""
+                    av = abs(v)
+                    if av >= 1_000_000:
+                        return f"R$ {v/1_000_000:.1f} mi"
+                    if av >= 1_000:
+                        return f"R$ {v/1_000:.0f} mil"
+                    return f"R$ {v:,.0f}"
+
+                def _fmt_brl_full(v):
+                    """Formatar valor em BRL completo"""
+                    try:
+                        v = float(v)
+                        if v >= 1_000_000:
+                            return f"R$ {v/1_000_000:.2f} milhões"
+                        if v >= 1_000:
+                            return f"R$ {v:,.0f}".replace(",", ".")
+                        return f"R$ {v:.0f}"
+                    except Exception:
+                        return "R$ 0"
+
+                def _style_axes_modern(ax, show_y_grid=True):
+                    """Estilização moderna dos eixos - limpo e elegante"""
+                    # Grid suave apenas no eixo Y
+                    if show_y_grid:
+                        ax.grid(True, axis="y", color=BRAND_GRID, linewidth=1.5, alpha=0.8, linestyle="-")
+                    ax.grid(False, axis="x")
+                    
+                    # Remover bordas desnecessárias
+                    for side in ["top", "right"]:
+                        ax.spines[side].set_visible(False)
+                    for side in ["left", "bottom"]:
+                        ax.spines[side].set_color(BRAND_GRID)
+                        ax.spines[side].set_linewidth(1.5)
+                    
+                    # Ticks mais elegantes
+                    ax.tick_params(axis="both", which="both", length=0, pad=10)
+                    ax.set_axisbelow(True)
+                    
+                    # Fontes maiores e mais legíveis
+                    for label in ax.get_xticklabels():
+                        label.set_fontsize(14)
+                        label.set_fontweight("600")
+                        label.set_color(BRAND_MUTED)
+                    for label in ax.get_yticklabels():
+                        label.set_fontsize(13)
+                        label.set_fontweight("500")
+                        label.set_color(BRAND_MUTED)
+
+                def _add_value_labels(ax, bars, color=None, fontsize=16, offset=0.02, fmt_func=None):
+                    """Adicionar rótulos de valor em cima das barras"""
+                    if fmt_func is None:
+                        fmt_func = _fmt_compact
+                    for bar in bars:
+                        height = bar.get_height()
+                        label_color = color if color else BRAND_TEXT
+                        ax.annotate(
+                            fmt_func(height),
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 8),
+                            textcoords="offset points",
+                            ha='center', va='bottom',
+                            fontsize=fontsize,
+                            fontweight='bold',
+                            color=label_color
+                        )
+
+                tables = core_calc.get("tabelas") or {}
+                metrics = core_calc.get("metrics") or {}
+
+                cas = tables.get("custo_acumulado_sem_solar_r") or []
+                ca = tables.get("custo_anual_sem_solar_r") or []
+                fca = tables.get("fluxo_caixa_acumulado_r") or []
+                prod = (tables.get("producao_mensal_kwh_ano1") or [])[:12]
+
+                # Consumo mês a mês (se existir) — senão média
+                consumo_vec = proposta_data.get("consumo_mes_a_mes_kwh")
+                if not (isinstance(consumo_vec, list) and len(consumo_vec) == 12):
+                    try:
+                        if isinstance(proposta_data.get("consumo_mes_a_mes"), list):
+                            arr = [parse_float(((x or {}).get("kwh") or 0), 0.0) for x in proposta_data.get("consumo_mes_a_mes")]
+                            if len(arr) == 12:
+                                consumo_vec = arr
+                    except Exception:
+                        consumo_vec = None
+                if not (isinstance(consumo_vec, list) and len(consumo_vec) == 12):
+                    _ck = parse_float(proposta_data.get("consumo_mensal_kwh", 0), 0.0)
+                    consumo_vec = [float(_ck or 0.0)] * 12
+
+                meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+                # ====== GRÁFICO 1: Slide 03 - Gasto Acumulado (Linha com área) ======
+                g = {}
+                try:
+                    idxs = [0, 4, 9, 14, 19, 24]
+                    xs = [f"Ano {i+1}" for i in idxs]
+                    ys = [float(cas[i]) for i in idxs] if len(cas) >= 25 else []
+                    if ys:
+                        fig, ax = plt.subplots(figsize=(14, 9.5))
+                        
+                        # Linha principal com marcadores destacados
+                        line = ax.plot(xs, ys, color=BRAND_BLUE, linewidth=4, marker="o", 
+                                       markersize=12, markerfacecolor=BRAND_BLUE, 
+                                       markeredgecolor="white", markeredgewidth=3, zorder=5)
+                        
+                        # Área com gradiente suave
+                        ax.fill_between(range(len(ys)), ys, [0]*len(ys), 
+                                       color=BRAND_BLUE, alpha=0.12)
+                        
+                        ax.set_ylim(0, max(ys)*1.18 if ys else 1)
+                        _style_axes_modern(ax)
+                        ax.yaxis.set_major_formatter(FuncFormatter(_fmt_compact))
+                        
+                        # Labels grandes e destacados nos pontos
+                        for xi, yi in enumerate(ys):
+                            ax.annotate(
+                                _fmt_compact(yi),
+                                xy=(xi, yi),
+                                xytext=(0, 30),
+                                textcoords="offset points",
+                                ha='center', va='bottom',
+                                fontsize=15,
+                                fontweight='bold',
+                                color=BRAND_TEXT,
+                                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                                         edgecolor=BRAND_GRID, alpha=0.9)
+                            )
+                        
+                        fig.tight_layout(pad=1.5)
+                        g["grafico1"] = _to_data_uri(fig)
+                except Exception as _e:
+                    print(f"⚠️ Falha ao gerar grafico1 estático: {_e}")
+
+                # ====== GRÁFICO 2: Slide 04 - Custo Anual (não usado no template copy) ======
+                try:
+                    if ca:
+                        xs = [f"Ano {i+1}" for i in range(len(ca))]
+                        ys = [float(v) for v in ca]
+                        fig, ax = plt.subplots(figsize=(12, 5))
+                        ax.plot(xs, ys, color=BRAND_BLUE, linewidth=3.5)
+                        ax.fill_between(range(len(ys)), ys, [0]*len(ys), color=BRAND_BLUE, alpha=0.1)
+                        _style_axes_modern(ax)
+                        ax.yaxis.set_major_formatter(FuncFormatter(_fmt_compact))
+                        
+                        # Mostrar apenas alguns anos no eixo X
+                        tick_positions = [0, 4, 9, 14, 19, 24]
+                        ax.set_xticks(tick_positions)
+                        ax.set_xticklabels([xs[i] for i in tick_positions if i < len(xs)], fontsize=13)
+                        
+                        fig.tight_layout(pad=1.5)
+                        g["grafico2"] = _to_data_uri(fig)
+                except Exception as _e:
+                    print(f"⚠️ Falha ao gerar grafico2 estático: {_e}")
+
+                # ====== GRÁFICO 3: Slide 05 - Consumo x Produção (Barras Duplas) ======
+                try:
+                    if isinstance(consumo_vec, list) and len(consumo_vec) == 12 and isinstance(prod, list) and len(prod) == 12:
+                        # Figura maior verticalmente para ocupar todo o espaço do card
+                        fig, ax = plt.subplots(figsize=(14, 9.5))
+                        x = np.arange(12)
+                        width = 0.38
+                        
+                        # Barras com cores vibrantes (sem label para legenda)
+                        bars1 = ax.bar(x - width/2, consumo_vec, width, color=BRAND_BLUE, 
+                                      alpha=0.92, edgecolor='white', linewidth=1.7)
+                        bars2 = ax.bar(x + width/2, prod, width, color=BRAND_GREEN, 
+                                      alpha=0.92, edgecolor='white', linewidth=1.7)
+                        
+                        ax.set_xticks(x)
+                        ax.set_xticklabels(meses, fontsize=15, fontweight='700')
+                        _style_axes_modern(ax)
+                        
+                        # SEM legenda interna - removida conforme solicitado
+                        
+                        # Espaço para labels em cima das colunas
+                        ymax = max(max(consumo_vec), max(prod)) if (consumo_vec and prod) else 1
+                        ax.set_ylim(0, ymax * 1.18)
+                        
+                        # Labels em TODAS as colunas (consumo e produção)
+                        for i in range(12):
+                            try:
+                                cv = float(consumo_vec[i])
+                                pv = float(prod[i])
+                                # Label do consumo (azul)
+                                ax.annotate(f"{cv:.0f}", xy=(i - width/2, cv), xytext=(0, 4),
+                                           textcoords="offset points", ha='center', va='bottom',
+                                           fontsize=16, fontweight='bold', color=BRAND_BLUE_DARK)
+                                # Label da produção (verde)
+                                ax.annotate(f"{pv:.0f}", xy=(i + width/2, pv), xytext=(0, 4),
+                                           textcoords="offset points", ha='center', va='bottom',
+                                           fontsize=16, fontweight='bold', color=BRAND_GREEN_DARK)
+                            except Exception:
+                                pass
+                        
+                        # Ajustar margens para ocupar melhor o espaço
+                        fig.subplots_adjust(left=0.05, right=0.98, top=0.95, bottom=0.12)
+                        fig.tight_layout(pad=1.0)
+                        g["grafico3"] = _to_data_uri(fig)
+                except Exception as _e:
+                    print(f"⚠️ Falha ao gerar grafico3 estático: {_e}")
+
+                # ====== GRÁFICO 4: Slide 07 - Payback (Fluxo de Caixa Acumulado) ======
+                try:
+                    if fca:
+                        xs_labels = [f"Ano {i+1}" for i in range(len(fca))]
+                        ys = [float(v) for v in fca]
+                        pay_idx = next((i for i, v in enumerate(ys) if v >= 0), None)
+                        
+                        fig, ax = plt.subplots(figsize=(14, 9.5))
+                        x_positions = list(range(len(fca)))
+                        
+                        # Cores diferentes para valores negativos e positivos
+                        colors_area = [BRAND_RED if y < 0 else BRAND_GREEN for y in ys]
+                        
+                        # Linha principal
+                        ax.plot(x_positions, ys, color=BRAND_GREEN, linewidth=4, zorder=4)
+                        
+                        # Área colorida (vermelho abaixo de zero, verde acima)
+                        ys_neg = [min(y, 0) for y in ys]
+                        ys_pos = [max(y, 0) for y in ys]
+                        ax.fill_between(x_positions, ys_neg, 0, color=BRAND_RED, alpha=0.15)
+                        ax.fill_between(x_positions, 0, ys_pos, color=BRAND_GREEN, alpha=0.15)
+                        
+                        # Linha do zero destacada
+                        ax.axhline(0, color=BRAND_TEXT, linewidth=2, alpha=0.3, linestyle='-')
+                        
+                        _style_axes_modern(ax)
+                        ax.yaxis.set_major_formatter(FuncFormatter(_fmt_compact))
+                        
+                        # Apenas alguns anos no eixo X
+                        tick_idx = [0, 4, 9, 14, 19, 24]
+                        ax.set_xticks(tick_idx)
+                        ax.set_xticklabels([xs_labels[i] for i in tick_idx if i < len(xs_labels)], fontsize=13)
+                        
+                        # Destaque do ponto de payback
+                        if pay_idx is not None:
+                            ax.axvline(pay_idx, color=BRAND_ORANGE, linestyle="--", linewidth=3, alpha=0.8)
+                            ax.scatter([pay_idx], [ys[pay_idx]], s=200, color=BRAND_ORANGE, 
+                                      edgecolors="white", linewidths=3, zorder=6)
+                            
+                            # Label do payback com destaque
+                            ax.annotate(
+                                f"PAYBACK\nAno {pay_idx+1}",
+                                xy=(pay_idx, ys[pay_idx]),
+                                xytext=(-100,20),
+                                textcoords="offset points",
+                                fontsize=16,
+                                fontweight='bold',
+                                color=BRAND_ORANGE,
+                                ha='left',
+                                bbox=dict(boxstyle='round,pad=0.5', facecolor='white', 
+                                         edgecolor=BRAND_ORANGE, linewidth=2, alpha=0.95),
+                                arrowprops=dict(arrowstyle='->', color=BRAND_ORANGE, lw=2)
+                            )
+                        
+                        fig.tight_layout(pad=1.5)
+                        g["grafico4"] = _to_data_uri(fig)
+                except Exception as _e:
+                    print(f"⚠️ Falha ao gerar grafico4 estático: {_e}")
+
+                # ====== GRÁFICO 5: Slide 11 - Comparativo 25 Anos vs Investimento ======
+                try:
+                    if cas:
+                        sem_solar_25 = float(cas[-1]) if cas else 0.0
+                    else:
+                        sem_solar_25 = float(metrics.get("gasto_total_25_anos", 0) or 0.0)
+                    inv = float(core_payload.get("preco_venda", 0) or 0.0)
+                    
+                    fig, ax = plt.subplots(figsize=(14, 9.5))
+                    labels = ["Gasto SEM\nenergia solar\n(25 anos)", "Investimento\nno sistema"]
+                    vals = [sem_solar_25, inv]
+                    colors = [BRAND_RED, BRAND_GREEN]
+                    
+                    # Barras largas e impactantes
+                    bars = ax.bar(labels, vals, color=colors, width=0.55, 
+                                 edgecolor='white', linewidth=2)
+                    
+                    _style_axes_modern(ax, show_y_grid=True)
+                    ax.yaxis.set_major_formatter(FuncFormatter(_fmt_compact))
+                    
+                    # Eixo X mais legível
+                    ax.tick_params(axis='x', labelsize=16, pad=12)
+                    
+                    # Espaço para os labels
+                    ymax = max(vals) if vals else 1
+                    ax.set_ylim(0, ymax * 1.25)
+                    
+                    # Rótulos grandes e destacados em cima das barras
+                    for bar, val, color in zip(bars, vals, [BRAND_RED_DARK, BRAND_GREEN_DARK]):
+                        height = bar.get_height()
+                        ax.annotate(
+                            _fmt_brl_full(val),
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 12),
+                            textcoords="offset points",
+                            ha='center', va='bottom',
+                            fontsize=18,
+                            fontweight='bold',
+                            color=color,
+                            bbox=dict(boxstyle='round,pad=0.4', facecolor='white', 
+                                     edgecolor=color, linewidth=2, alpha=0.95)
+                        )
+                    
+                    # Adicionar indicador de economia
+                    if sem_solar_25 > 0 and inv > 0:
+                        economia = sem_solar_25 - inv
+                        economia_pct = (economia / sem_solar_25) * 100
+                        economia_text = f"Economia: {_fmt_brl_full(economia)} ({economia_pct:.0f}%)"
+                        ax.text(0.5, 0.02, economia_text, transform=ax.transAxes, 
+                               fontsize=16, fontweight='bold', color=BRAND_GREEN_DARK,
+                               ha='center', va='bottom',
+                               bbox=dict(boxstyle='round,pad=0.5', facecolor='#ECFDF5', 
+                                        edgecolor=BRAND_GREEN, linewidth=1.5))
+                    
+                    fig.tight_layout(pad=2)
+                    g["grafico5"] = _to_data_uri(fig)
+                except Exception as _e:
+                    print(f"⚠️ Falha ao gerar grafico5 estático: {_e}")
+
+                # Injetar os PNGs no HTML substituindo os containers por <img>
+                if g:
+                    proposta_data.setdefault("graficos_base64", {})
+                    proposta_data["graficos_base64"].update(g)
+                    # reutilizar id_map + helper já definidos acima
+                    for k, v in g.items():
+                        if k in id_map and v:
+                            template_html = _inject_img_src(template_html, id_map[k], v)
+            except Exception as _e:
+                print(f"⚠️ Falha ao gerar/injetar gráficos estáticos: {_e}")
+        else:
+            template_html = apply_analise_financeira_graphs(template_html, proposta_data)
         
-        # ====== FORMAS DE PAGAMENTO (Slide 10) ======
+        # ====== FORMAS DE PAGAMENTO (Slide 12 no template copy / Slide 10 no template antigo) ======
         try:
             # Usar o preco_final_real calculado no início da função (já validado e robusto)
             print(f"💳 [SLIDE10] Usando preco_final_real: R$ {preco_final_real:,.2f}")
@@ -1692,21 +2168,65 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             payload_cartao_count = payload_cartao.count('parcela-item') if payload_cartao else 0
             has_payload_pagamento = bool(payload_cartao.strip() or payload_fin.strip() or payload_avista or payload_menor)
 
-            # Se o payload veio de uma versão antiga (ex.: cartão só com 6 opções),
-            # recalcular para garantir 1x..18x.
-            if has_payload_pagamento and not (payload_cartao_count and payload_cartao_count < 18 and preco_final_real > 0):
-                template_html = template_html.replace('{{parcelas_cartao}}', payload_cartao)
-                template_html = template_html.replace('{{parcelas_financiamento}}', payload_fin)
-                template_html = template_html.replace('{{valor_avista_cartao}}', str(payload_avista or 'R$ 0,00'))
-                template_html = template_html.replace('{{menor_parcela_financiamento}}', str(payload_menor or 'R$ 0,00'))
-                print("✅ [SLIDE10] Usando valores persistidos no payload (pré-calculados).")
-            elif preco_final_real > 0:
-                pagamento_data = calcular_parcelas_pagamento(preco_final_real)
-                template_html = template_html.replace('{{parcelas_cartao}}', pagamento_data.get('parcelas_cartao', ''))
-                template_html = template_html.replace('{{parcelas_financiamento}}', pagamento_data.get('parcelas_financiamento', ''))
-                template_html = template_html.replace('{{valor_avista_cartao}}', pagamento_data.get('valor_avista_cartao', 'R$ 0,00'))
-                template_html = template_html.replace('{{menor_parcela_financiamento}}', pagamento_data.get('menor_parcela_financiamento', 'R$ 0,00'))
-                print("✅ [SLIDE10] Parcelas calculadas com sucesso (on-the-fly).")
+            is_template_copy = (str(template_filename).lower().strip() == "template copy.html")
+            max_cartao_itens = 12 if is_template_copy else 18
+
+            def _parse_brl_to_float(v) -> float:
+                try:
+                    if v is None:
+                        return 0.0
+                    if isinstance(v, (int, float)):
+                        return float(v)
+                    s = str(v).strip()
+                    for token in ['R$', 'r$', 'RS', 'rs']:
+                        s = s.replace(token, '')
+                    s = re.sub(r'\s+', '', s)
+                    # "10.495,50" -> "10495.50"
+                    if ',' in s:
+                        s = s.replace('.', '').replace(',', '.')
+                    else:
+                        # "892.857" (milhar) -> "892857"
+                        s = s.replace('.', '')
+                    return float(s)
+                except Exception:
+                    return 0.0
+
+            def _limit_parcela_items(html: str, max_items: int) -> str:
+                if not html:
+                    return ""
+                try:
+                    items = re.findall(r'<div class="parcela-item"[\s\S]*?</div>', html)
+                    if items:
+                        return "".join(items[:max_items])
+                except Exception:
+                    pass
+                # fallback simples: retorna como veio
+                return html
+            
+            if preco_final_real > 0:
+                # Sempre ter um cálculo “fonte da verdade” para evitar financiamento zerado e layout antigo
+                pagamento_calc = calcular_parcelas_pagamento(preco_final_real)
+
+                # Cartão: no template copy, exibir SOMENTE até 12x (demais sob consulta)
+                src_cartao = payload_cartao if payload_cartao.strip() else (pagamento_calc.get('parcelas_cartao', '') or '')
+                template_html = template_html.replace('{{parcelas_cartao}}', _limit_parcela_items(src_cartao, max_cartao_itens))
+
+                # Financiamento: alguns templates não mostram a lista, mas sempre precisamos do destaque.
+                src_fin = payload_fin if payload_fin.strip() else (pagamento_calc.get('parcelas_financiamento', '') or '')
+                # No template copy, mostrar mais opções mas ainda caber no slide
+                max_fin_itens = 8 if is_template_copy else 999
+                template_html = template_html.replace('{{parcelas_financiamento}}', _limit_parcela_items(src_fin, max_fin_itens))
+
+                # Destaques: se payload estiver vazio/zerado, usar o calculado.
+                av_payload_ok = _parse_brl_to_float(payload_avista) > 0
+                menor_payload_ok = _parse_brl_to_float(payload_menor) > 0
+                template_html = template_html.replace('{{valor_avista_cartao}}', str(payload_avista) if av_payload_ok else (pagamento_calc.get('valor_avista_cartao', 'R$ 0,00') or 'R$ 0,00'))
+                template_html = template_html.replace('{{menor_parcela_financiamento}}', str(payload_menor) if menor_payload_ok else (pagamento_calc.get('menor_parcela_financiamento', 'R$ 0,00') or 'R$ 0,00'))
+
+                if is_template_copy:
+                    print("✅ [SLIDE12] Template copy: cartão limitado a 12x e financiamento garantido pelo cálculo.")
+                elif has_payload_pagamento:
+                    print("✅ [SLIDE10] Usando payload (com fallback no cálculo quando necessário).")
             else:
                 # Log completo do proposta_data para debug
                 print(f"⚠️ [SLIDE10] Preço zerado! Dump de proposta_data keys: {list(proposta_data.keys())}")
@@ -2289,7 +2809,7 @@ def _load_formas_pagamento():
         if isinstance(value, dict) and value.get("pagseguro"):
             return value
     except Exception as e:
-        # Nunca pode explodir em produção — senão o Slide 10 cai no except e vira R$ 0,00
+        # Nunca pode explodir em produção — senão o Slide 12 cai no fallback e vira R$ 0,00
         try:
             logging.warning(f"Erro ao carregar formas de pagamento: {e}")
         except Exception:
@@ -2447,7 +2967,7 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         valor_com_taxa = valor_total * (1 + taxa / 100)
         valor_parcela = (valor_com_taxa / parcelas) if parcelas > 0 else 0.0
         parcelas_cartao_html += (
-            f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span>'''
+            f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de </span>'''
             f'''<span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
         )
     
@@ -2457,9 +2977,10 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
     financiamento_list = formas_pagamento.get("financiamento", DEFAULT_FORMAS_PAGAMENTO["financiamento"])
     print(f"🏦 [PAGAMENTO] Financiamento: {len(financiamento_list)} opções")
     
+    fin_rows = []
     for item in financiamento_list:
-        parcelas = _to_int(item.get("parcelas", 1), default=1)
-        taxa_mensal = _to_float(item.get("taxa", 0), default=0.0) / 100
+        parcelas = _to_int((item or {}).get("parcelas", 1), default=1)
+        taxa_mensal = _to_float((item or {}).get("taxa", 0), default=0.0) / 100
         
         if taxa_mensal > 0:
             # Fórmula Price
@@ -2467,10 +2988,18 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         else:
             valor_parcela = valor_total / parcelas
         
+        fin_rows.append((parcelas, float(valor_parcela)))
         if valor_parcela < menor_parcela:
-            menor_parcela = valor_parcela
-        
-        parcelas_financiamento_html += f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de</span><span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
+            menor_parcela = float(valor_parcela)
+
+    # Montar HTML destacando a melhor (menor parcela)
+    for parcelas, valor_parcela in fin_rows:
+        is_best = (menor_parcela != float('inf')) and (abs(valor_parcela - menor_parcela) <= 0.01)
+        cls = "parcela-item best" if is_best else "parcela-item"
+        parcelas_financiamento_html += (
+            f'''<div class="{cls}"><span class="parcela-numero">{parcelas}x de </span>'''
+            f'''<span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
+        )
     
     # Valor à vista no cartão (1x com taxa)
     primeira_taxa = _to_float((cfg_map.get(1) or default_map.get(1) or {}).get("taxa", 3.16), default=3.16)

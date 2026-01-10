@@ -3,1343 +3,487 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=1920, initial-scale=1.0">
-<title>Proposta Solar - Apresentação (1920×1080)</title>
+<title>Proposta Solar - Apresentação (A4 Paisagem)</title>
 
-<!-- Poppins -->
+<!-- Fonte Poppins (Moderna e Geométrica) -->
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
-  :root{
-    /* principais */
-    --brand-primary:#1E3A8A; /* Azul primário (confirmado) */
-    --brand-secondary:#ECFDF5; /* Light secundária (confirmado) */
-    --brand-accent:#F59E0B; /* Amarelo/laranja para destaques */
+  :root {
+    /* --- Paleta de Cores (Mantida e Refinada) --- */
+    --brand-primary: #1E3A8A; /* Azul Institucional */
+    --brand-secondary: #ECFDF5; /* Fundo Suave Verde */
+    --brand-accent: #F59E0B; /* Destaque Laranja */
 
-    /* Neutras */
-    --n-50:#F9FAFB; --n-100:#F3F4F6; --n-200:#E5E7EB; --n-300:#D1D5DB;
-    --n-400:#9CA3AF; --n-500:#6B7280; --n-600:#4B5563; --n-700:#374151;
-    --n-800:#1F2937; --n-900:#111827;
+    /* Neutros */
+    --n-0: #FFFFFF;
+    --n-50: #F8FAFC;  /* Slate 50 */
+    --n-100: #F1F5F9; /* Slate 100 */
+    --n-200: #E2E8F0;
+    --n-300: #CBD5E1;
+    --n-600: #475569;
+    --n-700: #334155;
+    --n-800: #1E293B;
+    --n-900: #0F172A;
 
-    /* Teal */
-    --t-50:#F0FDFA; --t-100:#CCFBF1; --t-200:#99F6E4; --t-300:#5EEAD4;
-    --t-400:#2DD4BF; --t-500:#14B8A6; --t-600:#0D9488; --t-700:#0F766E;
-    --t-800:#115E59; --t-900:#134E4A;
+    /* Semânticos */
+    --success-bg: #F0FDF4;
+    --success-text: #15803D;
+    --success-border: #BBF7D0;
+    
+    --danger-bg: #FEF2F2;
+    --danger-text: #B91C1C;
+    --danger-border: #FECACA;
 
-    /* Azul */
-    --b-50:#EFF6FF; --b-100:#DBEAFE; --b-200:#BFDBFE; --b-300:#93C5FD;
-    --b-400:#60A5FA; /* corrigido (Tailwind blue-400) */
-    --b-500:#3B82F6; --b-600:#2563EB; /* corrigido (Tailwind blue-600) */
-    --b-700:#1D4ED8; --b-800:#1E40AF; --b-900:#1E3A8A;
-
-    /* Amarelos / complementares */
-    --y-50:#FFFBEA; --y-100:#FEF3C7; --y-200:#FDE68A; --y-300:#FCD34D;
-    --y-400:#FBBF24; --y-500:#F59E0B; --y-600:#D97706; --y-700:#B45309;
-    --y-800:#92400E; --y-900:#78350F;
-
-    /* Negativa */
-    --neg-50:#FEF2F2; --neg-100:#FEE2E2; --neg-200:#FECACA; --neg-300:#FCA5A5;
-    --neg-400:#F87171; --neg-500:#EF4444; --neg-600:#DC2626; --neg-700:#B91C1C;
-    --neg-800:#991B1B; --neg-900:#991B1B;
-
-    /* Positiva */
-    --pos-50:#ECFDF5; --pos-100:#D1FAE5; --pos-200:#A7F3D0; --pos-300:#6EE7B7;
-    --pos-400:#34D399; --pos-500:#10B981; --pos-600:#059669; --pos-700:#047857;
-    --pos-800:#065F46; --pos-900:#064E3B;
-
-    /* Aliases semânticos (o template usa --red/--green/--blue/--purple em vários pontos) */
-    --blue-50:var(--b-50);  --blue-100:var(--b-100); --blue-200:var(--b-200); --blue-300:var(--b-300);
-    --blue-400:var(--b-400);--blue-500:var(--b-500); --blue-600:var(--b-600); --blue-700:var(--b-700);
-    --blue-800:var(--b-800);--blue-900:var(--b-900);
-
-    --green-50:var(--pos-50);  --green-100:var(--pos-100); --green-200:var(--pos-200); --green-300:var(--pos-300);
-    --green-400:var(--pos-400);--green-500:var(--pos-500); --green-600:var(--pos-600); --green-700:var(--pos-700);
-    --green-800:var(--pos-800);--green-900:var(--pos-900);
-
-    --red-50:var(--neg-50);  --red-100:var(--neg-100); --red-200:var(--neg-200); --red-300:var(--neg-300);
-    --red-400:var(--neg-400);--red-500:var(--neg-500); --red-600:var(--neg-600); --red-700:var(--neg-700);
-    --red-800:var(--neg-800);--red-900:var(--neg-900);
-
-    /* Roxo (usado em alguns gradientes/estilos) */
-    --purple-500:#A855F7;
-    --purple-600:#9333EA;
-
-    /* Tokens de UI (visual moderno) */
-    --surface:#FFFFFF;
-    --surface-2:var(--n-50);
-    --surface-3:var(--b-50);
-    --text:var(--n-900);
-    --text-muted:var(--n-600);
-    /* Evitar color-mix()/color() pois html2canvas/jsPDF não suportam bem (quebra o PDF) */
-    --border-soft:rgba(229,231,235,0.80); /* var(--n-200) #E5E7EB @ 80% */
-    --shadow-sm:0 1px 2px rgba(16,24,40,.06), 0 1px 1px rgba(16,24,40,.04);
-    --shadow-md:0 10px 20px rgba(16,24,40,.10), 0 6px 10px rgba(16,24,40,.06);
-    --shadow-lg:0 24px 50px rgba(16,24,40,.16), 0 10px 18px rgba(16,24,40,.10);
-
-    /* tipografia/spacing base */
-    --maxw:1200px;
-    --page-w:1920px;
-    --page-h:1080px;
-    --pad-xl:64px; --pad-lg:40px; --pad-md:24px; --pad-sm:16px;
-    --radius-lg:24px; --radius-md:16px; --radius-sm:10px;
+    /* --- Tokens de Layout --- */
+    --page-width: 297mm;
+    --page-height: 210mm;
+    --page-padding: 10mm 14mm; /* Reduzido levemente para ganhar área útil */
+    --card-padding: 24px;
+    --gap-md: 20px;
+    --gap-lg: 28px;
+    
+    /* --- Tokens de UI --- */
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -1px rgba(0,0,0,0.04);
+    --border-light: var(--n-200);
   }
 
-  /* ====== Configurações para WeasyPrint (PDF Generation) ====== */
+  /* --- Reset & Base --- */
+  * { box-sizing: border-box; }
+  
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+    background: #E5E5E5; /* Contraste no dev */
+    -webkit-font-smoothing: antialiased;
+    color: var(--n-800);
+    font-size: 16px; /* Base aumentada */
+  }
+
+  /* Configuração de Impressão (PDF) */
   @page {
     size: A4 landscape;
     margin: 0;
   }
-
-  /* Garantir que backgrounds sejam impressos */
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  @media print {
+    body { background: none; }
+    .page { box-shadow: none; margin: 0; page-break-after: always; }
   }
 
-  /* Forçar quebra de página entre slides */
+  /* --- Estrutura da Página (Slide) --- */
   .page {
-    page-break-after: always;
-    page-break-inside: avoid;
+    position: relative;
+    width: var(--page-width);
+    height: var(--page-height);
+    background: white;
+    margin: 20px auto; /* Visualização web */
+    overflow: hidden; /* Container fixo A4 */
+    display: flex;
+    flex-direction: column;
+    padding: var(--page-padding);
+    box-shadow: 0 0 20px rgba(0,0,0,0.15); /* Visualização web */
   }
 
-  .page:last-child {
-    page-break-after: auto;
-  }
-  /* ====== Fim Configurações WeasyPrint ====== */
-
-  /* Reset mínimo */
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;font-family:Poppins;color:var(--text);background:var(--surface)}
-  h1,h2,h3,h4{margin:0 0 12px 0;color:var(--n-900)}
-  p{margin:0 0 12px 0;line-height:1.5}
-  ul{margin:0 0 12px 1.2rem}
-
-  /* wrapper responsivo que preserva proporção 16:9 por seção */
-  .frame{
-    position:relative;
-    width:100%;
-    max-width:var(--page-w);
-    margin-inline:auto;
-    background:#fff;
+  /* Layout Interno Flexível */
+  .page-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    position: relative;
   }
 
-  .page{
-    position:relative;
-    width:297mm; /* A4 paisagem - largura */
-    height:210mm; /* A4 paisagem - altura */
-    overflow:hidden;
-    border-bottom:1px solid var(--n-200);
-    margin:0 auto; /* Centralizar */
-    background:linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  /* --- Header do Slide --- */
+  .slide-header {
+    margin-bottom: var(--gap-md);
+    flex-shrink: 0;
+    border-bottom: 4px solid var(--brand-primary);
+    padding-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
   }
 
-  /* áreas internas com grid de layout */
-  .page-inner{
-    width:100%;
-    height:100%;
-    padding:64px;
-    display:grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap:24px;
-    align-content:stretch;
+  .slide-title {
+    font-size: 32px; /* Maior destaque */
+    font-weight: 800;
+    color: var(--brand-primary);
+    margin: 0;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
   }
 
-  /* Ajuste específico para slide 2 */
-  #slide-02 .page-inner{
-    padding:48px;
-    gap:32px;
+  .header-meta {
+    text-align: right;
+    font-size: 14px;
+    color: var(--n-600);
+    font-weight: 600;
   }
 
-  /* helpers de cor/fundo */
-  .bg-primary{background:var(--brand-primary);color:#fff}
-  .bg-secondary{background:var(--brand-secondary)}
-  .bg-neutral{background:var(--n-50)}
-  .text-primary{color:var(--brand-primary)}
-  .chip{display:inline-block;padding:8px 14px;border-radius:999px;background:var(--n-100);color:var(--n-700);font-weight:600}
-  .chip{
-    box-shadow:var(--shadow-sm);
-    border:1px solid var(--border-soft);
+  /* --- Área de Conteúdo (Expansível) --- */
+  .content-area {
+    flex: 1; /* Ocupa todo o espaço restante */
+    display: flex; /* Default flex */
+    gap: var(--gap-lg);
+    min-height: 0; /* Permite scroll/shrink interno se necessário */
+    align-items: stretch;
   }
 
-  /* tipografia fiel e escalas comuns */
-  .title-xxl{font-size:64px;line-height:1.05;font-weight:800;letter-spacing:-0.02em}
-  .title-xl{font-size:48px;line-height:1.1;font-weight:700}
-  .title-lg{font-size:36px;line-height:1.15;font-weight:700}
-  .subtitle{font-size:22px;color:var(--n-700)}
-  .kpi{font-size:64px;font-weight:800}
-  .lead{font-size:20px;color:var(--n-700)}
-
-  /* blocos comuns (cards, tabelas) */
-  .card{
-    background:var(--surface);
-    border:1px solid var(--border-soft);
-    border-radius:var(--radius-lg);
-    padding:24px;
-    box-shadow:var(--shadow-sm);
-  }
-  .card.soft{background:var(--n-50)}
-  .card.primary{background:linear-gradient(135deg, var(--brand-primary) 0%, var(--b-800) 100%);color:#fff;border-color:transparent;box-shadow:var(--shadow-md)}
-  .card.secondary{background:linear-gradient(135deg, var(--brand-secondary) 0%, var(--t-50) 100%);border-color:transparent}
-
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
-
-  table{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    overflow:hidden;
-    border-radius:14px;
-    border:1px solid var(--border-soft);
-    background:var(--surface);
-    box-shadow:var(--shadow-sm);
-  }
-  thead th{
-    background:linear-gradient(180deg, var(--n-50) 0%, var(--n-100) 100%);
-    text-align:left;
-    font-weight:700;
-    padding:14px 16px;
-    border-bottom:1px solid var(--border-soft);
-  }
-  tbody td{padding:14px 16px;border-bottom:1px solid var(--n-100)}
-  tbody tr:last-child td{border-bottom:0}
-  .tag{font-weight:600;color:#fff;background:var(--brand-primary);padding:6px 10px;border-radius:10px;display:inline-block}
-
-  /* header/footer slide */
-  .slide-header{
-    grid-column:1 / -1;
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-bottom:24px;
-    align-self:start;
-    padding:0 16px;
-  }
-  .slide-footer{
-    position:absolute;right:24px;bottom:20px;font-size:14px;color:var(--n-600)
-  }
-
-  /* Micro melhorias modernas (sem mexer na estrutura) */
-  .title-xxl,.title-xl,.title-lg{
-    letter-spacing:-0.02em;
-  }
-  .subtitle,.lead{
-    color:var(--text-muted);
-  }
-  a{color:inherit;text-decoration:none}
-
-  /* barras decorativas opcionais (sem suposição de uso) */
-  .bar{
-    height:6px;border-radius:6px;background:var(--brand-primary);opacity:.12
-  }
-
-  /* Footer com dados do vendedor */
-  .slide-footer-vendedor{
-    grid-column:1 / -1;
-    display:flex;
-    flex-direction:column;
-    align-items:flex-end;
-    align-self:end;
-    margin-top:auto;
-  }
-
-  /* Linha azul decorativa */
-  .line-blue{
-    width:100%;
-    height:4px;
-    background:var(--brand-primary);
-    margin:0 0 12px 0;
-    border-radius:2px;
-    overflow:visible;
-  }
-
-  /* Linha azul do topo */
-  .line-blue-top{
-    width:100%;
-    height:4px;
-    background:var(--brand-primary);
-    margin:0 0 18px 0;
-    border-radius:2px;
-    grid-column:1 / -1;
-    grid-row:1;
-    align-self:start;
-    margin-top:14px;
-  }
-
-  /* Informações do vendedor */
-  .vendedor-info{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-top:0;
-    padding:0;
-    width:100%;
-  }
-
-  .vendedor-dados{
-    text-align:start;
-    flex:1;
-  }
-
-  .vendedor-dados p{
-    margin:4px 0;
-    font-size:14px;
-    color:var(--n-600);
-  }
-
-  .vendedor-nome{
-    font-weight:600;
-    color:var(--n-800) !important;
-    font-size:16px !important;
-  }
-
-  .vendedor-cargo{
-    font-size:13px !important;
-    color:var(--n-500) !important;
-  }
-
-  .vendedor-contato{
-    font-size:12px !important;
-    color:var(--n-400) !important;
-  }
-
-  .data-proposta{
-    text-align:right;
-    margin-left:16px;
-  }
-
-  .data-texto{
-    font-size:14px;
-    color:var(--n-600);
-    font-weight:500;
-  }
-
-  .logo-vendedor{
-    width:150px;
-    align-items:right;
-  }
-
-  .slide-number{
-    font-size:14px;
-    color:var(--n-500);
-    font-weight:500;
-    grid-column:12 / span 1;
-    text-align:right;
-    grid-row:1;
-    align-self:start;
-    padding:0 16px;
-  }
-
-  .client-name{
-    font-size:14px;
-    color:var(--n-500);
-    font-weight:500;
-    grid-column:1 / span 6;
-    text-align:left;
-    grid-row:1;
-    align-self:start;
-    padding:0 16px;
-  }
-
-  .como-funciona{
-    width:100%;
-    height:auto;
-    max-height:100%;
-    object-fit:contain;
-    grid-column:8 / span 4;
-    align-self:center;
-  }
-
-  .como-funciona-texto{
-    grid-column:1 / span 6;
-    padding-right:24px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    height:100%;
-    align-self:center;
-  }
-
-  .cenario-atual-content{
-    grid-column:1 / -1;
-    display:grid;
+  .grid-2 {
+    display: grid;
     grid-template-columns: 1fr 1fr;
-    gap:24px;
-    align-items:stretch;
-    align-self:stretch;
-    height:100%;
-    padding:0 8px;
-    max-width:100%;
+    gap: var(--gap-lg);
+    width: 100%;
+  }
+  
+  /* Ajuste de proporção para textos vs gráficos */
+  .grid-text-chart {
+    display: grid;
+    grid-template-columns: 40% 60%; /* Mais espaço para o gráfico */
+    gap: var(--gap-lg);
+    width: 100%;
   }
 
-  .cenario-atual-texto{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    justify-content:space-between;
-    height:100%;
-    padding:2px 0;
-    max-width:100%;
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: 1;
+    min-width: 0; /* Previne overflow flex */
   }
 
-  .valor-atual{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:8px 6px;
-    background:var(--n-50);
-    border-radius:6px;
-    border:1px solid var(--brand-primary);
-    margin:0 2px;
-    max-width:100%;
+  /* --- Componentes: Cards --- */
+  .card {
+    background: var(--n-0);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: var(--card-padding);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%; /* Preencher coluna */
+    justify-content: flex-start;
   }
 
-  .valor-grande{
-    font-size:24px;
-    font-weight:700;
-    color:var(--brand-primary);
-    line-height:1;
+  .card.highlight {
+    background: var(--brand-secondary);
+    border: 1px solid #A7F3D0; /* Verde suave */
+    box-shadow: var(--shadow-sm);
   }
 
-  .periodo{
-    font-size:12px;
-    color:var(--n-600);
-    margin-top:4px;
+  .card.primary-bg {
+    background: linear-gradient(145deg, var(--brand-primary) 0%, #172554 100%);
+    color: white;
+    border: none;
   }
 
-  .projecao-payback{
-    text-align:center;
-    background:var(--red-50);
-    border-radius:6px;
-    border:1px solid var(--red-200);
-    margin:0 2px;
-    max-width:100%;
+  .card-title {
+    font-size: 22px; /* Maior */
+    font-weight: 700;
+    color: var(--brand-primary);
+    margin: 0;
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+  
+  .card.primary-bg .card-title { color: white; }
+
+  /* --- Tipografia de Conteúdo --- */
+  p {
+    font-size: 16px; /* Aumentado para melhor leitura */
+    line-height: 1.6;
+    color: var(--n-700);
+    margin: 0;
+  }
+  
+  /* Textos destacados dentro de cards */
+  .lead-text {
+    font-size: 18px;
+    color: var(--n-800);
+    font-weight: 500;
   }
 
-  .projecao-payback-info{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    margin:6px 0;
+  strong { color: var(--n-900); font-weight: 700; }
+  .card.primary-bg p { color: rgba(255,255,255,0.95); }
+  .card.primary-bg strong { color: white; }
+
+  /* --- Blocos de Informação (Stats) --- */
+  .info-group {
+    background: var(--n-50);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    border: 1px solid var(--n-200);
+  }
+  
+  .info-group-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--n-800);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
-  .payback-ano{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:6px;
-    background:var(--red-100);
-    border-radius:6px;
+  .stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--n-200);
+  }
+  .stats-row:last-child { border-bottom: none; }
+
+  .stat-label { font-size: 16px; color: var(--n-600); font-weight: 600; }
+  .stat-value { font-size: 18px; color: var(--n-900); font-weight: 700; }
+  .stat-value.large { font-size: 24px; color: var(--brand-primary); }
+  .stat-value.xl { font-size: 32px; color: var(--brand-primary); }
+
+  /* --- Gráficos (ECharts) --- */
+  .chart-container {
+    flex: 1; /* Cresce para ocupar espaço */
+    min-height: 300px; /* Garante altura mínima decente */
+    position: relative;
+    width: 100%;
+    overflow: visible; /* Deixa labels passarem se precisar */
+    border-radius: var(--radius-md);
+    background: transparent;
+    margin-top: 10px;
+  }
+  
+  .echart {
+    width: 100% !important;
+    height: 100% !important;
   }
 
-  .gasto-acumulado{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:6px;
-    background:var(--red-100);
-    border-radius:6px;
+  /* --- Footer do Slide --- */
+  .slide-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--n-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--n-400);
   }
 
-  .label{
-    font-size:12px;
-    font-weight:600;
-    color:var(--red-700);
+  /* --- Helpers de Destaque --- */
+  .tag {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
   }
+  .tag.green { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+  .tag.red { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
 
-  .valor-payback{
-    font-size:14px;
-    font-weight:700;
-    color:var(--red-600);
-  }
-
-  .valor-enorme{
-    font-size:24px;
-    font-weight:700;
-    color:var(--red-600);
-    line-height:1;
-  }
-
-  .observacao{
-    font-size:10px;
-    color:var(--n-500);
-    margin-top:4px;
-  }
-
-  /* =============================================================================
-     PADRÃO VISUAL: Cards de Gráficos (mesma posição, mesmo “card”, mesma legibilidade)
-     ============================================================================= */
-  .chart-card{
-    background:var(--surface);
-    border:1px solid var(--border-soft);
-    border-radius:16px;
-    box-shadow:var(--shadow-md);
-    padding:18px 18px 16px;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    height:100%;
-    min-height:0;
-  }
-  .chart-card .grafico-header{
-    margin:0;
-    text-align:left;
-  }
-  .chart-card .grafico-titulo{
-    margin:0;
-    padding:0;
-    font-size:18px;
-    font-weight:800;
-    color:var(--brand-primary);
-    letter-spacing:0.2px;
-  }
-  .chart-card .grafico-subtitulo{
-    margin:4px 0 0 0;
-    font-size:14px;
-    color:var(--text-muted);
-    font-weight:500;
-  }
-  .chart-media{
-    flex:1;
-    min-height:340px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    /* O gráfico (PNG) agora vem com fundo transparente. Mantemos o card “limpo”. */
-    background:transparent;
-    border:1px solid var(--border-soft);
-    border-radius:14px;
-    /* Sem padding para o gráfico ocupar 100% do espaço do card */
-    padding:0;
-    overflow:hidden;
-  }
-  .chart-media .echart{
-    width:100% !important;
-    height:100% !important;
-    display:block !important;
-  }
-  .chart-media .echart svg,
-  .chart-media .echart canvas{
-    width:100% !important;
-    height:100% !important;
-    display:block !important;
-  }
-
-  /* Slide 03 - Gráfico de Barras do Cenário Atual */
-  .cenario-atual-grafico{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    padding:0px;
-    max-width:100%;
-    overflow:visible; /* evitar corte do título e do gráfico */
-  }
-
-  .cenario-atual-grafico .grafico-container{ width:100%; }
-
-  .cenario-atual-grafico .grafico-barras{ flex:1; min-height:340px; }
-
-  /* Ajuste por slide (altura mínima) */
-  #slide-09 .chart-media{ min-height:320px; }
-
-  .barra-ano{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    flex:1;
-    gap:4px;
-    padding:0 1px;
-    max-width:100%;
-  }
-
-  .barra{
-    width:100%;
-    background:linear-gradient(to top, var(--red-400), var(--red-500));
-    border-radius:4px 4px 0 0;
-    min-height:20px;
-    height:var(--barra-height, 20px);
-  }
-
-  .barra-ano .ano{
-    font-size:12px;
-    font-weight:600;
-    color:var(--n-600);
-  }
-
-  .barra-ano .valor{
-    font-size:11px;
-    color:var(--n-500);
-    text-align:center;
-  }
-
-  /* Slide 04 - Evolução da Conta de Luz */
-  .aumento-conta-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr; /* igual ao slide-06 */
-    gap:48px;
-    align-items:stretch;
-    align-self:stretch;
-    height:100%;
-    padding:0 8px;
-    max-width:100%;
-  }
-
-  .aumento-conta-texto{
-    display:flex;
-    flex-direction:column;
-    gap:20px;
-    justify-content:space-between;
-    height:100%;
-  }
-
-  .dados-historicos{
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    padding:16px;
-    background:var(--n-50);
-    border-radius:12px;
-    border:1px solid var(--border-soft);
-    box-shadow:var(--shadow-sm);
-  }
-
-  .dado-item{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:8px 0;
-    border-bottom:1px solid var(--n-200);
-  }
-
-  .dado-item:last-child{
-    border-bottom:none;
-  }
-
-  .dado-item .label{
-    font-size:14px;
-    font-weight:600;
-    color:var(--n-800);
-  }
-
-  .dado-item .valor{
-    font-size:16px;
-    font-weight:700;
-    color:var(--brand-primary);
-  }
-
-  .projecao-destaque{
-    text-align:center;
-    padding:20px;
-    background:var(--red-50);
-    border-radius:12px;
-    border:1px solid rgba(252,165,165,0.65); /* var(--red-300) #FCA5A5 @ 65% */
-    box-shadow:var(--shadow-sm);
-  }
-
-  .valor-futuro{
-    margin:16px 0;
-  }
-
-  /* Slide 04 - Gráfico de Linha da Evolução da Conta */
-  .grafico-linha-container{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    overflow:hidden;
-    min-height:0;
-  }
-
-  .grafico-linha-container .grafico-linha{
-    flex:1;
-    margin-top:0;
-    padding:0;
-    background:transparent;
-    border-radius:0;
-    min-height:0;
-    overflow:hidden;
-    border:none;
-    box-shadow:none;
-  }
-
-  /* (contraste já aplicado em .chart-media img) */
-
-  .grafico-linha-container .eixo-y{
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-right:8px;
-  }
-
-  .grafico-linha-container .valor-eixo{
-    font-size:12px;
-    color:var(--n-600);
-    font-weight:500;
-  }
-
-  /* Slide 04 - Área do Gráfico de Linha */
-  .grafico-linha-container .area-grafico{
-    grid-row:1;
+  /* --- CAPA (Slide 01 - Estilo Original FOHAT) --- */
+  .slide-01-cover{
+    background: var(--brand-primary);
+    background-image: url('img/fohat.svg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color:white;
     position:relative;
-    background:var(--n-100);
-    border-radius:8px;
     overflow:hidden;
+    padding: 0;
+  }
+
+  .slide-01-content{
+    position:relative;
+    z-index:2;
+    height:100%;
     display:flex;
     flex-direction:column;
-    justify-content:space-between;
-    padding:16px;
-  }
-
-  /* Slide 04 - Linha de Evolução */
-  .grafico-linha-container .linha-evolucao{
-    flex:1;
-    background:linear-gradient(135deg, var(--red-400), var(--red-600));
-    border-radius:4px;
-    margin:8px 0;
-    min-height:4px;
-  }
-
-  /* Slide 04 - Pontos do Gráfico */
-  .grafico-linha-container .pontos-grafico{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:8px;
-  }
-
-  /* Slide 04 - Pontos Individuais */
-  .grafico-linha-container .ponto{
-    width:8px;
-    height:8px;
-    background:var(--red-600);
-    border:2px solid white;
-    border-radius:50%;
-    box-shadow:0 0 0 2px var(--red-600);
-  }
-
-  /* Slide 04 - Eixo X */
-  .grafico-linha-container .eixo-x{
-    grid-column:2;
-    grid-row:2;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding-left:8px;
-  }
-
-  .eixo-x .ano{
-    font-size:12px;
-    color:var(--n-600);
-    font-weight:500;
-    text-align:center;
-  }
-
-  /* Slide 05 - Com Energia Solar */
-  .energia-solar-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:48px;
-    align-items:stretch;
-    align-self:stretch;
-    height:100%;
-    padding:0 8px;
-    max-width:100%;
-  }
-
-  .energia-solar-texto{
-    display:flex;
-    flex-direction:column;
-    gap:20px;
-    justify-content:space-between;
-    height:100%;
-  }
-
-  .paragrafo{
-    padding:10px;
-    background:var(--n-50);
-    border-radius:12px;
-    border-left:4px solid var(--brand-primary);
-  }
-
-  .paragrafo p{
-    font-size:16px;
-    line-height:1.6;
-    color:var(--n-700);
-    margin:0;
-  }
-
-  .paragrafo strong{
-    color:var(--brand-primary);
-    font-weight:700;
-  }
-
-  .grafico-consumo-geracao{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    overflow:hidden;
-    min-height:0;
-  }
-
-  .grafico-header{
-    text-align:left;
-    margin:0;
-  }
-
-  .grafico-titulo{
-    font-size:18px;
-    font-weight:800;
-    color:var(--brand-primary);
-    margin:0;
-    padding:0;
-    background:transparent;
-    border-radius:0;
-    border-bottom:none;
-  }
-
-  .grafico-subtitulo{
-    font-size:14px;
-    color:var(--n-600);
-    margin:0;
-  }
-
-  .legenda{
-    display:flex;
-    gap:20px;
     justify-content:center;
-    margin-bottom:16px;
-  }
-
-  .legenda-item{
-    display:flex;
     align-items:center;
-    gap:8px;
-    font-size:14px;
-    font-weight:500;
-    color:var(--n-700);
-  }
-
-  .legenda-cor{
-    width:16px;
-    height:16px;
-    border-radius:4px;
-  }
-
-  .legenda-cor.producao{
-    background:var(--green-500);
-  }
-
-  .legenda-cor.consumo{
-    background:var(--red-500);
-  }
-
-  /* Slide 05 - Gráfico de Barras Duplas Consumo x Geração */
-  .grafico-consumo-geracao .grafico-barras-duplas{
-    flex:1;
-    padding:0;
-    background:transparent;
-    border-radius:0;
-  }
-
-  .grafico-barras-duplas .eixo-y{
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-right:8px;
-  }
-
-  .grafico-barras-duplas .valor-eixo{
-    font-size:11px;
-    color:var(--n-600);
-    font-weight:500;
-  }
-
-  /* Slide 05 - Área do Gráfico de Barras Duplas */
-  .grafico-consumo-geracao .area-grafico-barras{
-    grid-row:1;
-    display:flex;
-    align-items:end;
-    justify-content:space-between;
-    background:var(--n-100);
-    border-radius:8px;
-    padding:8px;
-    gap:4px;
-  }
-
-  .barras-mes{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:4px;
-    flex:1;
-  }
-
-  .barras-mes .barra{
-    width:100%;
-    min-height:4px;
-    border-radius:2px 2px 0 0;
-    margin-bottom:2px;
-  }
-
-  .barras-mes .barra.producao{
-    background:linear-gradient(to top, var(--green-400), var(--green-500));
-  }
-
-  .barras-mes .barra.consumo{
-    background:linear-gradient(to top, var(--red-400), var(--red-500));
-  }
-
-  .barras-mes .mes{
-    font-size:11px;
-    color:var(--n-600);
-    font-weight:500;
     text-align:center;
+    padding:64px;
+    margin-top: 220px;
   }
 
-  .eixo-x-label{
-    grid-column:2;
-    grid-row:2;
-    text-align:center;
-    font-size:12px;
-    color:var(--n-600);
-    font-weight:500;
+  .slide-01-client{
+    background:rgba(255,255,255,0.05);
+    border-radius:20px;
+    padding:48px;
+    border:2px solid rgba(255,255,255,0.3);
+    margin-top:0; /* Centralizado */
+    box-shadow:0 8px 24px rgba(0,0,0,0.3);
+    backdrop-filter:blur(5px);
+    min-width:500px;
+    position:relative;
+    overflow:hidden;
+  }
+  
+  /* Fallback para PDF onde backdrop-filter falha */
+  .slide-01-client::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    z-index: -1;
   }
 
-  /* Slide 06 - Payback e Benefícios */
-  .payback-beneficios-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:48px;
-    align-items:stretch;
-    align-self:stretch;
-    height:100%;
-    padding:0 8px;
-    max-width:100%;
-  }
-
-  .payback-info{
-    display:flex;
-    flex-direction:column;
-    gap:24px;
-    height:100%;
-  }
-
-  .payback-destaque{
-    text-align:center;
-    padding:24px;
-    background:var(--green-50);
-    border-radius:12px;
-    border:2px solid var(--green-200);
-  }
-
-  .payback-valor{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    margin:16px 0;
-  }
-
-  .payback-valor .valor-grande{
-    font-size:48px;
+  .slide-01-client h2{
+    font-size:42px;
     font-weight:700;
-    color:var(--green-600);
-    line-height:1;
+    margin-bottom:20px;
+    color:white;
+    text-shadow:0 2px 4px rgba(0,0,0,0.5);
+    margin-top: 0;
   }
 
-  .payback-valor .periodo{
-    font-size:18px;
-    color:var(--green-600);
-    margin-top:8px;
-  }
-
-  .payback-descricao{
-    font-size:14px;
-    color:var(--n-600);
-    margin:0;
-    line-height:1.5;
-  }
-
-  .economia-total{
-    text-align:center;
-    padding:20px;
-    background:var(--brand-50);
-    border-radius:12px;
-    border:2px solid var(--brand-primary);
-  }
-
-  .valor-economia{
+  .slide-01-client p{
+    font-size:24px;
     margin:12px 0;
-  }
-
-  .valor-economia .valor-enorme{
-    font-size:36px;
-    font-weight:700;
-    color:var(--brand-primary);
-    line-height:1;
-  }
-
-  .economia-descricao{
-    font-size:12px;
-    color:var(--n-500);
-    margin:0;
-    line-height:1.4;
-  }
-
-  /* Slide 06 - Gráfico de Payback */
-  .payback-beneficios-content .grafico-payback{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    gap:12px;
-  }
-
-  .payback-beneficios-content .grafico-linha-payback{
-    flex:1;
-    display:grid;
-    grid-template-columns:40px 1fr;
-    grid-template-rows:1fr 30px;
-    gap:8px;
-    margin-top:16px;
-    padding:20px;
-    background:var(--n-50);
-    border-radius:12px;
-  }
-
-  .grafico-linha-payback .eixo-y{
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-right:8px;
-  }
-
-  .grafico-linha-payback .valor-eixo{
-    font-size:11px;
-    color:var(--n-600);
-    font-weight:500;
-  }
-
-  /* Slide 06 - Área do Gráfico de Payback */
-  .payback-beneficios-content .area-grafico-payback{
-    grid-row:1;
-    position:relative;
-    background:var(--n-100);
-    border-radius:8px;
-    overflow:hidden;
-  }
-
-  .linha-investimento{
-    position:absolute;
-    top:0;
-    left:0;
-    right:0;
-    bottom:0;
-    background:linear-gradient(90deg, var(--red-400), var(--red-600));
-    clip-path:polygon(0% 50%, 100% 50%);
-    opacity:0.6;
-  }
-
-  .linha-economia{
-    position:absolute;
-    top:0;
-    left:0;
-    right:0;
-    bottom:0;
-    background:linear-gradient(135deg, var(--green-400), var(--green-600));
-    clip-path:polygon(0% 100%, 20% 85%, 40% 70%, 60% 50%, 80% 25%, 100% 0%);
-    opacity:0.4;
-  }
-
-  .ponto-payback{
-    position:absolute;
-  }
-
-  .ponto-marker{
-    width:12px;
-    height:12px;
-    background:var(--brand-primary);
-    border:3px solid white;
-    border-radius:50%;
-    box-shadow:0 0 0 2px var(--brand-primary);
-  }
-
-  .ponto-label{
-    position:absolute;
-    top:-40px;
-    left:0;
-    background:var(--brand-primary);
     color:white;
-    padding:4px 8px;
-    border-radius:4px;
-    font-size:10px;
-    font-weight:600;
-    white-space:nowrap;
+    opacity:0.95;
+    text-shadow:0 2px 4px rgba(0,0,0,0.4);
   }
 
-  .ponto-label .label-texto{
-    display:block;
-    font-size:9px;
-  }
-
-  .ponto-label .label-valor{
-    display:block;
-    font-size:10px;
-    font-weight:700;
-  }
-
-  .pontos-economia{
+  .slide-01-footer{
     position:absolute;
-    top:0;
+    bottom:0;
     left:0;
     right:0;
-    bottom:0;
-  }
-
-  .ponto-economia{
-    position:absolute;
-    width:6px;
-    height:6px;
-    background:var(--green-600);
-    border:2px solid white;
-    border-radius:50%;
-  }
-
-  .grafico-linha-payback .eixo-x{
-    grid-column:2;
-    grid-row:2;
+    background:rgba(0,0,0,0.6);
+    padding:24px 64px;
     display:flex;
     justify-content:space-between;
     align-items:center;
-    padding-left:8px;
+    z-index:2;
+    border-top:1px solid rgba(255,255,255,0.3);
+    backdrop-filter:blur(10px);
+  }
+  
+  /* Fallback footer PDF */
+  .slide-01-footer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: -1;
   }
 
-  .grafico-linha-payback .eixo-x .ano{
-    font-size:11px;
-    color:var(--n-600);
-    font-weight:500;
-    text-align:center;
-  }
-
-  .legenda-payback{
-    display:flex;
-    gap:24px;
-    justify-content:center;
-    margin-top:16px;
-  }
-
-  .legenda-payback .legenda-item{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:14px;
-    font-weight:500;
-    color:var(--n-700);
-  }
-
-  .legenda-payback .legenda-cor{
-    width:16px;
-    height:16px;
-    border-radius:4px;
-  }
-
-  .legenda-payback .legenda-cor.investimento{
-    background:var(--red-500);
-  }
-
-  .legenda-payback .legenda-cor.economia{
-    background:var(--green-500);
-  }
-
-  /* Slide 07 - O que esse projeto inclui? */
-  .projeto-inclusoes-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:48px;
-    align-items:stretch;
-    align-self:stretch;
-    height:100%;
-    min-height:0;
-    overflow:hidden;
-  }
-
-  .inclusoes-lista{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    overflow:hidden;
-    min-height:0;
-  }
-
-  .inclusoes-lista h3{
-    font-size:18px;
-    font-weight:700;
-    color:var(--brand-primary);
-  }
-
-  .lista-inclusoes{
-    list-style:none;
-    padding:0;
-    margin:0;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    flex:1;
-    overflow-y:hidden;
-  }
-
-  .item-inclusao{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:5px 14px;
-    background:var(--n-50);
-    border-radius:8px;
-    border-left:4px solid var(--brand-primary);
-  }
-
-  .item-inclusao .icone{
+  .slide-01-vendedor h3{
     font-size:20px;
-    width:24px;
-    text-align:center;
-  }
-
-  .item-inclusao .texto{
-    font-size:15px;
-    font-weight:500;
-    color:var(--n-700);
-    line-height:1.4;
-  }
-
-  .garantias-section{
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    padding:8px 0;
-    overflow:hidden;
-    min-height:0;
-  }
-
-  .garantias-section h3{
-    margin-bottom:16px;
-    font-size:18px;
     font-weight:700;
-    color:var(--brand-primary);
+    margin: 0 0 8px 0;
+    color:white;
+    text-shadow:0 2px 4px rgba(0,0,0,0.5);
   }
 
-  .garantias-lista{
-    display:flex;
-    flex-direction:column;
-    gap:16px;
-    flex:1;
-    overflow-y:auto;
-    min-height:0;
-  }
-
-  .garantia-item{
-    display:flex;
-    align-items:center;
-    gap:16px;
-    padding:16px;
-    background:var(--n-50);
-    border-radius:12px;
-    border:2px solid var(--green-200);
-  }
-
-  .garantia-botao{
-    padding:12px 20px;
-    border-radius:8px;
-    font-weight:700;
+  .slide-01-vendedor p{
     font-size:14px;
-    text-align:center;
-    min-width:140px;
-    flex-shrink:0;
-  }
-
-  .garantia-botao.instalacao{
-    background:var(--green-600);
+    margin:4px 0;
     color:white;
+    opacity:0.9;
   }
 
-  .garantia-botao.modulos{
-    background:var(--green-600);
-    color:white;
+  .slide-01-logo{
+    width:150px;
+    height:auto;
+    filter:brightness(0) invert(1);
+    opacity:0.95;
   }
 
-  .garantia-botao.inversores{
-    background:var(--green-600);
-    color:white;
-  }
-
-  .garantia-titulo{
-    display:block;
-    font-size:14px;
-    font-weight:700;
-    letter-spacing:0.5px;
-    color:#fff;
-  }
-
-  .garantia-info{
-    flex:1;
+  .slide-01-date{
     text-align:right;
+    color:white;
   }
 
-  .garantia-texto{
-    font-size:16px;
-    font-weight:700;
-    color:var(--green-700);
-    text-transform:uppercase;
-    letter-spacing:0.5px;
+  .slide-01-date p{
+    font-size:14px;
+    margin:4px 0;
+    color:white;
+    opacity:0.9;
   }
 
-  /* Slide 08 - Cronograma de 90 dias */
+  /* --- Ajustes Específicos para Slides --- */
+  
+  /* Slide 10/12 - Tabelas de Pagamento */
+  .payment-card {
+    border: 1px solid var(--n-200);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .payment-card.highlight { border: 2px solid var(--brand-primary); background: var(--brand-secondary); }
+  
+  /* Nova tabela de pagamentos (Forçando estrutura tabular) */
+  .payment-table-container {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important; /* Força 2 colunas */
+    gap: 0 !important;
+    border: 1px solid var(--n-200);
+    border-radius: 8px;
+    background: white;
+    width: 100% !important;
+    overflow: hidden; /* Arredondamento */
+  }
+  
+  /* Se o Python injetar um div wrapper extra, ele não deve atrapalhar o grid */
+  .payment-table-container > div:not(.parcela-item) {
+    display: contents !important;
+  }
+  
+  /* Estiliza os itens individuais (parcelas) */
+  .payment-table-container .parcela-item {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--n-700) !important;
+    border-bottom: 1px solid var(--n-100) !important;
+    border-right: 1px solid var(--n-100) !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    background: transparent !important;
+    margin: 0 !important;
+    width: auto !important; /* Permite dividir espaço */
+    min-height: 36px;
+  }
+  
+  /* Ajuste para o texto interno */
+  .payment-table-container .parcela-item span {
+    white-space: nowrap;
+  }
+  
+  /* Remove borda direita das colunas pares (item da direita) */
+  .payment-table-container .parcela-item:nth-child(2n) {
+    border-right: none !important;
+  }
+  
+  /* Zebra striping para leitura fácil nas linhas (pares de itens) */
+  /* Linha 1: item 1, 2 (brancos) */
+  /* Linha 2: item 3, 4 (cinzas) */
+  /* Linha 3: item 5, 6 (brancos) */
+  .payment-table-container .parcela-item:nth-child(4n-1), /* Item 3, 7... (inicio da linha cinza) */
+  .payment-table-container .parcela-item:nth-child(4n) {   /* Item 4, 8... (fim da linha cinza) */
+    background-color: var(--n-50) !important;
+  }
+
+  /* --- Timeline Horizontal (Restaurada) --- */
   .cronograma-content{
-    grid-column:1 / -1;
-    display:flex;
-    flex-direction:column;
-    height:100%;
-    /* centraliza conteúdo com o mesmo espaçamento nas laterais */
-    padding:18px 48px;
-    align-self:stretch;
-    background:linear-gradient(135deg, var(--blue-50) 0%, var(--green-50) 100%);
-    border-radius:16px;
-    margin:8px 0;
-    border:1px solid var(--border-soft);
-    box-shadow:var(--shadow-sm);
-  }
-
-  .cronograma-intro{
-    text-align:center;
-    margin-bottom:24px;
-    padding:0;
-  }
-
-  .intro-texto{
-    font-size:20px;
-    color:var(--n-700);
-    font-weight:600;
-    margin:0;
-    line-height:1.4;
-  }
-
-  .timeline-container{
-    flex:1;
-    display:flex;
-    width:100%;
-    flex-direction:column;
-    justify-content:center;
-    align-items:stretch;
-    padding:0;
-    gap:20px;
-    background:transparent;
-    margin:0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--n-0) 0%, var(--n-50) 100%);
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid var(--n-200);
+    box-shadow: var(--shadow-sm);
+    margin-top: 20px;
   }
 
   .timeline-dates{
@@ -1360,11 +504,11 @@
     text-align:center;
     white-space:nowrap;
     flex:1;
-    background:var(--blue-100);
-    padding:4px 6px;
+    background:var(--n-100);
+    padding:6px 8px;
     border-radius:6px;
-    border:1px solid var(--blue-200);
-    margin:0 2px;
+    border:1px solid var(--n-200);
+    margin:0 4px;
   }
 
   .timeline-line{
@@ -1373,7 +517,7 @@
     align-items:center;
     width:100%;
     position:relative;
-    margin-bottom:12px;
+    margin-bottom:16px;
     padding:0;
     gap:10px;
   }
@@ -1382,859 +526,76 @@
     content:'';
     position:absolute;
     top:50%;
-    left:7px;
-    right:7px;
+    left:10px;
+    right:10px;
     height:4px;
-    background:linear-gradient(90deg, var(--brand-primary) 0%, var(--green-500) 100%);
+    background:linear-gradient(90deg, var(--brand-primary) 0%, #10B981 100%);
     z-index:1;
     border-radius:2px;
-    box-shadow:0 2px 8px rgba(59, 130, 246, 0.3);
+    opacity: 0.3;
   }
 
   .timeline-dot{
-    width:14px;
-    height:14px;
-    background:linear-gradient(135deg, var(--brand-primary) 0%, var(--blue-600) 100%);
-    border:2px solid white;
+    width:16px;
+    height:16px;
+    background: var(--brand-primary);
+    border:3px solid white;
     border-radius:50%;
-    box-shadow:0 0 0 2px var(--brand-primary), 0 2px 8px rgba(59, 130, 246, 0.3);
+    box-shadow:0 0 0 2px var(--brand-primary);
     position:relative;
     z-index:2;
     justify-self:center;
   }
 
-  .timeline-dot:first-child{
-    justify-self:start;
-  }
-
-  .timeline-dot:last-child{
-    justify-self:end;
-  }
-
-  .timeline-dot.dia-dot{
-    width:18px;
-    height:18px;
-    background:linear-gradient(135deg, var(--green-500) 0%, var(--green-700) 100%);
-    box-shadow:0 0 0 3px var(--green-500), 0 2px 8px rgba(16, 185, 129, 0.3);
-  }
-
   .timeline-dot.final{
-    background:linear-gradient(135deg, var(--brand-primary) 0%, var(--purple-600) 100%);
-    box-shadow:0 0 0 4px var(--brand-primary), 0 4px 12px rgba(147, 51, 234, 0.4);
+    background: #10B981;
+    box-shadow:0 0 0 2px #10B981;
   }
 
   .timeline-details{
     display:grid;
     grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
-    align-items: center;
+    align-items: stretch;
     gap:10px;
-    padding:0;
     width:100%;
   }
-
 
   .timeline-item{
     display:flex;
     flex-direction:column;
     align-items:center;
     text-align:center;
-    min-height:100px;
-    max-height:100px;
-    padding:12px 10px;
+    min-height:110px;
+    padding:12px 8px;
     background:white;
     border-radius:12px;
-    border:2px solid var(--n-200);
-    position:relative;
+    border:1px solid var(--n-200);
+    box-shadow: var(--shadow-sm);
     justify-content:center;
-    box-shadow:0 2px 8px rgba(0,0,0,0.1);
-    box-sizing:border-box;
-    width:100%;
-    min-width:0;
-    max-width:none;
-    border:1px solid var(--border-soft);
-    box-shadow:var(--shadow-sm);
-  }
-
-  .timeline-item.dia-marcado{
-    background:linear-gradient(135deg, var(--green-50) 0%, var(--green-100) 100%);
-    border-color:var(--green-400);
-    box-shadow:0 4px 12px rgba(16, 185, 129, 0.2);
   }
 
   .timeline-item.final{
-    background:linear-gradient(135deg, var(--brand-primary) 0%, var(--purple-500) 100%);
-    border-color:var(--brand-primary);
-    box-shadow:0 4px 12px rgba(59, 130, 246, 0.3);
+    background: #F0FDF4;
+    border-color: #BBF7D0;
   }
 
   .etapa-titulo{
-    font-size:11px;
+    font-size:12px;
     font-weight:600;
     color:var(--n-800);
     line-height:1.3;
-    margin:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    height:100%;
-    text-align:center;
-    padding:6px 4px;
-    word-wrap:break-word;
-    overflow-wrap:break-word;
-  }
-
-  .timeline-item.dia-marcado .etapa-titulo{
-    color:var(--green-800);
-    font-weight:700;
   }
 
   .timeline-item.final .etapa-titulo{
-    color:#fff;
-    font-weight:700;
-    font-size:11px;
-    text-shadow:0 1px 2px rgba(0,0,0,0.1);
+    color: #15803D;
+    font-weight: 700;
   }
 
-  /* Slide 09 - Comparativo Financeiro */
-  .comparativo-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    grid-template-rows:1fr;
-    height:100%;
-    padding:0 8px;
-    max-width:100%;
-    align-self:stretch;
-    gap:24px;
-  }
-
-  .projeto-resumo{
-    background:var(--blue-50);
-    padding:20px;
-    border-radius:12px;
-    border:1px solid var(--blue-200);
-  }
-
-  .resumo-grid{
-    display:grid;
-    grid-template-columns:repeat(2, 1fr);
-    gap:16px;
-    margin-top:16px;
-  }
-
-  .resumo-item{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:12px 16px;
-    background:white;
-    border-radius:8px;
-    border:1px solid var(--blue-100);
-  }
-
-  .resumo-label{
-    font-size:14px;
-    font-weight:600;
-    color:var(--n-600);
-  }
-
-  .resumo-valor{
-    font-size:14px;
-    font-weight:700;
-    color:var(--brand-primary);
-  }
-
-  .comparativo-custos{
-    grid-column:1;
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    gap:16px;
-    height:100%;
-  }
-
-  .custo-sem-solar,
-  .custo-com-solar{
-    padding:16px;
-    border-radius:10px;
-    text-align:center;
-    border:2px solid;
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-  }
-
-  .custo-sem-solar{
-    background:linear-gradient(135deg, var(--red-50) 0%, var(--red-100) 100%);
-    border-color:var(--red-300);
-  }
-
-  .custo-com-solar{
-    background:linear-gradient(135deg, var(--green-50) 0%, var(--green-100) 100%);
-    border-color:var(--green-300);
-  }
-
-  .custo-titulo{
-    font-size:12px;
-    font-weight:700;
-    margin-bottom:8px;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-  }
-
-  .custo-sem-solar .custo-titulo{
-    color:var(--red-700);
-  }
-
-  .custo-com-solar .custo-titulo{
-    color:var(--green-700);
-  }
-
-  .custo-valor-grande{
-    font-size:20px;
-    font-weight:700;
-    margin-bottom:4px;
-    line-height:1;
-  }
-
-  .custo-sem-solar .custo-valor-grande{
-    color:var(--red-600);
-  }
-
-  .custo-com-solar .custo-valor-grande{
-    color:var(--green-600);
-  }
-
-  .custo-descricao{
-    font-size:11px;
-    color:var(--n-600);
-    margin-bottom:8px;
-  }
-
-  .custo-detalhes{
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-  }
-
-  .custo-item{
-    display:flex;
-    justify-content:space-between;
-    font-size:11px;
-    color:var(--n-700);
-  }
-
-  .grafico-comparativo{
-    grid-column:2;
-    grid-row:1;
-    background:white;
-    padding:20px;
-    border-radius:12px;
-    border:1px solid var(--n-200);
-    box-shadow:0 2px 8px rgba(0,0,0,0.1);
-    display:flex;
-    flex-direction:column;
-    gap:16px;
-    height:100%;
-    overflow:hidden;
-    min-height:0;
-  }
-
-  .grafico-titulo{
-    font-size:14px;
-    font-weight:700;
-    color:var(--n-700);
-    text-align:center;
-    margin-bottom:12px;
-  }
-
-  .grafico-comparativo .grafico-container{
-    position:relative;
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    gap:16px;
-    padding:20px;
-    background:var(--n-50);
-    border-radius:12px;
-    overflow:hidden;
-    min-height:0;
-    height:100%;
-  }
-
-  /* Slide 09 - Eixo Y do Gráfico Comparativo */
-  .grafico-comparativo .eixo-y{
-    grid-row:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    align-items:flex-end;
-    padding-right:8px;
-  }
-
-  /* Slide 09 - Valores do Eixo Y */
-  .grafico-comparativo .valor-eixo{
-    font-size:11px;
-    color:var(--n-500);
-    font-weight:500;
-  }
-
-  /* Slide 09 - Área do Gráfico Comparativo */
-  .grafico-comparativo .area-grafico{
-    grid-row:1;
-    position:relative;
-    background:var(--n-100);
-    border-radius:8px;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-    padding:16px;
-  }
-
-  .linha-sem-solar{
-    position:absolute;
-    top:0;
-    left:0;
-    right:0;
-    bottom:0;
-    background:linear-gradient(135deg, var(--red-400) 0%, var(--red-600) 100%);
-    clip-path:polygon(0% 100%, 20% 85%, 40% 70%, 60% 50%, 80% 25%, 100% 0%);
-    opacity:0.8;
-  }
-
-  .linha-com-solar{
-    position:absolute;
-    top:0;
-    left:0;
-    right:0;
-    bottom:0;
-    background:linear-gradient(135deg, var(--green-400) 0%, var(--green-600) 100%);
-    clip-path:polygon(0% 80%, 20% 60%, 40% 40%, 60% 20%, 80% 10%, 100% 5%);
-    opacity:0.8;
-  }
-
-  .ponto-payback{
-    position:absolute;
-    z-index:10;
-  }
-
-  .ponto-marker{
-    width:12px;
-    height:12px;
-    background:var(--brand-primary);
-    border:2px solid white;
-    border-radius:50%;
-    box-shadow:0 0 0 3px var(--brand-primary);
-    margin-bottom:8px;
-  }
-
-  .ponto-label{
-    background:var(--brand-primary);
-    color:white;
-    padding:4px 8px;
-    border-radius:8px;
-    font-size:10px;
-    font-weight:700;
-    text-align:center;
-    white-space:nowrap;
-  }
-
-  .pontos-sem-solar,
-  .pontos-com-solar{
-    position:absolute;
-    top:0;
-    left:0;
-    right:0;
-    bottom:0;
-  }
-
-  .ponto-sem-solar,
-  .ponto-com-solar{
-    position:absolute;
-    width:8px;
-    height:8px;
-    border-radius:50%;
-  }
-
-  .ponto-sem-solar{
-    background:var(--red-600);
-    border:2px solid white;
-    box-shadow:0 0 0 2px var(--red-600);
-  }
-
-  .ponto-com-solar{
-    background:var(--green-600);
-    border:2px solid white;
-    box-shadow:0 0 0 2px var(--green-600);
-  }
-
-  /* Slide 09 - Eixo X do Gráfico Comparativo */
-  .grafico-comparativo .eixo-x{
-    grid-column:2;
-  }
-
-  /* ====== SLIDE 10 - FORMAS DE PAGAMENTO ====== */
-  .formas-pagamento-content{
-    grid-column:1 / -1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:16px;
-    align-items:stretch;
-  }
-
-  .forma-pagamento-card{
-    background:white;
-    border-radius:16px;
-    padding:16px;
-    box-shadow:0 4px 20px rgba(0,0,0,0.08);
-    border:1px solid var(--n-200);
-    display:flex;
-    flex-direction:column;
-  }
-
-  .forma-pagamento-card.destaque{
-    border:2px solid var(--brand-primary);
-    box-shadow:0 8px 30px rgba(10,80,135,0.15);
-  }
-
-  .forma-pagamento-header{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin-bottom:10px;
-    padding-bottom:8px;
-    border-bottom:2px solid var(--n-100);
-  }
-
-  .forma-pagamento-icon{
-    width:42px;
-    height:42px;
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-shrink:0;
-  }
-
-  .forma-pagamento-icon.cartao{
-    background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  }
-
-  .forma-pagamento-icon.financiamento{
-    background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  }
-
-  .forma-pagamento-icon svg{
-    width:24px;
-    height:24px;
-    fill:white;
-  }
-
-  .forma-pagamento-titulo{
-    font-size:16px;
-    font-weight:700;
-    color:#111827;
-  }
-
-  .forma-pagamento-subtitulo{
-    font-size:11px;
-    color:#374151;
-    font-weight:500;
-    margin-top:2px;
-  }
-
-  .parcelas-grid{
-    display:grid;
-    /* 1..18x no cartão => 18 itens; 3 colunas garante 6 linhas e cabe no slide */
-    grid-template-columns:repeat(3, 1fr);
-    gap:5px;
-    flex:1;
-  }
-
-  .parcela-item{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:5px 7px;
-    background:var(--n-50);
-    border-radius:8px;
-    font-size:11px;
-  }
-
-  .parcela-numero{
-    color:#374151;
-    font-weight:600;
-    font-size:11px;
-  }
-
-  .parcela-valor{
-    font-weight:700;
-    color:#111827;
-    font-size:11px;
-  }
-
-  .forma-pagamento-destaque{
-    margin-top:10px;
-    padding:10px;
-    background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    border-radius:12px;
-    border:1px solid #86efac;
-    text-align:center;
-  }
-
-  .forma-pagamento-destaque.azul{
-    background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-    border:1px solid #93c5fd;
-  }
-
-  .destaque-label{
-    font-size:12px;
-    color:#374151;
-    font-weight:600;
-    margin-bottom:2px;
-  }
-
-  .destaque-valor{
-    font-size:20px;
-    font-weight:800;
-    color:#15803d;
-  }
-
-  .destaque-valor.azul{
-    color:#1e40af;
-  }
-
-  .forma-pagamento-aviso{
-    margin-top:8px;
-    font-size:10px;
-    color:#6b7280;
-    font-style:italic;
-    text-align:center;
-  }
-
-  /* Slide 10 - Resumo */
-  .pagamento-resumo{
-    grid-column:1 / -1;
-    margin-top:12px;
-    padding:12px 16px;
-    background:linear-gradient(135deg, var(--brand-primary) 0%, #0a5087 100%);
-    border-radius:16px;
-    color:white;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-  }
-
-  .pagamento-resumo-texto h4{
-    font-size:18px;
-    font-weight:700;
-    margin-bottom:2px;
-    color:#ffffff;
-  }
-
-  .pagamento-resumo-texto p{
-    font-size:13px;
-    color:rgba(255,255,255,0.95);
-  }
-
-  .pagamento-resumo-valor{
-    text-align:right;
-  }
-
-  .pagamento-resumo-valor .label{
-    font-size:11px;
-    color:#fbbf24;
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-  }
-
-  .pagamento-resumo-valor .valor{
-    font-size:28px;
-    font-weight:800;
-    color:#ffffff;
-    grid-row:2;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding-left:8px;
-  }
-
-  .grafico-comparativo .eixo-x .ano{
-    font-size:11px;
-    color:var(--n-500);
-    font-weight:500;
-    text-align:center;
-  }
-
-  .legenda-grafico{
-    display:flex;
-    justify-content:center;
-    gap:24px;
-  }
-
-  .legenda-item{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:12px;
-    color:var(--n-700);
-    font-weight:500;
-  }
-
-  .legenda-cor{
-    width:16px;
-    height:4px;
-    border-radius:2px;
-  }
-
-  .legenda-cor.sem-solar{
-    background:var(--red-500);
-  }
-
-  .legenda-cor.com-solar{
-    background:var(--green-500);
-  }
-
-  /* Garantir que todos os slides ocupem toda a área disponível */
-  .page{
-    display:flex;
-    flex-direction:column;
-  }
-  
-  .page-inner{
-    flex:1;
-    display:grid;
-    grid-template-rows:auto auto auto 1fr auto;
-    align-items:stretch;
-  }
-  
-  .client-name,
-  .slide-number{
-    grid-row:1;
-  }
-  
-  .line-blue-top{
-    grid-row:2;
-  }
-  
-  .slide-header{
-    grid-row:3;
-  }
-  
-  .slide-content-main,
-  .cenario-atual-content,
-  .aumento-conta-content,
-  .energia-solar-content,
-  .payback-beneficios-content,
-  .projeto-inclusoes-content,
-  .cronograma-content,
-  .como-funciona-texto,
-  .como-funciona{
-    grid-row:4;
-  }
-  
-  .slide-footer-vendedor{
-    grid-row:5;
-  }
-
-  /* ====== PRESENTATION OPTIMIZATION ====== */
-  /* Removido responsivo - template otimizado para apresentação */
-  
-  /* Otimizações para renderização de apresentação */
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  
-  /* Garantir que elementos não quebrem entre páginas */
-  .page {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  
-  /* Otimizar fontes para apresentação */
-  body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* Slide 01 - Capa da Proposta com Fundo Fohat */
-  .slide-01-cover{
-    background: var(--brand-primary);
-    background-image: url('img/fohat.svg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    color:white;
-    position:relative;
-    overflow:hidden;
-  }
-
-  .slide-01-content{
-    position:relative;
-    z-index:2;
-    height:100%;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    text-align:center;
-    padding:64px;
-  }
-
-  .slide-01-title{
-    font-size:72px;
-    font-weight:800;
-    line-height:1.1;
-    margin-bottom:32px;
-    color:white;
-    text-shadow:0 6px 12px rgba(0,0,0,0.6);
-  }
-
-  .slide-01-subtitle{
-    font-size:28px;
-    font-weight:600;
-    margin-bottom:48px;
-    color:white;
-    opacity:0.95;
-    text-shadow:0 4px 8px rgba(0,0,0,0.5);
-  }
-
-  .slide-01-client{
-    background:rgba(255,255,255,0.000000001);
-    border-radius:20px;
-    padding:48px;
-    border:2px solid rgba(255,255,255,0.3);
-    margin-top:200px;
-    box-shadow:0 8px 24px rgba(0,0,0,0.3);
-    backdrop-filter:blur(5px);
-    min-width:400px;
-    position:relative;
-    overflow:hidden;
-  }
-  .slide-01-client > *{ position:relative; z-index:1; }
-
-  .slide-01-client h2{
-    font-size:32px;
-    font-weight:700;
-    margin-bottom:20px;
-    color:white;
-    text-shadow:0 2px 4px rgba(0,0,0,0.5);
-  }
-
-  .slide-01-client p{
-    font-size:22px;
-    margin:12px 0;
-    color:white;
-    opacity:0.9;
-    text-shadow:0 2px 4px rgba(0,0,0,0.4);
-  }
-
-  .slide-01-footer{
-    position:absolute;
-    bottom:0;
-    left:0;
-    right:0;
-    background:rgba(0,0,0,0.4);
-    padding:24px 64px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    z-index:2;
-    border-top:1px solid rgba(255,255,255,0.3);
-    backdrop-filter:blur(10px);
-    overflow:hidden;
-  }
-  .slide-01-footer > *{ position:relative; z-index:1; }
-
-  /* PDF/Puppeteer: `backdrop-filter` nem sempre renderiza no print.
-     Fallback robusto: cria um “plano de fundo” dentro do card e aplica blur com `filter`. */
-  @media print{
-    .slide-01-client,
-    .slide-01-footer{
-      -webkit-backdrop-filter:none !important;
-      backdrop-filter:none !important;
-    }
-
-    .slide-01-client::before,
-    .slide-01-footer::before{
-      content:"";
-      position:absolute;
-      inset:-24px;
-      z-index:0;
-      background-color: var(--brand-primary);
-      background-image: url('img/fohat.svg');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      /* ajuda a manter alinhamento do fundo no PDF */
-      background-attachment: fixed;
-      filter: blur(14px) saturate(1.08) contrast(1.05);
-      transform: scale(1.08);
-      opacity: 0.92;
-    }
-
-    /* Mantém o “vidro” por cima do blur */
-    .slide-01-client{
-      background: rgba(255,255,255,0.10) !important;
-    }
-    .slide-01-footer{
-      background: rgba(0,0,0,0.35) !important;
-    }
-  }
-
-  .slide-01-vendedor{
-    color:white;
-  }
-
-  .slide-01-vendedor h3{
-    font-size:18px;
-    font-weight:700;
-    margin-bottom:8px;
-    color:white;
-    text-shadow:0 2px 4px rgba(0,0,0,0.5);
-  }
-
-  .slide-01-vendedor p{
-    font-size:14px;
-    margin:4px 0;
-    color:white;
-    opacity:0.9;
-    text-shadow:0 1px 2px rgba(0,0,0,0.4);
-  }
-
-  .slide-01-logo{
-    width:120px;
-    height:auto;
-    filter:brightness(0) invert(1);
-    opacity:0.95;
-  }
-
-  .slide-01-date{
-    text-align:right;
-    color:white;
-  }
-
-  .slide-01-date p{
-    font-size:14px;
-    margin:4px 0;
-    color:white;
-    opacity:0.9;
-    text-shadow:0 1px 2px rgba(0,0,0,0.4);
-  }
-
-  
 </style>
 </head>
 <body>
 
-<div class="frame">
-
-  <!-- ====== SLIDE 01 - CAPA DA PROPOSTA ====== -->
+  <!-- ====== SLIDE 01: CAPA (Original FOHAT) ====== -->
   <section id="slide-01" class="page slide-01-cover">
     <!-- Conteúdo principal -->
     <div class="slide-01-content">
@@ -2262,289 +623,286 @@
     </div>
   </section>
 
-  <!-- ====== SLIDE 02 ====== -->
-  <section id="slide-02" class="page">
+  <!-- ====== SLIDE 02: O PROBLEMA ====== -->
+  <section class="page" id="slide-02">
     <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">02</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
       <div class="slide-header">
-        <h2 class="title-lg text-primary">COMO FUNCIONA?</h2>
-      </div>
-
-      <div class="como-funciona-texto">
-        <ul style="font-size:18px; line-height:1.6; color:var(--n-700);">
-          <li style="margin-bottom:16px;">Os painéis instalados no telhado captam a energia do Sol e a transformam em energia elétrica.</li>
-          <li style="margin-bottom:16px;">O Inversor ou micro Inversores transformam a energia num padrão idêntico ao recebido da rua.</li>
-          <li style="margin-bottom:16px;">O quadro de distribuição distribui a energia entre os aparelhos da casa.</li>
-          <li style="margin-bottom:16px;">Tudo que sobra, é enviado para a concessionária e recebido em forma de créditos para abater outras contas.</li>
-        </ul>
-      </div>
-
-       <img src="img/como-funciona.png" alt="Como Funciona" class="como-funciona">
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 03 (LISTA / APRESENTAÇÃO DO PROBLEMA) ====== -->
-  <section id="slide-03" class="page">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">03</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">CENÁRIO ATUAL</h2>
-      </div>
-
-      <div class="cenario-atual-content">
-        <div class="cenario-atual-texto">
-          <h3 class="title-md text-primary">Seu gasto atual com energia elétrica</h3>
-          <div class="valor-atual">
-            <span class="valor-grande">{{conta_atual_anual}}</span>
-            <span class="periodo">por ano</span>
-      </div>
-
-          <div class="projecao-payback">
-            <h4 class="title-sm">Até o payback da energia solar:</h4>
-            <div class="projecao-payback-info">
-              <div class="payback-ano">
-                <span class="label">Payback em:</span>
-                <span class="valor-payback">{{anos_payback}} anos</span>
-              </div>
-              <div class="gasto-acumulado">
-                <span class="label">Gasto acumulado até o payback:</span>
-                <span class="valor-enorme">{{gasto_acumulado_payback}}</span>
-              </div>
-            </div>
-            <p class="observacao">Considerando aumento médio de 4,1% ao ano</p>
-          </div>
-        </div>
-        
-        <div class="cenario-atual-grafico">
-          <div class="chart-card grafico-container">
-            <div class="grafico-header">
-              <h4 class="grafico-titulo">Seu Gasto Atual</h4>
-            </div>
-            <div class="chart-media grafico-barras">
-              <div id="grafico-slide-03" class="echart" aria-label="Gráfico de Evolução da Conta de Luz"></div>
-            </div>
-          </div>
+        <h2 class="slide-title">O Problema</h2>
+        <div class="header-meta">
+          {{cliente_nome}} | 02
         </div>
       </div>
 
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 04 (KPIs) ====== -->
-  <section id="slide-04" class="page bg-neutral">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">04</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">EVOLUÇÃO DA CONTA DE LUZ</h2>
-      </div>
-
-      <div class="aumento-conta-content">
-        <div class="aumento-conta-texto">
-          <h3 class="title-md text-primary">Projeção de aumento baseada nos últimos 9 anos</h3>
-          <div class="dados-historicos">
-            <div class="dado-item">
-              <span class="label">Aumento médio anual:</span>
-              <span class="valor">7%</span>
-        </div>
-            <div class="dado-item">
-              <span class="label">Período analisado:</span>
-              <span class="valor">Últimos 9 anos</span>
-        </div>
-            <div class="dado-item">
-              <span class="label">Conta atual:</span>
-              <span class="valor">{{conta_atual_anual}}</span>
-        </div>
+      <div class="content-area grid-2">
+        <!-- Coluna Esquerda: Texto Conceitual -->
+        <div class="card">
+          <div>
+            <h3 class="card-title">Sua conta de luz aumenta e você não controla isso</h3>
+            <p class="lead-text" style="margin-top:16px;">
+              Os reajustes acontecem todos os anos e trazem <strong>falta de previsibilidade</strong>.
+              O resultado é simples: com o tempo, você paga muito mais por algo que não melhora.
+            </p>
           </div>
           
-          <div class="projecao-destaque">
-            <h4 class="title-sm">Em 25 anos, seu gasto médio anual será de:</h4>
-            <div class="valor-futuro">
-              <span class="valor-enorme">{{conta_futura_25_anos}}</span>
-            </div>
-            <p class="observacao">Considerando aumento de 7% ao ano</p>
-        </div>
-      </div>
-
-        <div class="chart-card grafico-linha-container">
-          <div class="grafico-header">
-            <h4 class="grafico-titulo">Evolução da Conta de Luz (25 anos)</h4>
-          </div>
-          <div class="chart-media grafico-linha">
-            <div id="grafico-slide-04" class="echart" aria-label="Gráfico de Linha - Evolução da Conta de Luz"></div>
+          <div class="info-group" style="margin-top:auto;">
+            <h4 class="info-group-title" style="color:var(--danger-text);">Em termos práticos</h4>
+            <p>Sem energia solar, esse custo pode virar um “aluguel” permanente na sua vida, corroendo seu patrimônio mensalmente.</p>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- ====== SLIDE 05 (TABELA: PARCELAS/PLANOS) ====== -->
-  <section id="slide-05" class="page">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">05</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">COM ENERGIA SOLAR</h2>
-      </div>
-
-      <div class="energia-solar-content">
-        <div class="energia-solar-texto">
-          <div class="paragrafo">
-            <p>Sua usina solar foi projetada para produzir, em média <strong>{{geracao_media_mensal}}kWh/mês</strong>, superando o seu consumo médio de energia.</p>
-      </div>
-
-          <div class="paragrafo">
-            <p>Isso significa que, além de cobrir 100% da sua demanda, você também irá gerar um excedente que será enviado a rede da concessionária e devolvido como créditos.</p>
-          </div>
+        <!-- Coluna Direita: Dados -->
+        <div class="card highlight">
+          <h3 class="card-title">Números que importam</h3>
+          <p>Veja o impacto financeiro projetado para o seu caso:</p>
           
-          <div class="paragrafo">
-            <p>Com isso, você acumulará todos os anos, cerca de <strong>{{creditos_anuais}}</strong> em créditos na concessionária para usar nos meses de baixa geração e que podem ser usados para reduzir outras contas de luz no mesmo CPF ou CNPJ.</p>
-          </div>
-        </div>
-        
-        <div class="chart-card grafico-consumo-geracao">
-          <div class="grafico-header">
-            <h4 class="grafico-titulo">Consumo x Geração (kWh/mês)</h4>
-          </div>
-          <div class="chart-media grafico-barras-duplas">
-            <div id="grafico-slide-05" class="echart" aria-label="Gráfico de Barras Duplas - Consumo x Geração"></div>
-          </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 06 (TIMELINE / ETAPAS) ====== -->
-  <section id="slide-06" class="page bg-secondary">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">06</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">Payback e Benefícios</h2>
-      </div>
-
-      <div class="payback-beneficios-content">
-        <div class="payback-info">
-          <div class="payback-destaque">
-            <h3 class="title-md text-primary">Retorno do Investimento</h3>
-            <div class="payback-valor">
-              <span class="valor-grande">{{anos_payback}}</span>
-              <span class="periodo">anos</span>
-        </div>
-            <p class="payback-descricao">Seu investimento se paga em {{anos_payback}} anos através da economia na conta de luz</p>
-        </div>
-          
-          <div class="economia-total">
-            <h4 class="title-sm">Economia Total em 25 anos:</h4>
-            <div class="valor-economia">
-              <span class="valor-enorme">{{economia_total_25_anos}}</span>
-        </div>
-            <p class="economia-descricao">Valor economizado comparado ao cenário sem energia solar</p>
-        </div>
-      </div>
-
-        <div class="chart-card grafico-payback">
-          <div class="grafico-header">
-            <h4 class="grafico-titulo">Economia Acumulada vs Investimento</h4>
-          </div>
-          <div class="chart-media">
-            <div id="grafico-slide-06" class="echart" aria-label="Gráfico de Economia Acumulada vs Investimento"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 07 (LISTA + DESTAQUE) ====== -->
-  <section id="slide-07" class="page">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">07</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">O QUE ESSE PROJETO INCLUI?</h2>
-      </div>
-
-      <div class="projeto-inclusoes-content">
-        <div class="inclusoes-lista">
-          <h3 class="title-md text-primary">Serviços e Componentes Inclusos</h3>
-          <ul class="lista-inclusoes">
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-              <span class="texto">Kit gerador fotovoltaico</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
-              <span class="texto">Importação de equipamentos e logística de entrega</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-              <span class="texto">Instalação do sistema fotovoltaico</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg></span>
-              <span class="texto">Homologação e agendamento de vistoria junto à concessionária</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M5 20V8.2a1 1 0 0 1 .4-.8l7-5.25a1 1 0 0 1 1.2 0l7 5.25a1 1 0 0 1 .4.8V20"/><path d="M12 20v-9"/><path d="M7 12h10"/></svg></span>
-              <span class="texto">Desenvolvimento do projeto de engenharia</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
-              <span class="texto">Ativação do sistema</span>
-            </li>
-            <li class="item-inclusao">
-              <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>
-              <span class="texto">Instalação do aplicativo de gestão de balanço energético</span>
-            </li>
-        </ul>
-      </div>
-        
-        <div class="garantias-section">
-          <h3 class="title-md text-primary">Garantias do Sistema</h3>
-          <div class="garantias-lista">
-            <div class="garantia-item">
-              <div class="garantia-botao instalacao">
-                <span class="garantia-titulo">INSTALAÇÃO</span>
-        </div>
-              <div class="garantia-info">
-                <span class="garantia-texto">12 MESES DE GARANTIA</span>
-      </div>
+          <div style="margin-top:20px; display:flex; flex-direction:column; gap:16px;">
+            <div class="stats-row">
+              <span class="stat-label">Gasto atual (anual)</span>
+              <span class="stat-value">{{conta_atual_anual}}</span>
             </div>
+            <div class="stats-row">
+              <span class="stat-label">Gasto médio mensal</span>
+              <span class="stat-value">{{conta_mensal_media}}</span>
+            </div>
+            <div class="stats-row">
+              <span class="stat-label">Reajuste médio considerado</span>
+              <span class="stat-value">7% ao ano</span>
+            </div>
+            <div class="stats-row">
+              <span class="stat-label">Gasto total em 25 anos</span>
+              <span class="stat-value large" style="color:var(--danger-text);">{{gasto_total_25_anos}}</span>
+            </div>
+            <div class="stats-row">
+              <span class="stat-label">Conta média no ano 25</span>
+              <span class="stat-value">{{conta_futura_25_anos}}</span>
+            </div>
+          </div>
+
+          <div style="margin-top:auto; font-size:13px; color:var(--n-600); font-style:italic;">
+            *Base: projeção com reajuste médio histórico e regras vigentes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 03: IMPACTO FINANCEIRO (Gráfico) ====== -->
+  <section class="page" id="slide-03">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Impacto Financeiro Real</h2>
+        <div class="header-meta">{{cliente_nome}} | 03</div>
+      </div>
+
+      <div class="content-area grid-text-chart">
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">O efeito "Bola de Neve"</h3>
+            <p class="lead-text">
+              Mesmo que sua conta hoje pareça "pagável", a tendência exponencial de aumento cria um passivo financeiro gigantesco.
+            </p>
             
-            <div class="garantia-item">
-              <div class="garantia-botao modulos">
-                <span class="garantia-titulo">MÓDULOS FOTOVOLTAICOS</span>
+            <div class="info-group" style="margin-top:30px;">
+              <h4 class="info-group-title">Resumo do Desperdício</h4>
+              <div class="stats-row">
+                <span class="stat-label">Hoje você gasta</span>
+                <span class="stat-value">{{conta_atual_anual}} / ano</span>
               </div>
-              <div class="garantia-info">
-                <span class="garantia-texto">25 ANOS DE GARANTIA DE PERFORMANCE</span>
+              <div class="stats-row">
+                <span class="stat-label">Em 25 anos terá gasto</span>
+                <span class="stat-value large" style="color:var(--danger-text);">{{gasto_total_25_anos}}</span>
+              </div>
+            </div>
+
+            <p style="margin-top:auto; font-size:14px; font-style:italic; border-top:1px solid var(--n-200); padding-top:10px;">
+              Este dinheiro sai do seu bolso e não volta em forma de benefício. É um custo puro.
+            </p>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">Evolução do Gasto Acumulado</h3>
+            <p style="font-size:14px; margin-bottom:10px; color:var(--n-600);">Sem energia solar (Cenário atual) vs Tempo</p>
+            <div class="chart-container">
+              <div id="grafico-slide-03" class="echart"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 04: A SOLUÇÃO ====== -->
+  <section class="page" id="slide-04">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">A Solução: Energia Solar</h2>
+        <div class="header-meta">{{cliente_nome}} | 04</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">Como funciona (em 3 passos)</h3>
+            
+            <div style="display:flex; flex-direction:column; gap:24px; margin-top:20px; justify-content:center; flex:1;">
+              <div class="info-group">
+                <span class="tag green" style="margin-bottom:8px;">Passo 1</span>
+                <p><strong>Geração:</strong> Os módulos fotovoltaicos no seu telhado captam a luz do sol e a transformam em energia elétrica.</p>
+              </div>
+              
+              <div class="info-group">
+                <span class="tag green" style="margin-bottom:8px;">Passo 2</span>
+                <p><strong>Consumo Instantâneo:</strong> A energia gerada é usada imediatamente pelos seus aparelhos, reduzindo a compra da rede.</p>
+              </div>
+
+              <div class="info-group">
+                <span class="tag green" style="margin-bottom:8px;">Passo 3</span>
+                <p><strong>Compensação (Créditos):</strong> O que sobra é injetado na rede e vira crédito para abater o consumo noturno ou de meses futuros.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card highlight" style="justify-content:center; align-items:center; padding:0; overflow:hidden;">
+            <img src="img/como-funciona.png" alt="Esquema Solar" style="width:100%; height:100%; object-fit:contain; max-height: 500px;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 05: O QUE MUDA (Gráfico Barras) ====== -->
+  <section class="page" id="slide-05">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">O que muda na prática</h2>
+        <div class="header-meta">{{cliente_nome}} | 05</div>
+      </div>
+
+      <div class="content-area grid-text-chart">
+        <div class="col">
+          <div class="card primary-bg">
+            <h3 class="card-title">Benefícios Reais</h3>
+            <ul style="list-style:none; padding:0; display:flex; flex-direction:column; gap:32px; margin-top:32px; flex:1; justify-content:center;">
+              <li>
+                <div style="font-size:20px; font-weight:700; color:white; margin-bottom:4px;">Independência</div>
+                <p>Produza sua própria energia e deixe de ser refém das bandeiras tarifárias.</p>
+              </li>
+              <li>
+                <div style="font-size:20px; font-weight:700; color:white; margin-bottom:4px;">Proteção Patrimonial</div>
+                <p>Reduza seu custo fixo mensal e proteja seu orçamento familiar contra a inflação energética.</p>
+              </li>
+              <li>
+                <div style="font-size:20px; font-weight:700; color:white; margin-bottom:4px;">Sustentabilidade</div>
+                <p>Energia 100% limpa e renovável, gerada no seu próprio telhado.</p>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="col" style="display: grid; grid-template-rows: 1fr auto; gap: 20px; height: 100%;">
+          <!-- Parte Superior: Gráfico -->
+          <div class="card" style="min-height: 0; display: flex; flex-direction: column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink: 0;">
+              <div>
+                <h3 class="card-title">Consumo x Geração</h3>
+                <p style="font-size:14px; color:var(--n-600);">Comparativo mensal (kWh)</p>
+              </div>
+              
+              <!-- Legenda Externa -->
+              <div style="display:flex; gap:16px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="width:14px; height:14px; background:#3B82F6; border-radius:3px;"></span>
+                  <span style="font-size:13px; font-weight:600; color:var(--n-700);">Consumo</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="width:14px; height:14px; background:#10B981; border-radius:3px;"></span>
+                  <span style="font-size:13px; font-weight:600; color:var(--n-700);">Geração Solar</span>
+                </div>
               </div>
             </div>
             
-            <div class="garantia-item">
-              <div class="garantia-botao inversores">
-                <span class="garantia-titulo">INVERSORES</span>
+            <div class="chart-container" style="flex: 1; min-height: 0; width: 100%; position: relative;">
+              <!-- Importante: Echarts precisa de container com tamanho definido -->
+              <div id="grafico-slide-05" class="echart" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+            </div>
+          </div>
+
+          <!-- Parte Inferior: Marcadores de Vantagem -->
+          <div class="card highlight" style="height: auto; padding: 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px;">
+            <div style="text-align:center;">
+              <div style="font-size:14px; color:var(--n-600); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Valorização do Imóvel</div>
+              <div style="font-size:26px; font-weight:800; color:var(--brand-primary); line-height:1;">Até 20%</div>
+            </div>
+            
+            <!-- Divisor Vertical -->
+            <div style="width:1px; height:40px; background:var(--n-300);"></div>
+            
+            <div style="text-align:center;">
+              <div style="font-size:14px; color:var(--n-600); font-weight:700; text-transform:uppercase; margin-bottom:6px;">Economia na Conta</div>
+              <div style="font-size:26px; font-weight:800; color:var(--success-text); line-height:1;">Até 95%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 06: ECONOMIA IMEDIATA ====== -->
+  <section class="page" id="slide-06">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Economia Imediata</h2>
+        <div class="header-meta">{{cliente_nome}} | 06</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">Quanto você economiza</h3>
+            <p>Resultados estimados logo após a ativação do sistema:</p>
+
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:24px;">
+              <div class="info-group" style="text-align:center;">
+                <span class="stat-label">Economia Média Mensal</span>
+                <div style="font-size:42px; font-weight:800; color:var(--success-text); margin:8px 0;">
+                  {{economia_mensal}}
+                </div>
+                <span class="stat-label" style="font-size:14px;">Estimativa inicial</span>
               </div>
-              <div class="garantia-info">
-                <span class="garantia-texto">10 ANOS DE GARANTIA</span>
+
+              <div class="info-group" style="text-align:center;">
+                <span class="stat-label">Economia no 1º Ano</span>
+                <div style="font-size:42px; font-weight:800; color:var(--brand-primary); margin:8px 0;">
+                  {{economia_ano_1}}
+                </div>
+                <span class="stat-label" style="font-size:14px;">Dinheiro que fica no seu bolso</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card highlight">
+            <h3 class="card-title">Resumo do Investimento</h3>
+            
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:32px;">
+              <div class="stats-row" style="padding: 24px 0;">
+                <span class="stat-label" style="font-size:18px;">Investimento à vista</span>
+                <span class="stat-value large">{{preco_final}}</span>
+              </div>
+              
+              <div class="stats-row" style="padding: 24px 0;">
+                <span class="stat-label" style="font-size:18px;">Retorno (Payback)</span>
+                <span class="tag green" style="font-size:18px;">{{anos_payback}} anos</span>
+              </div>
+
+              <div class="info-group">
+                <p><strong>O que isso significa?</strong><br>
+                Em {{anos_payback}} anos o sistema "se paga" apenas com a economia gerada. Nos 20+ anos seguintes, é lucro puro.</p>
               </div>
             </div>
           </div>
@@ -2553,201 +911,340 @@
     </div>
   </section>
 
-  <!-- ====== SLIDE 08 (CRONOGRAMA DE 90 DIAS) ====== -->
-  <section id="slide-08" class="page">
+  <!-- ====== SLIDE 07: PAYBACK (Gráfico) ====== -->
+  <section class="page" id="slide-07">
     <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">08</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
       <div class="slide-header">
-        <h2 class="title-lg text-primary">CRONOGRAMA DE 90 DIAS</h2>
+        <h2 class="slide-title">Retorno do Investimento (Payback)</h2>
+        <div class="header-meta">{{cliente_nome}} | 07</div>
       </div>
 
-      <div class="cronograma-content">
-        <div class="cronograma-intro">
-          <p class="intro-texto">Iremos cuidar de todo o processo do início ao fim.</p>
+      <div class="content-area grid-text-chart">
+        <div class="col">
+          <div class="card primary-bg" style="justify-content:center;">
+            <h3 class="card-title">A melhor aplicação</h3>
+            <p style="margin-top:20px; font-size:18px;">
+              O investimento em energia solar supera a maioria das aplicações financeiras tradicionais de renda fixa, com a vantagem de ser isento de imposto de renda sobre o "rendimento".
+            </p>
+            
+            <div style="margin-top:40px; background:rgba(255,255,255,0.1); padding:30px; border-radius:16px;">
+              <div style="font-size:16px; opacity:0.9;">Economia total acumulada (25 anos)</div>
+              <div style="font-size:40px; font-weight:800; color:#4ADE80; margin-top:8px;">{{economia_total_25_anos}}</div>
+            </div>
+          </div>
         </div>
+
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">Fluxo de Caixa Acumulado</h3>
+            <p style="font-size:14px; margin-bottom:10px; color:var(--n-600);">O ponto de cruzamento indica quando o investimento foi recuperado.</p>
+            <div class="chart-container">
+              <div id="grafico-slide-06" class="echart"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 08: ESPECIFICAÇÕES ====== -->
+  <section class="page" id="slide-08">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Especificações do Sistema</h2>
+        <div class="header-meta">{{cliente_nome}} | 08</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <div class="col">
+          <div class="card highlight">
+            <h3 class="card-title">Dimensionamento</h3>
+            <p>Sistema projetado sob medida para seu perfil de consumo.</p>
+
+            <div style="display:flex; flex-direction:column; gap:20px; margin-top:20px; justify-content:center; flex:1;">
+              <div class="stats-row">
+                <span class="stat-label">Potência do Sistema (kWp)</span>
+                <span class="stat-value large">{{potencia_sistema_kwp}} kWp</span>
+              </div>
+              <div class="stats-row">
+                <span class="stat-label">Qtd. Módulos</span>
+                <span class="stat-value">{{quantidade_placas}}x {{potencia_placa_w}}W</span>
+              </div>
+              <div class="stats-row">
+                <span class="stat-label">Área Estimada</span>
+                <span class="stat-value">{{area_necessaria}} m²</span>
+              </div>
+              <div class="stats-row">
+                <span class="stat-label">Geração Média Mensal Est.</span>
+                <span class="stat-value">{{geracao_media_mensal}} kWh</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">Equipamentos Premium</h3>
+            
+            <div style="display:flex; flex-direction:column; gap:20px; margin-top:20px; justify-content:center; flex:1;">
+              <div class="info-group">
+                <h4 class="info-group-title">Módulos Fotovoltaicos</h4>
+                <div class="stats-row">
+                  <span class="stat-label">Marca</span>
+                  <span class="stat-value">{{modulo_marca}}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stat-label">Modelo</span>
+                  <span class="stat-value">{{modulo_modelo}}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stat-label">Garantia de Performance</span>
+                  <span class="stat-value">25 Anos</span>
+                </div>
+              </div>
+
+              <div class="info-group">
+                <h4 class="info-group-title">Inversor</h4>
+                <div class="stats-row">
+                  <span class="stat-label">Marca</span>
+                  <span class="stat-value">{{inversor_marca}}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stat-label">Tipo</span>
+                  <span class="stat-value">{{tipo_inversor}}</span>
+                </div>
+                <div class="stats-row">
+                  <span class="stat-label">Garantia</span>
+                  <span class="stat-value">10 Anos (ou conforme fabricante)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 09: INCLUSOS E GARANTIAS ====== -->
+  <section class="page" id="slide-09">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Solução Completa (Turn-key)</h2>
+        <div class="header-meta">{{cliente_nome}} | 09</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <div class="card highlight">
+          <h3 class="card-title">Tudo incluso</h3>
+          <p>Você não precisa se preocupar com nada. Cuidamos de ponta a ponta:</p>
+          
+          <ul style="margin-top:20px; display:flex; flex-direction:column; gap:20px; padding-left:20px; flex:1; justify-content:center;">
+            <li><strong>Equipamentos completos</strong> (Módulos, Inversor, Estruturas, Cabos e Proteções)</li>
+            <li><strong>Projeto de Engenharia</strong> e Responsabilidade Técnica (ART)</li>
+            <li><strong>Homologação</strong> junto à concessionária de energia</li>
+            <li><strong>Instalação</strong> realizada por equipe técnica certificada</li>
+            <li><strong>Ativação</strong> e configuração do monitoramento wi-fi</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Garantias e Segurança</h3>
+          
+          <div style="display:flex; flex-direction:column; gap:24px; margin-top:20px; flex:1; justify-content:center;">
+            <div class="info-group" style="display:flex; align-items:center; gap:20px;">
+              <div style="background:var(--brand-primary); color:white; padding:12px; border-radius:8px; width:60px; text-align:center; font-weight:800; font-size:20px;">25</div>
+              <div>
+                <strong>Anos - Performance Linear</strong><br>
+                <span style="font-size:14px; color:var(--n-600);">Garantia que os módulos produzirão pelo menos 80% da potência original no 25º ano.</span>
+              </div>
+            </div>
+
+            <div class="info-group" style="display:flex; align-items:center; gap:20px;">
+              <div style="background:var(--brand-primary); color:white; padding:12px; border-radius:8px; width:60px; text-align:center; font-weight:800; font-size:20px;">10</div>
+              <div>
+                <strong>Anos - Inversor</strong><br>
+                <span style="font-size:14px; color:var(--n-600);">Garantia contra defeitos de fabricação do principal equipamento eletrônico.</span>
+              </div>
+            </div>
+
+            <div class="info-group" style="display:flex; align-items:center; gap:20px;">
+              <div style="background:var(--brand-primary); color:white; padding:12px; border-radius:8px; width:60px; text-align:center; font-weight:800; font-size:20px;">1</div>
+              <div>
+                <strong>Ano - Instalação</strong><br>
+                <span style="font-size:14px; color:var(--n-600);">Garantia sobre o serviço de montagem e instalação elétrica.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 10: COMPARATIVO FINAL ====== -->
+  <section class="page" id="slide-10">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Comparativo Final (25 Anos)</h2>
+        <div class="header-meta">{{cliente_nome}} | 10</div>
+      </div>
+
+      <div class="content-area grid-text-chart">
+        <div class="col">
+          <div class="card" style="border:2px solid var(--danger-border); background:var(--danger-bg); flex:1;">
+            <h3 class="card-title" style="color:var(--danger-text);">Sem Energia Solar</h3>
+            <p>Continuando a pagar a conta para a concessionária:</p>
+            <div style="margin-top:auto; text-align:center; padding: 20px 0;">
+              <div style="font-size:16px; color:var(--n-600);">Custo total estimado</div>
+              <div style="font-size:36px; font-weight:800; color:var(--danger-text);">{{gasto_total_25_anos}}</div>
+              <div style="font-size:14px; margin-top:8px;">Dinheiro perdido</div>
+            </div>
+          </div>
+
+          <div class="card" style="border:2px solid var(--success-border); background:var(--success-bg); flex:1;">
+            <h3 class="card-title" style="color:var(--success-text);">Com Energia Solar</h3>
+            <p>Investindo na sua própria usina:</p>
+            <div style="margin-top:auto; text-align:center; padding: 20px 0;">
+              <div style="font-size:16px; color:var(--n-600);">Investimento Único</div>
+              <div style="font-size:36px; font-weight:800; color:var(--success-text);">{{preco_final}}</div>
+              <div style="font-size:14px; margin-top:8px;">+ Economia de {{economia_total_25_anos}}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card">
+            <h3 class="card-title">A escolha óbvia</h3>
+            <p style="font-size:14px; margin-bottom:10px; color:var(--n-600);">Comparativo visual do desembolso acumulado em 25 anos.</p>
+            <div class="chart-container">
+              <div id="grafico-slide-09" class="echart"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 11: PAGAMENTO ====== -->
+  <section class="page" id="slide-11">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Formas de Pagamento</h2>
+        <div class="header-meta">{{cliente_nome}} | 11</div>
+      </div>
+
+      <div class="content-area grid-2">
+        <!-- À Vista / Cartão -->
+        <div class="card">
+          <h3 class="card-title">Cartão de Crédito</h3>
+          
+          <div class="info-group" style="margin-bottom:20px; text-align:center; background:var(--success-bg); border-color:var(--success-border);">
+            <span class="stat-label">À vista no cartão</span>
+            <div style="font-size:32px; font-weight:800; color:var(--success-text); margin-top:4px;">{{valor_avista_cartao}}</div>
+          </div>
+
+          <div style="overflow-y:auto; flex:1;">
+            <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Parcelamento (Cartão):</p>
+            <div class="payment-table-container">
+              {{parcelas_cartao}}
+            </div>
+          </div>
+        </div>
+
+        <!-- Financiamento -->
+        <div class="card highlight" style="border:2px solid var(--brand-primary);">
+          <h3 class="card-title">Financiamento Solar</h3>
+          <p style="font-size:14px;">Troque sua conta de luz pela parcela do financiamento.</p>
+
+          <div class="info-group" style="margin:20px 0; text-align:center; background:var(--brand-primary); color:white;">
+            <span class="stat-label" style="color:rgba(255,255,255,0.8);">Parcela Sugerida</span>
+            <div style="font-size:40px; font-weight:800; color:white; margin-top:4px;">{{menor_parcela_financiamento}}</div>
+          </div>
+
+          <div style="overflow-y:auto; flex:1;">
+            <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Opções de Financiamento:</p>
+            <div class="payment-table-container">
+              {{parcelas_financiamento}}
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--n-600); margin-top:10px; text-align:center;">* Sujeito à análise de crédito.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SLIDE 12: PRÓXIMOS PASSOS ====== -->
+  <section class="page" id="slide-12">
+    <div class="page-inner">
+      <div class="slide-header">
+        <h2 class="slide-title">Próximo Passo</h2>
+        <div class="header-meta">{{cliente_nome}} | 12</div>
+      </div>
+
+      <div class="content-area" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
         
-        <div class="timeline-container">
+        <div style="width:100%; max-width:900px; text-align:center; margin-bottom:20px;">
+          <h3 style="font-size:32px; color:var(--brand-primary); margin-bottom:10px;">Cronograma Estimado</h3>
+          <p style="font-size:18px; line-height:1.6; color:var(--n-600);">
+            Cuidamos de todo o processo, do início ao fim.
+          </p>
+        </div>
+
+        <div class="cronograma-content">
           <!-- Datas em cima -->
           <div class="timeline-dates">
-            <div class="date-label">{{data_aprovacao}}</div>
-            <div class="date-label">{{data_validacao}}</div>
-            <div class="date-label">{{data_contrato}}</div>
-            <div class="date-label">{{data_equipamentos}}</div>
-            <div class="date-label">{{data_montagem}}</div>
-            <div class="date-label">{{data_conclusao}}</div>
-        </div>
+            <div class="date-label">Pré-venda</div>
+            <div class="date-label">Pré-venda</div>
+            <div class="date-label">Dia 0</div>
+            <div class="date-label">+30 Dias</div>
+            <div class="date-label">+45 Dias</div>
+            <div class="date-label">90 Dias</div>
+          </div>
           
-          <!-- Linha com pontos no meio -->
+          <!-- Linha com pontos -->
           <div class="timeline-line">
             <div class="timeline-dot"></div>
             <div class="timeline-dot"></div>
+            <div class="timeline-dot" style="border-color: var(--brand-primary); background: white; box-shadow: 0 0 0 4px var(--brand-primary);"></div>
             <div class="timeline-dot"></div>
             <div class="timeline-dot"></div>
-            <div class="timeline-dot"></div>
-            <div class="timeline-dot dia-dot final"></div>
-      </div>
+            <div class="timeline-dot final"></div>
+          </div>
 
-          <!-- Detalhes das etapas embaixo -->
+          <!-- Detalhes das etapas -->
           <div class="timeline-details">
             <div class="timeline-item">
-              <div class="etapa-titulo">Aprovação da Proposta Comercial</div>
+              <div class="etapa-titulo">Aprovação da Proposta</div>
             </div>
             <div class="timeline-item">
-              <div class="etapa-titulo">Validação do projeto pela engenharia</div>
+              <div class="etapa-titulo">Validação Técnica</div>
             </div>
-            <div class="timeline-item dia-marcado">
-              <div class="etapa-titulo">Assinatura do contrato e pagamento da primeira parcela ou quitação</div>
+            <div class="timeline-item" style="border: 2px solid var(--brand-primary); background: var(--blue-50);">
+              <div class="etapa-titulo" style="font-weight: 800; color: var(--brand-primary);">Assinatura de Contrato</div>
             </div>
-            <div class="timeline-item dia-marcado">
-              <div class="etapa-titulo">Chegada dos equipamentos, recebimento e preparação da infraestrutura do local</div>
+            <div class="timeline-item">
+              <div class="etapa-titulo">Entrega dos Equipamentos</div>
             </div>
-            <div class="timeline-item dia-marcado">
-              <div class="etapa-titulo">Finalização da montagem do sistema fotovoltaico</div>
+            <div class="timeline-item">
+              <div class="etapa-titulo">Instalação e Montagem</div>
             </div>
-            <div class="timeline-item dia-marcado final">
-              <div class="etapa-titulo">Parabéns! Você já está gerando energia limpa.</div>
+            <div class="timeline-item final">
+              <div class="etapa-titulo">Homologação e Ativação</div>
             </div>
           </div>
         </div>
+
+        <div style="margin-top:40px; text-align:center; background: var(--n-50); padding: 20px 40px; border-radius: 16px; border: 1px solid var(--n-200); width: 100%; max-width: 600px;">
+          <h4 style="color:var(--n-600); text-transform:uppercase; font-size:12px; letter-spacing:1px; margin-bottom:8px;">Fale com seu consultor</h4>
+          <div style="font-size:24px; font-weight:700; color:var(--brand-primary);">{{vendedor_nome}}</div>
+          <div style="font-size:16px; margin-top:4px;">{{vendedor_telefone}}</div>
+          <div style="font-size:16px;">{{vendedor_email}}</div>
+        </div>
+
       </div>
     </div>
   </section>
 
-  <!-- ====== SLIDE 09 (COMPARATIVO FINANCEIRO) ====== -->
-  <section id="slide-09" class="page">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">09</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">COMPARATIVO FINANCEIRO</h2>
-      </div>
+</div>
 
-      <div class="comparativo-content">
-        <!-- Comparativo de Custos -->
-        <div class="comparativo-custos">
-          <div class="custo-sem-solar">
-            <h4 class="custo-titulo">SEM ENERGIA SOLAR</h4>
-            <div class="custo-valor-grande">{{gasto_total_25_anos}}</div>
-            <p class="custo-descricao">Gasto total em 25 anos</p>
-            <div class="custo-detalhes">
-              <div class="custo-item">
-                <span>Conta atual:</span>
-                <span>{{conta_atual_anual}}/ano</span>
-              </div>
-              <div class="custo-item">
-                <span>Aumento anual:</span>
-                <span>4,1%</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="custo-com-solar">
-            <h4 class="custo-titulo">COM ENERGIA SOLAR</h4>
-            <div class="custo-valor-grande">{{preco_final}}</div>
-            <p class="custo-descricao">Investimento único</p>
-            <div class="custo-detalhes">
-              <div class="custo-item">
-                <span>Economia mensal:</span>
-                <span>{{economia_mensal}}</span>
-              </div>
-              <div class="custo-item">
-                <span>Payback:</span>
-                <span>{{payback_anos}} anos</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Gráfico de Comparativo -->
-        <div class="chart-card grafico-comparativo">
-          <div class="grafico-header">
-            <h4 class="grafico-titulo">Comparativo Financeiro (25 anos)</h4>
-          </div>
-          <div class="chart-media">
-            <div id="grafico-slide-09" class="echart" aria-label="Gráfico Comparativo - Sem Solar (25 anos) vs Investimento"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 10 - FORMAS DE PAGAMENTO ====== -->
-  <section id="slide-10" class="page">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">10</div>
-      <!-- Linha azul do topo -->
-      <div class="line-blue-top"></div>
-      
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">FORMAS DE PAGAMENTO</h2>
-      </div>
-
-      <div class="formas-pagamento-content">
-        <!-- Cartão de Crédito -->
-        <div class="forma-pagamento-card">
-          <div class="forma-pagamento-header">
-            <div class="forma-pagamento-icon cartao">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
-            </div>
-            <div>
-              <div class="forma-pagamento-titulo">Cartão de Crédito</div>
-            </div>
-          </div>
-
-          <div class="parcelas-grid">
-            {{parcelas_cartao}}
-          </div>
-
-          <div class="forma-pagamento-destaque">
-            <div class="destaque-label">À vista no cartão</div>
-            <div class="destaque-valor">{{valor_avista_cartao}}</div>
-          </div>
-        </div>
-
-        <!-- Financiamento Bancário -->
-        <div class="forma-pagamento-card">
-          <div class="forma-pagamento-header">
-            <div class="forma-pagamento-icon financiamento">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z"/></svg>
-            </div>
-            <div>
-              <div class="forma-pagamento-titulo">Financiamento Bancário</div>
-            </div>
-          </div>
-
-          <div class="parcelas-grid">
-            {{parcelas_financiamento}}
-          </div>
-
-          <div class="forma-pagamento-destaque azul">
-            <div class="destaque-label">Parcela que cabe no seu bolso</div>
-            <div class="destaque-valor azul">{{menor_parcela_financiamento}}</div>
-          </div>
-
-          <div class="forma-pagamento-aviso">
-            * Sujeito à análise de crédito
-          </div>
-        </div>
-
-        <!-- Resumo -->
-        <div class="pagamento-resumo">
-          <div class="pagamento-resumo-texto">
-            <h4>Invista no seu futuro!</h4>
-            <p>Escolha a melhor forma de pagamento para você</p>
-          </div>
-          <div class="pagamento-resumo-valor">
-            <div class="label">Valor do investimento</div>
-            <div class="valor">{{preco_final}}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+</body>
+</html>

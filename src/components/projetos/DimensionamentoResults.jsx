@@ -337,6 +337,38 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         margem_lucro: dadosSeguros.margem_lucro || 0
       };
 
+      // Extrair equipamentos do kit (marca/modelo/tipo) para proposta
+      try {
+        const kit = kitSelecionado || {};
+        const comps = Array.isArray(kit.componentes)
+          ? kit.componentes
+          : (Array.isArray(kit.composicao) ? kit.composicao : []);
+
+        const pickFirst = (group) => comps.find(c => (c?.agrupamento || c?.tipo || '').toString().toLowerCase() === group);
+
+        // Painel: no NovoProjeto vem como agrupamento "Painel"
+        const painel = comps.find(c => (c?.agrupamento || '').toString().toLowerCase() === 'painel')
+          || pickFirst('painel');
+        // Inversor: no NovoProjeto vem como agrupamento "Inversor"
+        const inversor = comps.find(c => (c?.agrupamento || '').toString().toLowerCase() === 'inversor')
+          || pickFirst('inversor');
+
+        const norm = (v) => (v == null ? '' : String(v).trim());
+        const descPainel = norm(painel?.descricao || painel?.nome || '');
+        const descInversor = norm(inversor?.descricao || inversor?.nome || '');
+
+        propostaData.modulo_marca = norm(painel?.marca || '');
+        propostaData.modulo_modelo = norm(painel?.modelo || descPainel);
+
+        propostaData.inversor_marca = norm(inversor?.marca || '');
+        propostaData.inversor_modelo = norm(inversor?.modelo || descInversor);
+
+        const d = (descInversor || '').toLowerCase();
+        if (d.includes('micro')) propostaData.tipo_inversor = 'Microinversor';
+        else if (d.includes('híbrido') || d.includes('hibrido')) propostaData.tipo_inversor = 'Híbrido';
+        else if (descInversor) propostaData.tipo_inversor = 'String';
+      } catch (_) {}
+
       // 1) Geração dos gráficos antes de salvar (analise financeira)
       try {
         // Derivar consumo em R$ se necessário (kWh × tarifa)

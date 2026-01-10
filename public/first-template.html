@@ -833,120 +833,7 @@
   }
 
   .legenda-cor.consumo{
-    /* Consumo no ECharts é azul (brand primary) */
-    background:var(--blue-600);
-  }
-
-  /* ===========================================================================
-     NOVOS BLOCOS (alto impacto): Especificações + Economia imediata + Prova social
-     =========================================================================== */
-  .info-block{
-    background:var(--surface);
-    border:1px solid var(--border-soft);
-    border-radius:16px;
-    box-shadow:var(--shadow-sm);
-    padding:16px;
-  }
-  .info-block h4{
-    margin:0 0 10px 0;
-    font-size:16px;
-    font-weight:800;
-    color:var(--brand-primary);
-    letter-spacing:0.2px;
-  }
-  .specs-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px 16px;
-  }
-  .spec-item{
-    display:flex;
-    justify-content:space-between;
-    gap:12px;
-    padding:10px 12px;
-    background:var(--n-50);
-    border:1px solid var(--border-soft);
-    border-radius:12px;
-    min-width:0;
-  }
-  .spec-item .k{
-    font-size:12px;
-    font-weight:700;
-    color:var(--n-700);
-    white-space:nowrap;
-  }
-  .spec-item .v{
-    font-size:12px;
-    font-weight:800;
-    color:var(--n-900);
-    text-align:right;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-  }
-  .spec-footnote{
-    margin-top:10px;
-    font-size:11px;
-    color:var(--n-600);
-    line-height:1.35;
-  }
-
-  .eco-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px 16px;
-  }
-  .eco-item{
-    padding:12px;
-    border-radius:12px;
-    border:1px solid var(--border-soft);
-    background:linear-gradient(180deg, var(--n-50) 0%, #ffffff 100%);
-  }
-  .eco-item .label{
-    font-size:12px;
-    font-weight:800;
-    color:var(--n-700);
-    margin-bottom:6px;
-  }
-  .eco-item .value{
-    font-size:18px;
-    font-weight:900;
-    color:var(--brand-primary);
-    line-height:1.1;
-  }
-  .eco-item .hint{
-    font-size:11px;
-    color:var(--n-600);
-    margin-top:6px;
-    line-height:1.3;
-  }
-
-  .lei-nota{
-    margin-top:12px;
-    padding:12px 14px;
-    border-radius:14px;
-    border:1px solid var(--border-soft);
-    background:linear-gradient(135deg, var(--blue-50) 0%, var(--green-50) 100%);
-    color:var(--n-800);
-    font-size:12px;
-    line-height:1.45;
-  }
-
-  /* Slide 10: reduzir "excesso de opção" sem mexer no backend:
-     mostra até 12x no cartão e oculta o restante. */
-  #slide-10 .forma-pagamento-card:first-child .parcela-item:nth-child(n+13){
-    display:none;
-  }
-  /* Slide 10: financiamento - reduzir excesso visual mantendo a "melhor parcela" */
-  #slide-10 .forma-pagamento-card:nth-child(2) .parcelas-grid{
-    display:none;
-  }
-  #slide-10 .opcoes-sob-consulta{
-    margin-top:8px;
-    font-size:11px;
-    color:var(--n-600);
-    font-style:italic;
-    text-align:center;
+    background:var(--red-500);
   }
 
   /* Slide 05 - Gráfico de Barras Duplas Consumo x Geração */
@@ -2432,15 +2319,8 @@
                 <span class="valor-enorme">{{gasto_acumulado_payback}}</span>
               </div>
             </div>
-            <p class="observacao">Considerando aumento médio de 7% ao ano (média histórica)</p>
+            <p class="observacao">Considerando aumento médio de 4,1% ao ano</p>
           </div>
-        </div>
-        <!-- resumo curto para aumentar persuasão -->
-        <div class="info-block" style="margin-top:14px;">
-          <h4>Resumo rápido</h4>
-          <p style="margin:0;font-size:13px;color:var(--n-700);line-height:1.45;">
-            Sem energia solar, seu custo de energia tende a subir todos os anos. Com este projeto, você reduz o impacto desses reajustes e ganha previsibilidade por décadas.
-          </p>
         </div>
         
         <div class="cenario-atual-grafico">
@@ -2534,32 +2414,6 @@
           <div class="paragrafo">
             <p>Com isso, você acumulará todos os anos, cerca de <strong>{{creditos_anuais}}</strong> em créditos na concessionária para usar nos meses de baixa geração e que podem ser usados para reduzir outras contas de luz no mesmo CPF ou CNPJ.</p>
           </div>
-
-          <!-- NOVO: Especificações do sistema (valor percebido) -->
-          <div class="info-block" style="margin-top:16px;">
-            <h4>Especificações do Sistema</h4>
-            <div class="specs-grid">
-              <div class="spec-item">
-                <span class="k">Potência instalada</span>
-                <span class="v">{{potencia_sistema_kwp}} kWp</span>
-              </div>
-              <div class="spec-item">
-                <span class="k">Módulos</span>
-                <span class="v">{{quantidade_placas}}× {{potencia_placa_w}} W</span>
-              </div>
-              <div class="spec-item">
-                <span class="k">Área estimada</span>
-                <span class="v">{{area_necessaria}} m²</span>
-              </div>
-              <div class="spec-item">
-                <span class="k">Vida útil estimada</span>
-                <span class="v">25+ anos</span>
-              </div>
-            </div>
-            <div class="spec-footnote">
-              Detalhes de marca/modelo e tipo de inversor (string ou microinversor) são definidos conforme o kit selecionado e disponibilidade técnica para o seu telhado.
-            </div>
-          </div>
         </div>
         
         <div class="chart-card grafico-consumo-geracao">
@@ -2603,32 +2457,6 @@
         </div>
             <p class="economia-descricao">Valor economizado comparado ao cenário sem energia solar</p>
         </div>
-
-          <!-- NOVO: Economia imediata (curto prazo) -->
-          <div class="info-block" style="margin-top:16px;">
-            <h4>Economia imediata</h4>
-            <div class="eco-grid">
-              <div class="eco-item">
-                <div class="label">Economia média mensal</div>
-                <div class="value">{{economia_mensal}}</div>
-                <div class="hint">Estimativa baseada no seu consumo e geração projetada.</div>
-              </div>
-              <div class="eco-item">
-                <div class="label">Economia no 1º ano</div>
-                <div class="value">{{economia_ano_1}}</div>
-                <div class="hint">O cérebro decide no curto prazo: este é o ganho mais “palpável”.</div>
-              </div>
-            </div>
-            <div class="spec-footnote">
-              A economia pode variar conforme sazonalidade de consumo, irradiância e regras de compensação aplicáveis.
-            </div>
-          </div>
-
-          <!-- NOVO: Base regulatória (confiança jurídica) -->
-          <div class="lei-nota">
-            O sistema segue integralmente a <strong>Lei nº 14.300/2022</strong>, garantindo o direito à compensação de créditos de energia conforme as regras vigentes,
-            com previsibilidade e segurança jurídica ao longo da vida útil do projeto.
-          </div>
       </div>
 
         <div class="chart-card grafico-payback">
@@ -2815,7 +2643,7 @@
               </div>
               <div class="custo-item">
                 <span>Aumento anual:</span>
-                <span>7%</span>
+                <span>4,1%</span>
               </div>
             </div>
           </div>
@@ -2877,7 +2705,6 @@
           <div class="parcelas-grid">
             {{parcelas_cartao}}
           </div>
-          <div class="opcoes-sob-consulta">Mostrando até 12x. Demais opções sob consulta.</div>
 
           <div class="forma-pagamento-destaque">
             <div class="destaque-label">À vista no cartão</div>
@@ -2919,66 +2746,6 @@
           <div class="pagamento-resumo-valor">
             <div class="label">Valor do investimento</div>
             <div class="valor">{{preco_final}}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ====== SLIDE 11 - PROVA SOCIAL / CONFIANÇA ====== -->
-  <section id="slide-11" class="page bg-neutral">
-    <div class="page-inner">
-      <div class="client-name">{{cliente_nome}}</div>
-      <div class="slide-number">11</div>
-      <div class="line-blue-top"></div>
-
-      <div class="slide-header">
-        <h2 class="title-lg text-primary">POR QUE ESCOLHER A FOHAT?</h2>
-      </div>
-
-      <div class="grid-2" style="grid-column:1 / -1; padding:0 8px; height:100%; align-items:stretch;">
-        <div class="card secondary" style="display:flex;flex-direction:column;gap:14px;">
-          <h3 class="title-md text-primary" style="margin-bottom:4px;">Confiança que reduz objeções</h3>
-          <div class="specs-grid">
-            <div class="spec-item">
-              <span class="k">Sistemas instalados</span>
-              <span class="v">+300</span>
-            </div>
-            <div class="spec-item">
-              <span class="k">Atuação</span>
-              <span class="v">Campinas e região</span>
-            </div>
-            <div class="spec-item">
-              <span class="k">Equipe</span>
-              <span class="v">Própria e homologada</span>
-            </div>
-            <div class="spec-item">
-              <span class="k">Pós-venda</span>
-              <span class="v">Dedicado</span>
-            </div>
-          </div>
-          <p class="spec-footnote" style="margin:0;">
-            Seu projeto é dimensionado e homologado conforme as regras vigentes, com acompanhamento do início ao fim.
-          </p>
-        </div>
-
-        <div class="card primary" style="display:flex;flex-direction:column;justify-content:space-between;">
-          <div>
-            <h3 class="title-md" style="color:#fff;margin-bottom:10px;">Chamada para ação</h3>
-            <p style="color:rgba(255,255,255,0.92);font-size:16px;line-height:1.6;margin:0 0 12px 0;">
-              Aprove esta proposta e comece a economizar já nos próximos meses.
-              Com energia solar, você fixa seu custo energético por mais de 25 anos e ganha previsibilidade.
-            </p>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <div class="spec-item" style="background:rgba(255,255,255,0.10);border-color:rgba(255,255,255,0.18);">
-              <span class="k" style="color:rgba(255,255,255,0.90);">Investimento à vista</span>
-              <span class="v" style="color:#fff;">{{preco_final}}</span>
-            </div>
-            <div class="spec-item" style="background:rgba(255,255,255,0.10);border-color:rgba(255,255,255,0.18);">
-              <span class="k" style="color:rgba(255,255,255,0.90);">Payback</span>
-              <span class="v" style="color:#fff;">{{anos_payback}} anos</span>
-            </div>
           </div>
         </div>
       </div>

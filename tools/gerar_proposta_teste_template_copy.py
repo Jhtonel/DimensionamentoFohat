@@ -24,7 +24,7 @@ def _parcelas_html(valor_total: float, max_parcelas: int = 18, taxa_base_pct: fl
         taxa = taxa_base_pct + max(0, p - 1) * 0.65
         valor_com_taxa = valor_total * (1 + taxa / 100.0)
         out.append(
-            f'<div class="parcela-item"><span class="parcela-numero">{p}x de</span>'
+            f'<div class="parcela-item"><span class="parcela-numero">{p}x de </span>'
             f'<span class="parcela-valor">{_fmt_brl(valor_com_taxa / p)}</span></div>'
         )
     return "".join(out)
@@ -50,7 +50,7 @@ def _parcelas_fin_html(valor_total: float) -> tuple[str, str]:
             parcela = valor_total / n
         menor = parcela if (menor is None or parcela < menor) else menor
         cards.append(
-            f'<div class="parcela-item"><span class="parcela-numero">{n}x de</span>'
+            f'<div class="parcela-item"><span class="parcela-numero">{n}x de </span>'
             f'<span class="parcela-valor">{_fmt_brl(parcela)}</span></div>'
         )
     return "".join(cards), _fmt_brl(menor or 0.0)
@@ -123,6 +123,12 @@ def main():
         "consumo_mes_a_mes": consumo_mes_a_mes,
         "tarifa_energia": float(tarifa),
         "irradiacao_media": 5.15,
+        # Equipamentos (marca/modelo/tipo) — para validar o Slide 8
+        "modulo_marca": "JA Solar",
+        "modulo_modelo": "JAM72S30 585W",
+        "inversor_marca": "Growatt",
+        "inversor_modelo": "MIN 4000TL-X",
+        "tipo_inversor": "String",
         # Pagamentos (persistidos -> slide 10)
         "parcelas_cartao": parcelas_cartao,
         "parcelas_financiamento": parcelas_fin,
