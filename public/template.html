@@ -497,6 +497,58 @@
     background-color: var(--n-50) !important;
   }
 
+  /* Slide 09 - Inclusos Grid */
+  .inclusos-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .incluso-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: white;
+    border: 1px solid var(--n-200);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .incluso-icon {
+    width: 42px;
+    height: 42px;
+    background: var(--brand-secondary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-primary);
+    flex-shrink: 0;
+  }
+  .incluso-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2;
+    stroke: currentColor;
+    fill: none;
+  }
+  .incluso-text {
+    display: flex;
+    flex-direction: column;
+  }
+  .incluso-text strong {
+    font-size: 15px;
+    color: var(--n-900);
+    margin-bottom: 2px;
+  }
+  .incluso-text span {
+    font-size: 13px;
+    color: var(--n-600);
+    line-height: 1.3;
+  }
+
   /* --- Timeline Horizontal (Restaurada) --- */
   .cronograma-content{
     width: 100%;
@@ -682,15 +734,15 @@
           
           <div style="margin-top:20px; display:flex; flex-direction:column; gap:16px;">
             <div class="stats-row">
-              <span class="stat-label">Gasto atual (anual)</span>
+              <span class="stat-label">Você gasta por ano:</span>
               <span class="stat-value">{{conta_atual_anual}}</span>
             </div>
             <div class="stats-row">
-              <span class="stat-label">Gasto médio mensal</span>
+              <span class="stat-label">Você gasta por mês:</span>
               <span class="stat-value">{{conta_mensal_media}}</span>
             </div>
             <div class="stats-row">
-              <span class="stat-label">Reajuste médio considerado</span>
+              <span class="stat-label">Reajuste médio (dados históricos)</span>
               <span class="stat-value">7% ao ano</span>
             </div>
             <div class="stats-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
@@ -698,7 +750,7 @@
               <span class="stat-value large" style="color:var(--danger-text); font-size: 28px;">{{gasto_total_25_anos}}</span>
             </div>
             <div class="stats-row">
-              <span class="stat-label">Conta média no ano 25</span>
+              <span class="stat-label">Conta mensal daqui 25 anos:</span>
               <span class="stat-value">{{conta_futura_25_anos}}</span>
             </div>
           </div>
@@ -730,11 +782,11 @@
             <div class="info-group" style="margin-top:30px;">
               <h4 class="info-group-title">Resumo do Desperdício</h4>
               <div class="stats-row">
-                <span class="stat-label">Hoje você gasta</span>
+                <span class="stat-label">Hoje você gasta:</span>
                 <span class="stat-value">{{conta_atual_anual}} / ano</span>
               </div>
               <div class="stats-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-                <span class="stat-label">Em 25 anos terá gasto</span>
+                <span class="stat-label">Em 25 anos gastará:</span>
                 <span class="stat-value large" style="color:var(--danger-text); font-size: 28px;">{{gasto_total_25_anos}}</span>
               </div>
             </div>
@@ -784,7 +836,7 @@
 
               <div class="info-group">
                 <span class="tag green" style="margin-bottom:8px;">Passo 3</span>
-                <p><strong>Compensação (Créditos):</strong> O que sobra é injetado na rede e vira crédito para abater o consumo noturno ou de meses futuros.</p>
+                <p><strong>Compensação (Créditos):</strong> O que sobra é injetado na rede e vira crédito para usar em dias nublados ou outros imóveis.</p>
               </div>
             </div>
           </div>
@@ -896,7 +948,6 @@
                 <div style="font-size:42px; font-weight:800; color:var(--success-text); margin:8px 0;">
                   {{economia_mensal}}
                 </div>
-                <span class="stat-label" style="font-size:14px;">Estimativa inicial</span>
               </div>
 
               <div class="info-group" style="text-align:center;">
@@ -953,7 +1004,7 @@
             </p>
             
             <div style="margin-top:40px; background:rgba(255,255,255,0.1); padding:30px; border-radius:16px;">
-              <div style="font-size:16px; opacity:0.9;">Economia total acumulada (25 anos)</div>
+              <div style="font-size:16px; opacity:0.9;">Economia total em 25 anos:</div>
               <div style="font-size:40px; font-weight:800; color:#4ADE80; margin-top:8px;">{{economia_total_25_anos}}</div>
             </div>
           </div>
@@ -988,19 +1039,19 @@
 
             <div style="display:flex; flex-direction:column; gap:20px; margin-top:20px; justify-content:center; flex:1;">
               <div class="stats-row">
-                <span class="stat-label">Potência do Sistema (kWp)</span>
+                <span class="stat-label">Potência do Sistema:</span>
                 <span class="stat-value large">{{potencia_sistema_kwp}} kWp</span>
               </div>
               <div class="stats-row">
-                <span class="stat-label">Qtd. Módulos</span>
+                <span class="stat-label">Qtd. Módulos:</span>
                 <span class="stat-value">{{quantidade_placas}}x {{potencia_placa_w}}W</span>
               </div>
               <div class="stats-row">
-                <span class="stat-label">Área Estimada</span>
+                <span class="stat-label">Área Estimada:</span>
                 <span class="stat-value">{{area_necessaria}} m²</span>
               </div>
               <div class="stats-row">
-                <span class="stat-label">Geração Média Mensal Est.</span>
+                <span class="stat-label">Geração Média Mensal Estimada:</span>
                 <span class="stat-value">{{geracao_media_mensal}} kWh</span>
               </div>
             </div>
@@ -1040,7 +1091,7 @@
                 </div>
                 <div class="stats-row">
                   <span class="stat-label">Garantia</span>
-                  <span class="stat-value">10 Anos (ou conforme fabricante)</span>
+                  <span class="stat-value">10 Anos</span>
                 </div>
               </div>
             </div>
@@ -1054,7 +1105,7 @@
   <section class="page" id="slide-09">
     <div class="page-inner">
       <div class="slide-header">
-        <h2 class="slide-title">Solução Completa (Turn-key)</h2>
+        <h2 class="slide-title">Solução Completa</h2>
         <div class="header-meta">{{cliente_nome}} | 09</div>
       </div>
 
@@ -1063,13 +1114,62 @@
           <h3 class="card-title">Tudo incluso</h3>
           <p>Você não precisa se preocupar com nada. Cuidamos de ponta a ponta:</p>
           
-          <ul style="margin-top:20px; display:flex; flex-direction:column; gap:20px; padding-left:20px; flex:1; justify-content:center;">
-            <li><strong>Equipamentos completos</strong> (Módulos, Inversor, Estruturas, Cabos e Proteções)</li>
-            <li><strong>Projeto de Engenharia</strong> e Responsabilidade Técnica (ART)</li>
-            <li><strong>Homologação</strong> junto à concessionária de energia</li>
-            <li><strong>Instalação</strong> realizada por equipe técnica certificada</li>
-            <li><strong>Ativação</strong> e configuração do monitoramento wi-fi</li>
-          </ul>
+          <div class="inclusos-grid">
+            <!-- Equipamentos -->
+            <div class="incluso-item">
+              <div class="incluso-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"></path><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"></path><path d="m2 12 10-10 10 10"></path></svg>
+              </div>
+              <div class="incluso-text">
+                <strong>Equipamentos Completos</strong>
+                <span>Módulos, Inversor, Estruturas e Cabos</span>
+              </div>
+            </div>
+
+            <!-- Projeto -->
+            <div class="incluso-item">
+              <div class="incluso-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+              </div>
+              <div class="incluso-text">
+                <strong>Projeto de Engenharia</strong>
+                <span>Com Responsabilidade Técnica (ART)</span>
+              </div>
+            </div>
+
+            <!-- Homologação -->
+            <div class="incluso-item">
+              <div class="incluso-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
+              <div class="incluso-text">
+                <strong>Homologação</strong>
+                <span>Burocracia com a concessionária</span>
+              </div>
+            </div>
+
+            <!-- Instalação -->
+            <div class="incluso-item">
+              <div class="incluso-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+              </div>
+              <div class="incluso-text">
+                <strong>Instalação Técnica</strong>
+                <span>Equipe certificada e especializada</span>
+              </div>
+            </div>
+
+            <!-- Ativação -->
+            <div class="incluso-item">
+              <div class="incluso-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+              </div>
+              <div class="incluso-text">
+                <strong>Ativação e Wi-Fi</strong>
+                <span>Configuração do monitoramento app</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -1109,7 +1209,7 @@
   <section class="page" id="slide-10">
     <div class="page-inner">
       <div class="slide-header">
-        <h2 class="slide-title">Comparativo Final (25 Anos)</h2>
+        <h2 class="slide-title">Comparativo Final</h2>
         <div class="header-meta">{{cliente_nome}} | 10</div>
       </div>
 
