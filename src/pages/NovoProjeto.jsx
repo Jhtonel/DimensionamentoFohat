@@ -38,6 +38,7 @@ export default function NovoProjeto() {
   const [activeTab, setActiveTab] = useState("basico");
   const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
+  const [dadosCarregados, setDadosCarregados] = useState(false); // Flag para prevenir auto-save antes de carregar
   
   // Hook para gerenciar custos via API Solaryum
   const {
@@ -120,13 +121,19 @@ export default function NovoProjeto() {
   }, []);
 
   // Auto-save do rascunho a cada alteração do formulário (debounced)
+  // IMPORTANTE: Só faz auto-save DEPOIS que os dados iniciais foram carregados
   useEffect(() => {
+    if (!dadosCarregados) {
+      console.log('⏳ [AUTO-SAVE] Aguardando carregamento inicial...');
+      return;
+    }
     const timer = setTimeout(async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
         const projetoId = urlParams.get('projeto_id');
         if (projetoId) {
           const clienteNome = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
+          console.log('💾 [AUTO-SAVE] Salvando dados...', { cliente_id: formData?.cliente_id, cep: formData?.cep });
           await Projeto.update(projetoId, { ...formData, cliente_nome: clienteNome || undefined, status: 'rascunho' });
         }
       } catch (e) {
@@ -134,7 +141,7 @@ export default function NovoProjeto() {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [formData]);
+  }, [formData, dadosCarregados]);
 
   const [resultados, setResultados] = useState(null);
   const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
@@ -477,6 +484,9 @@ export default function NovoProjeto() {
           });
 
           setFormData(prev => ({ ...prev, ...normalized }));
+          
+          // Marcar que os dados foram carregados (habilita auto-save)
+          setTimeout(() => setDadosCarregados(true), 500);
 
           if (Array.isArray(normalized.consumo_mes_a_mes) && normalized.consumo_mes_a_mes.length > 0) {
             setTipoConsumo("mes_a_mes");
@@ -523,6 +533,10 @@ export default function NovoProjeto() {
           endereco_completo: clienteSelecionado.endereco_completo || prev.endereco_completo,
         }));
       }
+      setTimeout(() => setDadosCarregados(true), 500);
+    } else {
+      // Novo projeto (sem projeto_id e sem cliente_id)
+      setTimeout(() => setDadosCarregados(true), 500);
     }
   };
 
