@@ -34,8 +34,13 @@ import urllib.error
 from urllib.parse import urljoin
 from datetime import date
 import jwt
-# bcrypt é opcional; não é necessário para geração de propostas/gráficos estáticos
-bcrypt = None
+# bcrypt para hash de senhas
+try:
+    import bcrypt
+    print("✅ bcrypt carregado com sucesso")
+except ImportError as e:
+    print(f"⚠️ bcrypt não disponível: {e}")
+    bcrypt = None
 
 app = Flask(__name__)
 CORS(app)
