@@ -386,7 +386,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         custo_instalacao: dadosSeguros.custo_instalacao || 0,
         custo_homologacao: dadosSeguros.custo_homologacao || 0,
         custo_outros: dadosSeguros.custo_outros || 0,
-        margem_lucro: dadosSeguros.margem_lucro || 0
+        margem_lucro: dadosSeguros.margem_lucro || 0,
+        // Margem/produção adicional (%, R$ ou kWh)
+        margem_adicional_percentual: formData?.margem_adicional_percentual || '',
+        margem_adicional_kwh: formData?.margem_adicional_kwh || '',
+        margem_adicional_reais: formData?.margem_adicional_reais || '',
+        // Potência (para persistir o valor calculado)
+        potencia_kw: formData?.potencia_kw || dadosSeguros.potencia_sistema_kwp || 0,
+        // Consumo mensal em R$ (para persistir)
+        consumo_mensal_reais: formData?.consumo_mensal_reais || ''
       };
 
       // Extrair equipamentos do kit (marca/modelo/tipo) para proposta
@@ -516,7 +524,19 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             status: 'dimensionamento',
             cliente_id: formData?.cliente_id || null,
             cliente_nome: clienteNome || undefined,
-            preco_final: dadosSeguros?.preco_final ?? undefined,
+            // Preço: usar o mesmo valor enviado na proposta (preco_venda normalizado)
+            preco_final: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
+            preco_venda: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
+            // Dados do sistema
+            potencia_kw: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
+            potencia_sistema: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
+            consumo_mensal_kwh: propostaData.consumo_mensal_kwh || formData?.consumo_mensal_kwh || undefined,
+            consumo_mes_a_mes: propostaData.consumo_mes_a_mes || formData?.consumo_mes_a_mes || [],
+            tarifa_energia: propostaData.tarifa_energia || formData?.tarifa_energia || undefined,
+            // Margem adicional
+            margem_adicional_percentual: formData?.margem_adicional_percentual || '',
+            margem_adicional_kwh: formData?.margem_adicional_kwh || '',
+            margem_adicional_reais: formData?.margem_adicional_reais || '',
             proposta_id: propostaId,
             url_proposta: propostaService.getPropostaURL(propostaId)
             }),

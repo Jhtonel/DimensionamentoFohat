@@ -388,16 +388,20 @@ export default function NovoProjeto() {
         const projetoEdit = await Projeto.getById(projetoId);
         console.log('📋 [EDITAR] Dados recebidos do backend:', projetoEdit);
         
-        // DEBUG: Mostrar alerta com dados recebidos
-        const camposDebug = {
+        // Log dos campos carregados do backend
+        console.log('📋 [EDITAR] Campos carregados:', {
           cliente_id: projetoEdit?.cliente_id,
           cidade: projetoEdit?.cidade,
           cep: projetoEdit?.cep,
           concessionaria: projetoEdit?.concessionaria,
           consumo_mensal_kwh: projetoEdit?.consumo_mensal_kwh,
-        };
-        console.log('🔍 DEBUG - Campos do backend:', JSON.stringify(camposDebug, null, 2));
-        alert(`DEBUG - Dados do backend:\n${JSON.stringify(camposDebug, null, 2)}`);
+          consumo_mes_a_mes: projetoEdit?.consumo_mes_a_mes,
+          preco_venda: projetoEdit?.preco_venda,
+          preco_final: projetoEdit?.preco_final,
+          margem_adicional_percentual: projetoEdit?.margem_adicional_percentual,
+          margem_adicional_kwh: projetoEdit?.margem_adicional_kwh,
+          margem_adicional_reais: projetoEdit?.margem_adicional_reais,
+        });
         
         if (projetoEdit) {
           // PASSO 1: Copiar todos os dados do backend
@@ -1108,9 +1112,11 @@ export default function NovoProjeto() {
       console.log('📊 Potências de painéis nos filtros:', filtros.potenciasPaineis);
       
       // Calcula a potência se ainda não foi calculada
+      const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
+      const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
-        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+        kwh: margemReais > 0 ? margemReais / tarifaEnergia : (parseFloat(formData.margem_adicional_kwh) || 0)
       };
       // Se consumo mês a mês foi informado, calcula a média com margem
       let consumoParaCalculo = parseFloat(formData.consumo_mensal_kwh) || 0;
@@ -1538,9 +1544,11 @@ export default function NovoProjeto() {
       console.log('formData atual:', formData);
       
       // Calcula a potência se ainda não foi calculada
+      const tarifaEnergiaCalc = parseFloat(formData.tarifa_energia) || 0.85;
+      const margemReaisCalc = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
-        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+        kwh: margemReaisCalc > 0 ? margemReaisCalc / tarifaEnergiaCalc : (parseFloat(formData.margem_adicional_kwh) || 0)
       };
       const potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(formData.consumo_mensal_kwh, formData.cidade, margemAdicional);
       console.log('🔍 Debug calculateRealTimeCosts:');
@@ -1619,9 +1627,11 @@ export default function NovoProjeto() {
       if (consumoMensal > 0) {
         try {
           console.log('🔄 Calculando potência automaticamente...');
+          const tarifaAuto = parseFloat(formData.tarifa_energia) || 0.85;
+          const margemReaisAuto = parseFloat(formData.margem_adicional_reais) || 0;
           const margemAdicional = {
             percentual: parseFloat(formData.margem_adicional_percentual) || 0,
-            kwh: parseFloat(formData.margem_adicional_kwh) || 0
+            kwh: margemReaisAuto > 0 ? margemReaisAuto / tarifaAuto : (parseFloat(formData.margem_adicional_kwh) || 0)
           };
           const potenciaCalculada = await calcularPotenciaSistema(consumoMensal, cidade, margemAdicional);
           console.log('🔄 Potência calculada automaticamente:', potenciaCalculada, typeof potenciaCalculada);
@@ -1642,7 +1652,7 @@ export default function NovoProjeto() {
     const timeoutId = setTimeout(calcularPotenciaAutomatica, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.tarifa_energia, formData.concessionaria, formData.cidade, formData.margem_adicional_percentual, formData.margem_adicional_kwh]);
+  }, [formData.consumo_mensal_kwh, formData.consumo_mensal_reais, formData.tarifa_energia, formData.concessionaria, formData.cidade, formData.margem_adicional_percentual, formData.margem_adicional_kwh, formData.margem_adicional_reais]);
 
   // Monitora mudanças no JSON do kit selecionado
   useEffect(() => {
@@ -1738,9 +1748,11 @@ export default function NovoProjeto() {
     
     // Só calcula nova potência se não houver uma já definida
     if (!potenciaKw || potenciaKw <= 0) {
+      const tarifaPot = parseFloat(formData.tarifa_energia) || 0.85;
+      const margemReaisPot = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
-        kwh: parseFloat(formData.margem_adicional_kwh) || 0
+        kwh: margemReaisPot > 0 ? margemReaisPot / tarifaPot : (parseFloat(formData.margem_adicional_kwh) || 0)
       };
       potenciaKw = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional) || 1.0;
     }
@@ -2193,7 +2205,10 @@ export default function NovoProjeto() {
         
         // Aplicar margem adicional
         const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
-        const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+        const margemKwhDir = parseFloat(formData.margem_adicional_kwh) || 0;
+        const margemReaisDir = parseFloat(formData.margem_adicional_reais) || 0;
+        const tarifaDir = parseFloat(formData.tarifa_energia) || 0.85;
+        const margemKwh = margemReaisDir > 0 ? margemReaisDir / tarifaDir : margemKwhDir;
         if (margemPercentual > 0) {
           consumoKwh *= (1 + margemPercentual / 100);
         } else if (margemKwh > 0) {
@@ -2674,15 +2689,15 @@ export default function NovoProjeto() {
                           </div>
                         </div>
 
-                        {/* Campo de Margem Adicional */}
+                        {/* Campo de Produção Adicional */}
                         <div className="border-t border-blue-200 pt-4">
                           <div className="space-y-3">
-                            <Label className="text-blue-700 font-semibold">Margem Adicional</Label>
+                            <Label className="text-blue-700 font-semibold">Produção Adicional</Label>
                             <p className="text-sm text-gray-600">
                               Adicione uma margem de segurança para crescimento futuro ou variações de consumo
                             </p>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="space-y-2">
                                 <Label>Margem em %</Label>
                                 <div className="flex items-center space-x-2">
@@ -2695,9 +2710,10 @@ export default function NovoProjeto() {
                                     onChange={(e) => {
                                       const value = e.target.value;
                                       handleChange("margem_adicional_percentual", value);
-                                      // Limpa o campo de kWh quando % é preenchido
+                                      // Limpa os outros campos quando % é preenchido
                                       if (value) {
                                         handleChange("margem_adicional_kwh", '');
+                                        handleChange("margem_adicional_reais", '');
                                       }
                                     }}
                                     placeholder="Ex: 20"
@@ -2706,7 +2722,34 @@ export default function NovoProjeto() {
                                   <span className="text-sm text-gray-500">%</span>
                                 </div>
                                 <p className="text-xs text-gray-500">
-                                  Ex: 20% = sistema 20% maior que o consumo atual
+                                  Ex: 20% = sistema 20% maior
+                                </p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>OU Margem em R$</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.margem_adicional_reais || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_reais", value);
+                                      // Limpa os outros campos quando R$ é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_percentual", '');
+                                        handleChange("margem_adicional_kwh", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 100"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">R$/mês</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: R$ 100/mês a mais
                                 </p>
                               </div>
 
@@ -2721,9 +2764,10 @@ export default function NovoProjeto() {
                                     onChange={(e) => {
                                       const value = e.target.value;
                                       handleChange("margem_adicional_kwh", value);
-                                      // Limpa o campo de % quando kWh é preenchido
+                                      // Limpa os outros campos quando kWh é preenchido
                                       if (value) {
                                         handleChange("margem_adicional_percentual", '');
+                                        handleChange("margem_adicional_reais", '');
                                       }
                                     }}
                                     placeholder="Ex: 50"
@@ -2732,7 +2776,7 @@ export default function NovoProjeto() {
                                   <span className="text-sm text-gray-500">kWh/mês</span>
                                 </div>
                                 <p className="text-xs text-gray-500">
-                                  Ex: 50 kWh/mês = sistema gera 50 kWh/mês a mais
+                                  Ex: 50 kWh/mês a mais
                                 </p>
                               </div>
                             </div>
@@ -2747,11 +2791,16 @@ export default function NovoProjeto() {
                               }
                               const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
                               const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+                              const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
+                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
                               
-                              if (consumoAtual > 0 && (margemPercentual > 0 || margemKwh > 0)) {
+                              // Converter R$ para kWh se necessário
+                              const margemKwhFinal = margemReais > 0 ? margemReais / tarifaEnergia : margemKwh;
+                              
+                              if (consumoAtual > 0 && (margemPercentual > 0 || margemKwhFinal > 0)) {
                                 const consumoComMargem = margemPercentual > 0 
                                   ? consumoAtual * (1 + margemPercentual / 100)
-                                  : consumoAtual + margemKwh;
+                                  : consumoAtual + margemKwhFinal;
                                 
                                 return (
                                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
@@ -2769,7 +2818,9 @@ export default function NovoProjeto() {
                                         <span className="font-semibold text-green-600">
                                           {margemPercentual > 0 
                                             ? `+${margemPercentual}%` 
-                                            : `+${margemKwh} kWh/mês`
+                                            : margemReais > 0
+                                              ? `+R$ ${margemReais}/mês (~${margemKwhFinal.toFixed(1)} kWh)`
+                                              : `+${margemKwhFinal} kWh/mês`
                                           }
                                         </span>
                                       </div>
@@ -2785,10 +2836,156 @@ export default function NovoProjeto() {
                     )}
 
                     {tipoConsumo === "mes_a_mes" && (
-                      <ConsumoMesAMes
-                        consumos={formData.consumo_mes_a_mes}
-                        onChange={(consumos) => handleChange("consumo_mes_a_mes", consumos)}
-                      />
+                      <>
+                        <ConsumoMesAMes
+                          consumos={formData.consumo_mes_a_mes}
+                          onChange={(consumos) => handleChange("consumo_mes_a_mes", consumos)}
+                        />
+                        
+                        {/* Campo de Produção Adicional para consumo mês a mês */}
+                        <div className="border-t border-blue-200 pt-4 mt-4">
+                          <div className="space-y-3">
+                            <Label className="text-blue-700 font-semibold">Produção Adicional</Label>
+                            <p className="text-sm text-gray-600">
+                              Adicione uma margem de segurança para crescimento futuro ou variações de consumo
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="space-y-2">
+                                <Label>Margem em %</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    value={formData.margem_adicional_percentual || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_percentual", value);
+                                      // Limpa os outros campos quando % é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_kwh", '');
+                                        handleChange("margem_adicional_reais", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 20"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">%</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: 20% = sistema 20% maior
+                                </p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>OU Margem em R$</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.margem_adicional_reais || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_reais", value);
+                                      // Limpa os outros campos quando R$ é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_percentual", '');
+                                        handleChange("margem_adicional_kwh", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 100"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">R$/mês</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: R$ 100/mês a mais
+                                </p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>OU Margem em kWh</Label>
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    value={formData.margem_adicional_kwh || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleChange("margem_adicional_kwh", value);
+                                      // Limpa os outros campos quando kWh é preenchido
+                                      if (value) {
+                                        handleChange("margem_adicional_percentual", '');
+                                        handleChange("margem_adicional_reais", '');
+                                      }
+                                    }}
+                                    placeholder="Ex: 50"
+                                    className="bg-white"
+                                  />
+                                  <span className="text-sm text-gray-500">kWh/mês</span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Ex: 50 kWh/mês a mais
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Resumo da Produção Adicional para consumo mês a mês */}
+                            {(() => {
+                              let consumoAtual = 0;
+                              // Calcular média mensal a partir do consumo mês a mês
+                              if (Array.isArray(formData.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+                                const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item.kwh) || 0), 0);
+                                consumoAtual = totalAnual / 12;
+                              }
+                              const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
+                              const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
+                              const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
+                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
+                              
+                              // Converter R$ para kWh se necessário
+                              const margemKwhFinal = margemReais > 0 ? margemReais / tarifaEnergia : margemKwh;
+                              
+                              if (consumoAtual > 0 && (margemPercentual > 0 || margemKwhFinal > 0)) {
+                                const consumoComMargem = margemPercentual > 0 
+                                  ? consumoAtual * (1 + margemPercentual / 100)
+                                  : consumoAtual + margemKwhFinal;
+                                
+                                return (
+                                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                    <div className="text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Consumo médio atual:</span>
+                                        <span className="font-semibold">{consumoAtual.toFixed(1)} kWh/mês</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Consumo com margem:</span>
+                                        <span className="font-semibold text-blue-700">{consumoComMargem.toFixed(1)} kWh/mês</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Margem aplicada:</span>
+                                        <span className="font-semibold text-green-600">
+                                          {margemPercentual > 0 
+                                            ? `+${margemPercentual}%` 
+                                            : margemReais > 0
+                                              ? `+R$ ${margemReais}/mês (~${margemKwhFinal.toFixed(1)} kWh)`
+                                              : `+${margemKwhFinal} kWh/mês`
+                                          }
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        </div>
+                      </>
                     )}
                   </CardContent>
                 </Card>

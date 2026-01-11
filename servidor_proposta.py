@@ -4023,6 +4023,10 @@ def salvar_proposta():
             'consumo_mensal_kwh': _pick('consumo_mensal_kwh', 0) or 0,
             # Persistir também o consumo mês a mês (quando informado)
             'consumo_mes_a_mes': consumo_mes_a_mes_norm,
+            # Margem/produção adicional (%, R$ ou kWh)
+            'margem_adicional_percentual': _pick('margem_adicional_percentual', ''),
+            'margem_adicional_kwh': _pick('margem_adicional_kwh', ''),
+            'margem_adicional_reais': _pick('margem_adicional_reais', ''),
             'tarifa_energia': tarifa_payload,
             'economia_mensal_estimada': _pick('economia_mensal_estimada', 0) or 0,
             # Dados do kit
@@ -4215,6 +4219,15 @@ def salvar_proposta():
                 json.dump(proposta_data, f, ensure_ascii=False, indent=2)
 
         # Persistir no banco de dados (best-effort)
+        # Função auxiliar para converter valores de margem (podem vir como string)
+        def _to_float_or_none(val):
+            if val is None or val == '':
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+        
         try:
             db = SessionLocal()
             row = db.get(PropostaDB, proposta_id)
@@ -4223,29 +4236,74 @@ def salvar_proposta():
                 proposta_data['created_by'] = row.created_by or proposta_data.get('created_by')
                 proposta_data['created_by_email'] = row.created_by_email or proposta_data.get('created_by_email')
 
+                # ====== Dados básicos ======
                 row.created_by = proposta_data.get('created_by')
                 row.created_by_email = proposta_data.get('created_by_email')
+                row.nome_projeto = proposta_data.get('nome_projeto') or proposta_data.get('nome')
+                row.status = proposta_data.get('status') or 'dimensionamento'
+                
+                # ====== Cliente ======
                 row.cliente_id = proposta_data.get('cliente_id')
                 row.cliente_nome = proposta_data.get('cliente_nome')
                 row.cliente_endereco = proposta_data.get('cliente_endereco')
                 row.cliente_telefone = proposta_data.get('cliente_telefone')
+                
+                # ====== Localização ======
                 row.cidade = proposta_data.get('cidade')
+                row.estado = proposta_data.get('estado')
+                row.cep = proposta_data.get('cep')
+                row.logradouro = proposta_data.get('logradouro')
+                row.numero = proposta_data.get('numero')
+                row.bairro = proposta_data.get('bairro')
+                row.complemento = proposta_data.get('complemento')
+                
+                # ====== Concessionária ======
+                row.concessionaria = proposta_data.get('concessionaria')
+                
+                # ====== Sistema ======
                 row.potencia_sistema = proposta_data.get('potencia_sistema') or 0
-                row.preco_final = proposta_data.get('preco_final') or 0
+                row.potencia_kw = _to_float_or_none(proposta_data.get('potencia_kw')) or _to_float_or_none(proposta_data.get('potencia_sistema'))
+                row.tipo_telhado = proposta_data.get('tipo_telhado')
+                row.tensao = proposta_data.get('tensao')
+                
+                # ====== Preços ======
+                row.preco_final = proposta_data.get('preco_final') or proposta_data.get('preco_venda') or 0
+                row.preco_venda = proposta_data.get('preco_venda') or proposta_data.get('preco_final') or 0
+                
+                # ====== Consumo ======
+                row.consumo_mensal_kwh = float(proposta_data.get('consumo_mensal_kwh', 0) or 0)
+                row.consumo_mensal_reais = _to_float_or_none(proposta_data.get('consumo_mensal_reais'))
+                row.tarifa_energia = proposta_data.get('tarifa_energia') or 0
+                
+                # ====== Margem Adicional ======
+                row.margem_adicional_percentual = _to_float_or_none(proposta_data.get('margem_adicional_percentual'))
+                row.margem_adicional_kwh = _to_float_or_none(proposta_data.get('margem_adicional_kwh'))
+                row.margem_adicional_reais = _to_float_or_none(proposta_data.get('margem_adicional_reais'))
+                
+                # ====== Métricas Financeiras ======
                 row.conta_atual_anual = proposta_data.get('conta_atual_anual') or 0
                 row.anos_payback = proposta_data.get('anos_payback') or 0
                 row.gasto_acumulado_payback = proposta_data.get('gasto_acumulado_payback') or 0
-                row.consumo_mensal_kwh = float(proposta_data.get('consumo_mensal_kwh', 0) or 0)
-                row.tarifa_energia = proposta_data.get('tarifa_energia') or 0
                 row.economia_mensal_estimada = proposta_data.get('economia_mensal_estimada') or 0
+                row.economia_total_25_anos = proposta_data.get('economia_total_25_anos') or 0
+                row.payback_meses = proposta_data.get('payback_meses') or 0
+                
+                # ====== Equipamentos ======
                 row.quantidade_placas = proposta_data.get('quantidade_placas') or 0
                 row.potencia_placa_w = int(proposta_data.get('potencia_placa_w', 0) or 0)
                 row.area_necessaria = proposta_data.get('area_necessaria') or 0
                 row.irradiacao_media = proposta_data.get('irradiacao_media') or 5.15
                 row.geracao_media_mensal = proposta_data.get('geracao_media_mensal') or 0
                 row.creditos_anuais = proposta_data.get('creditos_anuais') or 0
-                row.economia_total_25_anos = proposta_data.get('economia_total_25_anos') or 0
-                row.payback_meses = proposta_data.get('payback_meses') or 0
+                
+                # ====== Equipamentos - Detalhes ======
+                row.modulo_marca = proposta_data.get('modulo_marca')
+                row.modulo_modelo = proposta_data.get('modulo_modelo')
+                row.inversor_marca = proposta_data.get('inversor_marca')
+                row.inversor_modelo = proposta_data.get('inversor_modelo')
+                row.tipo_inversor = proposta_data.get('tipo_inversor')
+                
+                # ====== Custos ======
                 row.custo_total_projeto = proposta_data.get('custo_total_projeto') or 0
                 row.custo_equipamentos = proposta_data.get('custo_equipamentos') or 0
                 row.custo_instalacao = proposta_data.get('custo_instalacao') or 0
@@ -4253,33 +4311,79 @@ def salvar_proposta():
                 row.custo_outros = proposta_data.get('custo_outros') or 0
                 row.margem_lucro = proposta_data.get('margem_lucro') or 0
                 row.comissao_vendedor = proposta_data.get('comissao_vendedor') or 0
+                
+                # ====== Vendedor ======
+                row.vendedor_nome = proposta_data.get('vendedor_nome')
+                row.vendedor_email = proposta_data.get('vendedor_email')
+                row.vendedor_telefone = proposta_data.get('vendedor_telefone')
+                row.vendedor_cargo = proposta_data.get('vendedor_cargo')
+                
+                # ====== URLs e Referências ======
+                row.proposta_id = proposta_data.get('proposta_id') or proposta_id
+                row.url_proposta = proposta_data.get('url_proposta')
+                
+                # ====== Payload completo ======
                 row.payload = proposta_data
             else:
                 row = PropostaDB(
                     id=proposta_id,
+                    # Dados básicos
                     created_by=proposta_data.get('created_by'),
                     created_by_email=proposta_data.get('created_by_email'),
+                    nome_projeto=proposta_data.get('nome_projeto') or proposta_data.get('nome'),
+                    status=proposta_data.get('status') or 'dimensionamento',
+                    # Cliente
                     cliente_id=proposta_data.get('cliente_id'),
                     cliente_nome=proposta_data.get('cliente_nome'),
                     cliente_endereco=proposta_data.get('cliente_endereco'),
                     cliente_telefone=proposta_data.get('cliente_telefone'),
+                    # Localização
                     cidade=proposta_data.get('cidade'),
+                    estado=proposta_data.get('estado'),
+                    cep=proposta_data.get('cep'),
+                    logradouro=proposta_data.get('logradouro'),
+                    numero=proposta_data.get('numero'),
+                    bairro=proposta_data.get('bairro'),
+                    complemento=proposta_data.get('complemento'),
+                    # Concessionária
+                    concessionaria=proposta_data.get('concessionaria'),
+                    # Sistema
                     potencia_sistema=proposta_data.get('potencia_sistema') or 0,
-                    preco_final=proposta_data.get('preco_final') or 0,
+                    potencia_kw=_to_float_or_none(proposta_data.get('potencia_kw')) or _to_float_or_none(proposta_data.get('potencia_sistema')),
+                    tipo_telhado=proposta_data.get('tipo_telhado'),
+                    tensao=proposta_data.get('tensao'),
+                    # Preços
+                    preco_final=proposta_data.get('preco_final') or proposta_data.get('preco_venda') or 0,
+                    preco_venda=proposta_data.get('preco_venda') or proposta_data.get('preco_final') or 0,
+                    # Consumo
+                    consumo_mensal_kwh=float(proposta_data.get('consumo_mensal_kwh', 0) or 0),
+                    consumo_mensal_reais=_to_float_or_none(proposta_data.get('consumo_mensal_reais')),
+                    tarifa_energia=proposta_data.get('tarifa_energia') or 0,
+                    # Margem Adicional
+                    margem_adicional_percentual=_to_float_or_none(proposta_data.get('margem_adicional_percentual')),
+                    margem_adicional_kwh=_to_float_or_none(proposta_data.get('margem_adicional_kwh')),
+                    margem_adicional_reais=_to_float_or_none(proposta_data.get('margem_adicional_reais')),
+                    # Métricas Financeiras
                     conta_atual_anual=proposta_data.get('conta_atual_anual') or 0,
                     anos_payback=proposta_data.get('anos_payback') or 0,
                     gasto_acumulado_payback=proposta_data.get('gasto_acumulado_payback') or 0,
-                    consumo_mensal_kwh=float(proposta_data.get('consumo_mensal_kwh', 0) or 0),
-                    tarifa_energia=proposta_data.get('tarifa_energia') or 0,
                     economia_mensal_estimada=proposta_data.get('economia_mensal_estimada') or 0,
+                    economia_total_25_anos=proposta_data.get('economia_total_25_anos') or 0,
+                    payback_meses=proposta_data.get('payback_meses') or 0,
+                    # Equipamentos
                     quantidade_placas=proposta_data.get('quantidade_placas') or 0,
                     potencia_placa_w=int(proposta_data.get('potencia_placa_w', 0) or 0),
                     area_necessaria=proposta_data.get('area_necessaria') or 0,
                     irradiacao_media=proposta_data.get('irradiacao_media') or 5.15,
                     geracao_media_mensal=proposta_data.get('geracao_media_mensal') or 0,
                     creditos_anuais=proposta_data.get('creditos_anuais') or 0,
-                    economia_total_25_anos=proposta_data.get('economia_total_25_anos') or 0,
-                    payback_meses=proposta_data.get('payback_meses') or 0,
+                    # Equipamentos - Detalhes
+                    modulo_marca=proposta_data.get('modulo_marca'),
+                    modulo_modelo=proposta_data.get('modulo_modelo'),
+                    inversor_marca=proposta_data.get('inversor_marca'),
+                    inversor_modelo=proposta_data.get('inversor_modelo'),
+                    tipo_inversor=proposta_data.get('tipo_inversor'),
+                    # Custos
                     custo_total_projeto=proposta_data.get('custo_total_projeto') or 0,
                     custo_equipamentos=proposta_data.get('custo_equipamentos') or 0,
                     custo_instalacao=proposta_data.get('custo_instalacao') or 0,
@@ -4287,14 +4391,25 @@ def salvar_proposta():
                     custo_outros=proposta_data.get('custo_outros') or 0,
                     margem_lucro=proposta_data.get('margem_lucro') or 0,
                     comissao_vendedor=proposta_data.get('comissao_vendedor') or 0,
+                    # Vendedor
+                    vendedor_nome=proposta_data.get('vendedor_nome'),
+                    vendedor_email=proposta_data.get('vendedor_email'),
+                    vendedor_telefone=proposta_data.get('vendedor_telefone'),
+                    vendedor_cargo=proposta_data.get('vendedor_cargo'),
+                    # URLs
+                    proposta_id=proposta_data.get('proposta_id') or proposta_id,
+                    url_proposta=proposta_data.get('url_proposta'),
+                    # Payload
                     payload=proposta_data,
                 )
                 db.add(row)
             db.commit()
             db.close()
-            print(f"💾 Proposta {proposta_id} salva no banco de dados (upsert)")
+            print(f"💾 Proposta {proposta_id} salva no banco de dados (upsert) com todos os campos")
         except Exception as e:
+            import traceback
             print(f"⚠️ Falha ao salvar proposta no banco: {e}")
+            traceback.print_exc()
         
         return jsonify({
             'success': True,
@@ -4740,6 +4855,15 @@ def importar_locais():
         except Exception as e:
             print(f"⚠️ Falha ao importar clientes.json: {e}")
 
+        # Função auxiliar para importação
+        def _import_float(val):
+            if val is None or val == '':
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+        
         # Importar propostas da pasta 'propostas'
         for file in PROPOSTAS_DIR.glob('*.json'):
             try:
@@ -4754,33 +4878,62 @@ def importar_locais():
                     id=prop_id,
                     created_by=data.get('created_by'),
                     created_by_email=data.get('created_by_email'),
+                    nome_projeto=data.get('nome_projeto') or data.get('nome'),
+                    status=data.get('status') or 'dimensionamento',
                     cliente_id=data.get('cliente_id'),
                     cliente_nome=data.get('cliente_nome'),
                     cliente_endereco=data.get('cliente_endereco'),
                     cliente_telefone=data.get('cliente_telefone'),
                     cidade=data.get('cidade'),
+                    estado=data.get('estado'),
+                    cep=data.get('cep'),
+                    logradouro=data.get('logradouro'),
+                    numero=data.get('numero'),
+                    bairro=data.get('bairro'),
+                    complemento=data.get('complemento'),
+                    concessionaria=data.get('concessionaria'),
                     potencia_sistema=data.get('potencia_sistema'),
-                    preco_final=data.get('preco_final'),
+                    potencia_kw=_import_float(data.get('potencia_kw')) or _import_float(data.get('potencia_sistema')),
+                    tipo_telhado=data.get('tipo_telhado'),
+                    tensao=data.get('tensao'),
+                    preco_final=data.get('preco_final') or data.get('preco_venda'),
+                    preco_venda=data.get('preco_venda') or data.get('preco_final'),
+                    consumo_mensal_kwh=float(data.get('consumo_mensal_kwh', 0) or 0),
+                    consumo_mensal_reais=_import_float(data.get('consumo_mensal_reais')),
+                    tarifa_energia=data.get('tarifa_energia'),
+                    margem_adicional_percentual=_import_float(data.get('margem_adicional_percentual')),
+                    margem_adicional_kwh=_import_float(data.get('margem_adicional_kwh')),
+                    margem_adicional_reais=_import_float(data.get('margem_adicional_reais')),
                     conta_atual_anual=data.get('conta_atual_anual'),
                     anos_payback=data.get('anos_payback'),
                     gasto_acumulado_payback=data.get('gasto_acumulado_payback'),
-                    consumo_mensal_kwh=float(data.get('consumo_mensal_kwh', 0) or 0),
-                    tarifa_energia=data.get('tarifa_energia'),
                     economia_mensal_estimada=data.get('economia_mensal_estimada'),
+                    economia_total_25_anos=data.get('economia_total_25_anos'),
+                    payback_meses=data.get('payback_meses'),
                     quantidade_placas=data.get('quantidade_placas'),
                     potencia_placa_w=int(data.get('potencia_placa_w', 0) or 0),
                     area_necessaria=data.get('area_necessaria'),
                     irradiacao_media=data.get('irradiacao_media'),
                     geracao_media_mensal=data.get('geracao_media_mensal'),
                     creditos_anuais=data.get('creditos_anuais'),
-                    economia_total_25_anos=data.get('economia_total_25_anos'),
-                    payback_meses=data.get('payback_meses'),
+                    modulo_marca=data.get('modulo_marca'),
+                    modulo_modelo=data.get('modulo_modelo'),
+                    inversor_marca=data.get('inversor_marca'),
+                    inversor_modelo=data.get('inversor_modelo'),
+                    tipo_inversor=data.get('tipo_inversor'),
                     custo_total_projeto=data.get('custo_total_projeto'),
                     custo_equipamentos=data.get('custo_equipamentos'),
                     custo_instalacao=data.get('custo_instalacao'),
                     custo_homologacao=data.get('custo_homologacao'),
                     custo_outros=data.get('custo_outros'),
                     margem_lucro=data.get('margem_lucro'),
+                    comissao_vendedor=data.get('comissao_vendedor'),
+                    vendedor_nome=data.get('vendedor_nome'),
+                    vendedor_email=data.get('vendedor_email'),
+                    vendedor_telefone=data.get('vendedor_telefone'),
+                    vendedor_cargo=data.get('vendedor_cargo'),
+                    proposta_id=data.get('proposta_id'),
+                    url_proposta=data.get('url_proposta'),
                     payload=data,
                 )
                 db.add(row)
@@ -4809,33 +4962,62 @@ def importar_locais():
                                 id=prop_id,
                                 created_by=pdata.get('created_by'),
                                 created_by_email=pdata.get('created_by_email'),
+                                nome_projeto=pdata.get('nome_projeto') or pdata.get('nome'),
+                                status=pdata.get('status') or 'dimensionamento',
                                 cliente_id=pdata.get('cliente_id'),
                                 cliente_nome=pdata.get('cliente_nome'),
                                 cliente_endereco=pdata.get('cliente_endereco'),
                                 cliente_telefone=pdata.get('cliente_telefone'),
                                 cidade=pdata.get('cidade'),
+                                estado=pdata.get('estado'),
+                                cep=pdata.get('cep'),
+                                logradouro=pdata.get('logradouro'),
+                                numero=pdata.get('numero'),
+                                bairro=pdata.get('bairro'),
+                                complemento=pdata.get('complemento'),
+                                concessionaria=pdata.get('concessionaria'),
                                 potencia_sistema=pdata.get('potencia_sistema'),
+                                potencia_kw=_import_float(pdata.get('potencia_kw')) or _import_float(pdata.get('potencia_sistema')),
+                                tipo_telhado=pdata.get('tipo_telhado'),
+                                tensao=pdata.get('tensao'),
                                 preco_final=pdata.get('preco_final') or pdata.get('preco_venda'),
+                                preco_venda=pdata.get('preco_venda') or pdata.get('preco_final'),
+                                consumo_mensal_kwh=float(pdata.get('consumo_mensal_kwh', 0) or 0),
+                                consumo_mensal_reais=_import_float(pdata.get('consumo_mensal_reais')),
+                                tarifa_energia=pdata.get('tarifa_energia'),
+                                margem_adicional_percentual=_import_float(pdata.get('margem_adicional_percentual')),
+                                margem_adicional_kwh=_import_float(pdata.get('margem_adicional_kwh')),
+                                margem_adicional_reais=_import_float(pdata.get('margem_adicional_reais')),
                                 conta_atual_anual=pdata.get('conta_atual_anual'),
                                 anos_payback=pdata.get('anos_payback'),
                                 gasto_acumulado_payback=pdata.get('gasto_acumulado_payback'),
-                                consumo_mensal_kwh=float(pdata.get('consumo_mensal_kwh', 0) or 0),
-                                tarifa_energia=pdata.get('tarifa_energia'),
                                 economia_mensal_estimada=pdata.get('economia_mensal_estimada'),
+                                economia_total_25_anos=pdata.get('economia_total_25_anos'),
+                                payback_meses=pdata.get('payback_meses'),
                                 quantidade_placas=pdata.get('quantidade_placas'),
                                 potencia_placa_w=int(pdata.get('potencia_placa_w', 0) or 0),
                                 area_necessaria=pdata.get('area_necessaria'),
                                 irradiacao_media=pdata.get('irradiacao_media'),
                                 geracao_media_mensal=pdata.get('geracao_media_mensal'),
                                 creditos_anuais=pdata.get('creditos_anuais'),
-                                economia_total_25_anos=pdata.get('economia_total_25_anos'),
-                                payback_meses=pdata.get('payback_meses'),
+                                modulo_marca=pdata.get('modulo_marca'),
+                                modulo_modelo=pdata.get('modulo_modelo'),
+                                inversor_marca=pdata.get('inversor_marca'),
+                                inversor_modelo=pdata.get('inversor_modelo'),
+                                tipo_inversor=pdata.get('tipo_inversor'),
                                 custo_total_projeto=pdata.get('custo_total_projeto') or pdata.get('custo_total'),
                                 custo_equipamentos=pdata.get('custo_equipamentos'),
                                 custo_instalacao=pdata.get('custo_instalacao'),
                                 custo_homologacao=pdata.get('custo_homologacao'),
                                 custo_outros=pdata.get('custo_outros'),
                                 margem_lucro=pdata.get('margem_lucro') or pdata.get('margem_desejada'),
+                                comissao_vendedor=pdata.get('comissao_vendedor'),
+                                vendedor_nome=pdata.get('vendedor_nome'),
+                                vendedor_email=pdata.get('vendedor_email'),
+                                vendedor_telefone=pdata.get('vendedor_telefone'),
+                                vendedor_cargo=pdata.get('vendedor_cargo'),
+                                proposta_id=pdata.get('proposta_id'),
+                                url_proposta=pdata.get('url_proposta'),
                                 payload=pdata,
                             )
                             db.add(row)
