@@ -187,6 +187,147 @@ def parse_float(value, default: float = 0.0) -> float:
 TAXAS_FILE = DATA_DIR / "taxas_distribuicao.json"
 CONCESSIONARIAS_FILE = DATA_DIR / "concessionarias.json"
 
+# -----------------------------------------------------------------------------
+# PropostaDB Factory Helpers (evita código duplicado)
+# -----------------------------------------------------------------------------
+def _to_float_or_none(val):
+    """Converte valor para float ou retorna None se vazio/inválido."""
+    if val is None or val == '':
+        return None
+    try:
+        if isinstance(val, str):
+            s = val.strip()
+            for token in ['R$', 'r$', ' ']:
+                s = s.replace(token, '')
+            if ('.' in s) and (',' not in s):
+                try:
+                    tail = s.split('.')[-1]
+                    if tail.isdigit() and len(tail) == 3:
+                        s = s.replace('.', '')
+                except Exception:
+                    pass
+            s = s.replace('.', '').replace(',', '.')
+            return float(s) if s else None
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(val, default=0):
+    """Converte valor para int de forma segura."""
+    if val is None or val == '':
+        return default
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _proposta_fields_from_data(data: dict, proposta_id: str = None) -> dict:
+    """
+    Extrai campos estruturados de um dicionário de dados para PropostaDB.
+    Retorna um dicionário com todos os campos prontos para criar ou atualizar.
+    """
+    return {
+        'id': proposta_id or data.get('id'),
+        # Rastreamento
+        'created_by': data.get('created_by'),
+        'created_by_email': data.get('created_by_email'),
+        # Dados do Projeto
+        'nome_projeto': data.get('nome_projeto') or data.get('nome'),
+        'status': data.get('status') or 'dimensionamento',
+        # Cliente
+        'cliente_id': data.get('cliente_id'),
+        'cliente_nome': data.get('cliente_nome'),
+        'cliente_endereco': data.get('cliente_endereco'),
+        'cliente_telefone': data.get('cliente_telefone'),
+        # Localização
+        'cidade': data.get('cidade'),
+        'estado': data.get('estado'),
+        'cep': data.get('cep'),
+        'logradouro': data.get('logradouro'),
+        'numero': data.get('numero'),
+        'bairro': data.get('bairro'),
+        'complemento': data.get('complemento'),
+        # Concessionária
+        'concessionaria': data.get('concessionaria'),
+        # Sistema
+        'potencia_sistema': _to_float_or_none(data.get('potencia_sistema')) or 0,
+        'potencia_kw': _to_float_or_none(data.get('potencia_kw')) or _to_float_or_none(data.get('potencia_sistema')),
+        'tipo_telhado': data.get('tipo_telhado'),
+        'tensao': data.get('tensao'),
+        # Preços
+        'preco_final': _to_float_or_none(data.get('preco_final')) or _to_float_or_none(data.get('preco_venda')) or 0,
+        'preco_venda': _to_float_or_none(data.get('preco_venda')) or _to_float_or_none(data.get('preco_final')) or 0,
+        # Consumo
+        'consumo_mensal_kwh': _to_float_or_none(data.get('consumo_mensal_kwh')) or 0,
+        'consumo_mensal_reais': _to_float_or_none(data.get('consumo_mensal_reais')),
+        'tarifa_energia': _to_float_or_none(data.get('tarifa_energia')) or 0,
+        # Margem Adicional
+        'margem_adicional_percentual': _to_float_or_none(data.get('margem_adicional_percentual')),
+        'margem_adicional_kwh': _to_float_or_none(data.get('margem_adicional_kwh')),
+        'margem_adicional_reais': _to_float_or_none(data.get('margem_adicional_reais')),
+        # Métricas Financeiras
+        'conta_atual_anual': _to_float_or_none(data.get('conta_atual_anual')) or 0,
+        'anos_payback': _to_float_or_none(data.get('anos_payback')) or 0,
+        'gasto_acumulado_payback': _to_float_or_none(data.get('gasto_acumulado_payback')) or 0,
+        'economia_mensal_estimada': _to_float_or_none(data.get('economia_mensal_estimada')) or 0,
+        'economia_total_25_anos': _to_float_or_none(data.get('economia_total_25_anos')) or 0,
+        'payback_meses': _safe_int(data.get('payback_meses')),
+        # Equipamentos
+        'quantidade_placas': _safe_int(data.get('quantidade_placas')),
+        'potencia_placa_w': _safe_int(data.get('potencia_placa_w')),
+        'area_necessaria': _to_float_or_none(data.get('area_necessaria')) or 0,
+        'irradiacao_media': _to_float_or_none(data.get('irradiacao_media')) or 5.15,
+        'geracao_media_mensal': _to_float_or_none(data.get('geracao_media_mensal')) or 0,
+        'creditos_anuais': _to_float_or_none(data.get('creditos_anuais')) or 0,
+        # Equipamentos - Detalhes
+        'modulo_marca': data.get('modulo_marca'),
+        'modulo_modelo': data.get('modulo_modelo'),
+        'inversor_marca': data.get('inversor_marca'),
+        'inversor_modelo': data.get('inversor_modelo'),
+        'tipo_inversor': data.get('tipo_inversor'),
+        # Custos
+        'custo_total_projeto': _to_float_or_none(data.get('custo_total_projeto')) or 0,
+        'custo_equipamentos': _to_float_or_none(data.get('custo_equipamentos')) or 0,
+        'custo_instalacao': _to_float_or_none(data.get('custo_instalacao')) or 0,
+        'custo_homologacao': _to_float_or_none(data.get('custo_homologacao')) or 0,
+        'custo_outros': _to_float_or_none(data.get('custo_outros')) or 0,
+        'margem_lucro': _to_float_or_none(data.get('margem_lucro')) or 0,
+        'comissao_vendedor': _to_float_or_none(data.get('comissao_vendedor')) or 0,
+        # Vendedor
+        'vendedor_nome': data.get('vendedor_nome'),
+        'vendedor_email': data.get('vendedor_email'),
+        'vendedor_telefone': data.get('vendedor_telefone'),
+        'vendedor_cargo': data.get('vendedor_cargo'),
+        # URLs
+        'proposta_id': data.get('proposta_id') or proposta_id,
+        'url_proposta': data.get('url_proposta'),
+    }
+
+
+def _update_proposta_row(row: 'PropostaDB', data: dict) -> None:
+    """
+    Atualiza uma row PropostaDB existente com dados de um dicionário.
+    Usa a função _proposta_fields_from_data para garantir consistência.
+    """
+    fields = _proposta_fields_from_data(data, row.id)
+    for key, value in fields.items():
+        if key != 'id' and hasattr(row, key):
+            setattr(row, key, value)
+    # Payload sempre é o dado completo
+    row.payload = data
+
+
+def _create_proposta_row(data: dict, proposta_id: str) -> 'PropostaDB':
+    """
+    Cria uma nova instância de PropostaDB a partir de um dicionário.
+    Usa a função _proposta_fields_from_data para garantir consistência.
+    """
+    fields = _proposta_fields_from_data(data, proposta_id)
+    fields['payload'] = data
+    return PropostaDB(**fields)
+
 def _load_roles() -> dict:
     try:
         if ROLES_FILE.exists():
@@ -4218,16 +4359,7 @@ def salvar_proposta():
             with open(proposta_file, 'w', encoding='utf-8') as f:
                 json.dump(proposta_data, f, ensure_ascii=False, indent=2)
 
-        # Persistir no banco de dados (best-effort)
-        # Função auxiliar para converter valores de margem (podem vir como string)
-        def _to_float_or_none(val):
-            if val is None or val == '':
-                return None
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-        
+        # Persistir no banco de dados usando funções refatoradas (elimina duplicação)
         try:
             db = SessionLocal()
             row = db.get(PropostaDB, proposta_id)
@@ -4235,173 +4367,11 @@ def salvar_proposta():
                 # Preservar owner original
                 proposta_data['created_by'] = row.created_by or proposta_data.get('created_by')
                 proposta_data['created_by_email'] = row.created_by_email or proposta_data.get('created_by_email')
-
-                # ====== Dados básicos ======
-                row.created_by = proposta_data.get('created_by')
-                row.created_by_email = proposta_data.get('created_by_email')
-                row.nome_projeto = proposta_data.get('nome_projeto') or proposta_data.get('nome')
-                row.status = proposta_data.get('status') or 'dimensionamento'
-                
-                # ====== Cliente ======
-                row.cliente_id = proposta_data.get('cliente_id')
-                row.cliente_nome = proposta_data.get('cliente_nome')
-                row.cliente_endereco = proposta_data.get('cliente_endereco')
-                row.cliente_telefone = proposta_data.get('cliente_telefone')
-                
-                # ====== Localização ======
-                row.cidade = proposta_data.get('cidade')
-                row.estado = proposta_data.get('estado')
-                row.cep = proposta_data.get('cep')
-                row.logradouro = proposta_data.get('logradouro')
-                row.numero = proposta_data.get('numero')
-                row.bairro = proposta_data.get('bairro')
-                row.complemento = proposta_data.get('complemento')
-                
-                # ====== Concessionária ======
-                row.concessionaria = proposta_data.get('concessionaria')
-                
-                # ====== Sistema ======
-                row.potencia_sistema = proposta_data.get('potencia_sistema') or 0
-                row.potencia_kw = _to_float_or_none(proposta_data.get('potencia_kw')) or _to_float_or_none(proposta_data.get('potencia_sistema'))
-                row.tipo_telhado = proposta_data.get('tipo_telhado')
-                row.tensao = proposta_data.get('tensao')
-                
-                # ====== Preços ======
-                row.preco_final = proposta_data.get('preco_final') or proposta_data.get('preco_venda') or 0
-                row.preco_venda = proposta_data.get('preco_venda') or proposta_data.get('preco_final') or 0
-                
-                # ====== Consumo ======
-                row.consumo_mensal_kwh = float(proposta_data.get('consumo_mensal_kwh', 0) or 0)
-                row.consumo_mensal_reais = _to_float_or_none(proposta_data.get('consumo_mensal_reais'))
-                row.tarifa_energia = proposta_data.get('tarifa_energia') or 0
-                
-                # ====== Margem Adicional ======
-                row.margem_adicional_percentual = _to_float_or_none(proposta_data.get('margem_adicional_percentual'))
-                row.margem_adicional_kwh = _to_float_or_none(proposta_data.get('margem_adicional_kwh'))
-                row.margem_adicional_reais = _to_float_or_none(proposta_data.get('margem_adicional_reais'))
-                
-                # ====== Métricas Financeiras ======
-                row.conta_atual_anual = proposta_data.get('conta_atual_anual') or 0
-                row.anos_payback = proposta_data.get('anos_payback') or 0
-                row.gasto_acumulado_payback = proposta_data.get('gasto_acumulado_payback') or 0
-                row.economia_mensal_estimada = proposta_data.get('economia_mensal_estimada') or 0
-                row.economia_total_25_anos = proposta_data.get('economia_total_25_anos') or 0
-                row.payback_meses = proposta_data.get('payback_meses') or 0
-                
-                # ====== Equipamentos ======
-                row.quantidade_placas = proposta_data.get('quantidade_placas') or 0
-                row.potencia_placa_w = int(proposta_data.get('potencia_placa_w', 0) or 0)
-                row.area_necessaria = proposta_data.get('area_necessaria') or 0
-                row.irradiacao_media = proposta_data.get('irradiacao_media') or 5.15
-                row.geracao_media_mensal = proposta_data.get('geracao_media_mensal') or 0
-                row.creditos_anuais = proposta_data.get('creditos_anuais') or 0
-                
-                # ====== Equipamentos - Detalhes ======
-                row.modulo_marca = proposta_data.get('modulo_marca')
-                row.modulo_modelo = proposta_data.get('modulo_modelo')
-                row.inversor_marca = proposta_data.get('inversor_marca')
-                row.inversor_modelo = proposta_data.get('inversor_modelo')
-                row.tipo_inversor = proposta_data.get('tipo_inversor')
-                
-                # ====== Custos ======
-                row.custo_total_projeto = proposta_data.get('custo_total_projeto') or 0
-                row.custo_equipamentos = proposta_data.get('custo_equipamentos') or 0
-                row.custo_instalacao = proposta_data.get('custo_instalacao') or 0
-                row.custo_homologacao = proposta_data.get('custo_homologacao') or 0
-                row.custo_outros = proposta_data.get('custo_outros') or 0
-                row.margem_lucro = proposta_data.get('margem_lucro') or 0
-                row.comissao_vendedor = proposta_data.get('comissao_vendedor') or 0
-                
-                # ====== Vendedor ======
-                row.vendedor_nome = proposta_data.get('vendedor_nome')
-                row.vendedor_email = proposta_data.get('vendedor_email')
-                row.vendedor_telefone = proposta_data.get('vendedor_telefone')
-                row.vendedor_cargo = proposta_data.get('vendedor_cargo')
-                
-                # ====== URLs e Referências ======
-                row.proposta_id = proposta_data.get('proposta_id') or proposta_id
-                row.url_proposta = proposta_data.get('url_proposta')
-                
-                # ====== Payload completo ======
-                row.payload = proposta_data
+                # Usar função refatorada para atualizar
+                _update_proposta_row(row, proposta_data)
             else:
-                row = PropostaDB(
-                    id=proposta_id,
-                    # Dados básicos
-                    created_by=proposta_data.get('created_by'),
-                    created_by_email=proposta_data.get('created_by_email'),
-                    nome_projeto=proposta_data.get('nome_projeto') or proposta_data.get('nome'),
-                    status=proposta_data.get('status') or 'dimensionamento',
-                    # Cliente
-                    cliente_id=proposta_data.get('cliente_id'),
-                    cliente_nome=proposta_data.get('cliente_nome'),
-                    cliente_endereco=proposta_data.get('cliente_endereco'),
-                    cliente_telefone=proposta_data.get('cliente_telefone'),
-                    # Localização
-                    cidade=proposta_data.get('cidade'),
-                    estado=proposta_data.get('estado'),
-                    cep=proposta_data.get('cep'),
-                    logradouro=proposta_data.get('logradouro'),
-                    numero=proposta_data.get('numero'),
-                    bairro=proposta_data.get('bairro'),
-                    complemento=proposta_data.get('complemento'),
-                    # Concessionária
-                    concessionaria=proposta_data.get('concessionaria'),
-                    # Sistema
-                    potencia_sistema=proposta_data.get('potencia_sistema') or 0,
-                    potencia_kw=_to_float_or_none(proposta_data.get('potencia_kw')) or _to_float_or_none(proposta_data.get('potencia_sistema')),
-                    tipo_telhado=proposta_data.get('tipo_telhado'),
-                    tensao=proposta_data.get('tensao'),
-                    # Preços
-                    preco_final=proposta_data.get('preco_final') or proposta_data.get('preco_venda') or 0,
-                    preco_venda=proposta_data.get('preco_venda') or proposta_data.get('preco_final') or 0,
-                    # Consumo
-                    consumo_mensal_kwh=float(proposta_data.get('consumo_mensal_kwh', 0) or 0),
-                    consumo_mensal_reais=_to_float_or_none(proposta_data.get('consumo_mensal_reais')),
-                    tarifa_energia=proposta_data.get('tarifa_energia') or 0,
-                    # Margem Adicional
-                    margem_adicional_percentual=_to_float_or_none(proposta_data.get('margem_adicional_percentual')),
-                    margem_adicional_kwh=_to_float_or_none(proposta_data.get('margem_adicional_kwh')),
-                    margem_adicional_reais=_to_float_or_none(proposta_data.get('margem_adicional_reais')),
-                    # Métricas Financeiras
-                    conta_atual_anual=proposta_data.get('conta_atual_anual') or 0,
-                    anos_payback=proposta_data.get('anos_payback') or 0,
-                    gasto_acumulado_payback=proposta_data.get('gasto_acumulado_payback') or 0,
-                    economia_mensal_estimada=proposta_data.get('economia_mensal_estimada') or 0,
-                    economia_total_25_anos=proposta_data.get('economia_total_25_anos') or 0,
-                    payback_meses=proposta_data.get('payback_meses') or 0,
-                    # Equipamentos
-                    quantidade_placas=proposta_data.get('quantidade_placas') or 0,
-                    potencia_placa_w=int(proposta_data.get('potencia_placa_w', 0) or 0),
-                    area_necessaria=proposta_data.get('area_necessaria') or 0,
-                    irradiacao_media=proposta_data.get('irradiacao_media') or 5.15,
-                    geracao_media_mensal=proposta_data.get('geracao_media_mensal') or 0,
-                    creditos_anuais=proposta_data.get('creditos_anuais') or 0,
-                    # Equipamentos - Detalhes
-                    modulo_marca=proposta_data.get('modulo_marca'),
-                    modulo_modelo=proposta_data.get('modulo_modelo'),
-                    inversor_marca=proposta_data.get('inversor_marca'),
-                    inversor_modelo=proposta_data.get('inversor_modelo'),
-                    tipo_inversor=proposta_data.get('tipo_inversor'),
-                    # Custos
-                    custo_total_projeto=proposta_data.get('custo_total_projeto') or 0,
-                    custo_equipamentos=proposta_data.get('custo_equipamentos') or 0,
-                    custo_instalacao=proposta_data.get('custo_instalacao') or 0,
-                    custo_homologacao=proposta_data.get('custo_homologacao') or 0,
-                    custo_outros=proposta_data.get('custo_outros') or 0,
-                    margem_lucro=proposta_data.get('margem_lucro') or 0,
-                    comissao_vendedor=proposta_data.get('comissao_vendedor') or 0,
-                    # Vendedor
-                    vendedor_nome=proposta_data.get('vendedor_nome'),
-                    vendedor_email=proposta_data.get('vendedor_email'),
-                    vendedor_telefone=proposta_data.get('vendedor_telefone'),
-                    vendedor_cargo=proposta_data.get('vendedor_cargo'),
-                    # URLs
-                    proposta_id=proposta_data.get('proposta_id') or proposta_id,
-                    url_proposta=proposta_data.get('url_proposta'),
-                    # Payload
-                    payload=proposta_data,
-                )
+                # Usar função refatorada para criar
+                row = _create_proposta_row(proposta_data, proposta_id)
                 db.add(row)
             db.commit()
             db.close()
@@ -4855,87 +4825,17 @@ def importar_locais():
         except Exception as e:
             print(f"⚠️ Falha ao importar clientes.json: {e}")
 
-        # Função auxiliar para importação
-        def _import_float(val):
-            if val is None or val == '':
-                return None
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-        
-        # Importar propostas da pasta 'propostas'
+        # Importar propostas da pasta 'propostas' (usando função refatorada)
         for file in PROPOSTAS_DIR.glob('*.json'):
             try:
                 with open(file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 prop_id = file.stem
-                # pular se já existe
-                exists = db.get(PropostaDB, prop_id)
-                if exists:
+                # Pular se já existe
+                if db.get(PropostaDB, prop_id):
                     continue
-                row = PropostaDB(
-                    id=prop_id,
-                    created_by=data.get('created_by'),
-                    created_by_email=data.get('created_by_email'),
-                    nome_projeto=data.get('nome_projeto') or data.get('nome'),
-                    status=data.get('status') or 'dimensionamento',
-                    cliente_id=data.get('cliente_id'),
-                    cliente_nome=data.get('cliente_nome'),
-                    cliente_endereco=data.get('cliente_endereco'),
-                    cliente_telefone=data.get('cliente_telefone'),
-                    cidade=data.get('cidade'),
-                    estado=data.get('estado'),
-                    cep=data.get('cep'),
-                    logradouro=data.get('logradouro'),
-                    numero=data.get('numero'),
-                    bairro=data.get('bairro'),
-                    complemento=data.get('complemento'),
-                    concessionaria=data.get('concessionaria'),
-                    potencia_sistema=data.get('potencia_sistema'),
-                    potencia_kw=_import_float(data.get('potencia_kw')) or _import_float(data.get('potencia_sistema')),
-                    tipo_telhado=data.get('tipo_telhado'),
-                    tensao=data.get('tensao'),
-                    preco_final=data.get('preco_final') or data.get('preco_venda'),
-                    preco_venda=data.get('preco_venda') or data.get('preco_final'),
-                    consumo_mensal_kwh=float(data.get('consumo_mensal_kwh', 0) or 0),
-                    consumo_mensal_reais=_import_float(data.get('consumo_mensal_reais')),
-                    tarifa_energia=data.get('tarifa_energia'),
-                    margem_adicional_percentual=_import_float(data.get('margem_adicional_percentual')),
-                    margem_adicional_kwh=_import_float(data.get('margem_adicional_kwh')),
-                    margem_adicional_reais=_import_float(data.get('margem_adicional_reais')),
-                    conta_atual_anual=data.get('conta_atual_anual'),
-                    anos_payback=data.get('anos_payback'),
-                    gasto_acumulado_payback=data.get('gasto_acumulado_payback'),
-                    economia_mensal_estimada=data.get('economia_mensal_estimada'),
-                    economia_total_25_anos=data.get('economia_total_25_anos'),
-                    payback_meses=data.get('payback_meses'),
-                    quantidade_placas=data.get('quantidade_placas'),
-                    potencia_placa_w=int(data.get('potencia_placa_w', 0) or 0),
-                    area_necessaria=data.get('area_necessaria'),
-                    irradiacao_media=data.get('irradiacao_media'),
-                    geracao_media_mensal=data.get('geracao_media_mensal'),
-                    creditos_anuais=data.get('creditos_anuais'),
-                    modulo_marca=data.get('modulo_marca'),
-                    modulo_modelo=data.get('modulo_modelo'),
-                    inversor_marca=data.get('inversor_marca'),
-                    inversor_modelo=data.get('inversor_modelo'),
-                    tipo_inversor=data.get('tipo_inversor'),
-                    custo_total_projeto=data.get('custo_total_projeto'),
-                    custo_equipamentos=data.get('custo_equipamentos'),
-                    custo_instalacao=data.get('custo_instalacao'),
-                    custo_homologacao=data.get('custo_homologacao'),
-                    custo_outros=data.get('custo_outros'),
-                    margem_lucro=data.get('margem_lucro'),
-                    comissao_vendedor=data.get('comissao_vendedor'),
-                    vendedor_nome=data.get('vendedor_nome'),
-                    vendedor_email=data.get('vendedor_email'),
-                    vendedor_telefone=data.get('vendedor_telefone'),
-                    vendedor_cargo=data.get('vendedor_cargo'),
-                    proposta_id=data.get('proposta_id'),
-                    url_proposta=data.get('url_proposta'),
-                    payload=data,
-                )
+                # Usar função factory refatorada
+                row = _create_proposta_row(data, prop_id)
                 db.add(row)
                 import_count += 1
             except Exception as e:
@@ -4954,72 +4854,11 @@ def importar_locais():
                         prop_id = (pdata.get("id") or pid or "").strip()
                         if not prop_id:
                             continue
-                        exists = db.get(PropostaDB, prop_id)
-                        if exists:
+                        if db.get(PropostaDB, prop_id):
                             continue
                         try:
-                            row = PropostaDB(
-                                id=prop_id,
-                                created_by=pdata.get('created_by'),
-                                created_by_email=pdata.get('created_by_email'),
-                                nome_projeto=pdata.get('nome_projeto') or pdata.get('nome'),
-                                status=pdata.get('status') or 'dimensionamento',
-                                cliente_id=pdata.get('cliente_id'),
-                                cliente_nome=pdata.get('cliente_nome'),
-                                cliente_endereco=pdata.get('cliente_endereco'),
-                                cliente_telefone=pdata.get('cliente_telefone'),
-                                cidade=pdata.get('cidade'),
-                                estado=pdata.get('estado'),
-                                cep=pdata.get('cep'),
-                                logradouro=pdata.get('logradouro'),
-                                numero=pdata.get('numero'),
-                                bairro=pdata.get('bairro'),
-                                complemento=pdata.get('complemento'),
-                                concessionaria=pdata.get('concessionaria'),
-                                potencia_sistema=pdata.get('potencia_sistema'),
-                                potencia_kw=_import_float(pdata.get('potencia_kw')) or _import_float(pdata.get('potencia_sistema')),
-                                tipo_telhado=pdata.get('tipo_telhado'),
-                                tensao=pdata.get('tensao'),
-                                preco_final=pdata.get('preco_final') or pdata.get('preco_venda'),
-                                preco_venda=pdata.get('preco_venda') or pdata.get('preco_final'),
-                                consumo_mensal_kwh=float(pdata.get('consumo_mensal_kwh', 0) or 0),
-                                consumo_mensal_reais=_import_float(pdata.get('consumo_mensal_reais')),
-                                tarifa_energia=pdata.get('tarifa_energia'),
-                                margem_adicional_percentual=_import_float(pdata.get('margem_adicional_percentual')),
-                                margem_adicional_kwh=_import_float(pdata.get('margem_adicional_kwh')),
-                                margem_adicional_reais=_import_float(pdata.get('margem_adicional_reais')),
-                                conta_atual_anual=pdata.get('conta_atual_anual'),
-                                anos_payback=pdata.get('anos_payback'),
-                                gasto_acumulado_payback=pdata.get('gasto_acumulado_payback'),
-                                economia_mensal_estimada=pdata.get('economia_mensal_estimada'),
-                                economia_total_25_anos=pdata.get('economia_total_25_anos'),
-                                payback_meses=pdata.get('payback_meses'),
-                                quantidade_placas=pdata.get('quantidade_placas'),
-                                potencia_placa_w=int(pdata.get('potencia_placa_w', 0) or 0),
-                                area_necessaria=pdata.get('area_necessaria'),
-                                irradiacao_media=pdata.get('irradiacao_media'),
-                                geracao_media_mensal=pdata.get('geracao_media_mensal'),
-                                creditos_anuais=pdata.get('creditos_anuais'),
-                                modulo_marca=pdata.get('modulo_marca'),
-                                modulo_modelo=pdata.get('modulo_modelo'),
-                                inversor_marca=pdata.get('inversor_marca'),
-                                inversor_modelo=pdata.get('inversor_modelo'),
-                                tipo_inversor=pdata.get('tipo_inversor'),
-                                custo_total_projeto=pdata.get('custo_total_projeto') or pdata.get('custo_total'),
-                                custo_equipamentos=pdata.get('custo_equipamentos'),
-                                custo_instalacao=pdata.get('custo_instalacao'),
-                                custo_homologacao=pdata.get('custo_homologacao'),
-                                custo_outros=pdata.get('custo_outros'),
-                                margem_lucro=pdata.get('margem_lucro') or pdata.get('margem_desejada'),
-                                comissao_vendedor=pdata.get('comissao_vendedor'),
-                                vendedor_nome=pdata.get('vendedor_nome'),
-                                vendedor_email=pdata.get('vendedor_email'),
-                                vendedor_telefone=pdata.get('vendedor_telefone'),
-                                vendedor_cargo=pdata.get('vendedor_cargo'),
-                                proposta_id=pdata.get('proposta_id'),
-                                url_proposta=pdata.get('url_proposta'),
-                                payload=pdata,
-                            )
+                            # Usar função factory refatorada
+                            row = _create_proposta_row(pdata, prop_id)
                             db.add(row)
                             import_count += 1
                         except Exception as e:
@@ -5061,6 +4900,279 @@ def db_wipe_clientes_projetos():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/db/audit', methods=['GET'])
+def db_audit():
+    """
+    Auditoria do banco de dados.
+    Retorna estatísticas e identifica problemas como:
+    - Registros duplicados
+    - Campos vazios em colunas obrigatórias
+    - Dados inconsistentes
+    """
+    if not USE_DB:
+        return jsonify({'success': False, 'error': 'USE_DB=false (não é Postgres).'}), 400
+    
+    try:
+        db = SessionLocal()
+        audit_result = {
+            'success': True,
+            'timestamp': datetime.now().isoformat(),
+            'tables': {}
+        }
+        
+        # ====== Auditoria de Propostas ======
+        total_propostas = db.query(func.count(PropostaDB.id)).scalar() or 0
+        
+        # Verificar possíveis duplicatas por cliente + cidade + potência
+        duplicates_query = db.execute(text("""
+            SELECT cliente_nome, cidade, potencia_sistema, COUNT(*) as cnt
+            FROM propostas
+            WHERE cliente_nome IS NOT NULL AND cliente_nome != ''
+            GROUP BY cliente_nome, cidade, potencia_sistema
+            HAVING COUNT(*) > 1
+        """)).fetchall()
+        
+        # Propostas sem cliente
+        sem_cliente = db.query(func.count(PropostaDB.id)).filter(
+            or_(PropostaDB.cliente_nome == None, PropostaDB.cliente_nome == '')
+        ).scalar() or 0
+        
+        # Propostas sem preço
+        sem_preco = db.query(func.count(PropostaDB.id)).filter(
+            or_(PropostaDB.preco_final == None, PropostaDB.preco_final == 0)
+        ).scalar() or 0
+        
+        # Propostas sem potência
+        sem_potencia = db.query(func.count(PropostaDB.id)).filter(
+            or_(PropostaDB.potencia_sistema == None, PropostaDB.potencia_sistema == 0)
+        ).scalar() or 0
+        
+        audit_result['tables']['propostas'] = {
+            'total': total_propostas,
+            'potenciais_duplicatas': len(duplicates_query),
+            'duplicatas_detalhes': [
+                {'cliente': r[0], 'cidade': r[1], 'potencia': r[2], 'count': r[3]}
+                for r in duplicates_query[:20]  # Limitar a 20
+            ],
+            'sem_cliente': sem_cliente,
+            'sem_preco': sem_preco,
+            'sem_potencia': sem_potencia
+        }
+        
+        # ====== Auditoria de Clientes ======
+        total_clientes = db.query(func.count(ClienteDB.id)).scalar() or 0
+        
+        # Clientes duplicados por nome
+        clientes_dup = db.execute(text("""
+            SELECT nome, COUNT(*) as cnt
+            FROM clientes
+            WHERE nome IS NOT NULL AND nome != ''
+            GROUP BY nome
+            HAVING COUNT(*) > 1
+        """)).fetchall()
+        
+        audit_result['tables']['clientes'] = {
+            'total': total_clientes,
+            'potenciais_duplicatas': len(clientes_dup),
+            'duplicatas_nomes': [{'nome': r[0], 'count': r[1]} for r in clientes_dup[:20]]
+        }
+        
+        # ====== Auditoria de Usuários ======
+        total_users = db.query(func.count(UserDB.uid)).scalar() or 0
+        audit_result['tables']['users'] = {'total': total_users}
+        
+        db.close()
+        return jsonify(audit_result)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/db/cleanup-duplicates', methods=['POST'])
+def db_cleanup_duplicates():
+    """
+    Limpa registros duplicados no banco de dados.
+    Mantém o registro mais recente (por updated_at ou created_at) e remove os antigos.
+    
+    Requer:
+    - Header X-Admin-Secret (se ROLE_ADMIN_SECRET estiver definido)
+    - Body JSON opcional: { "dry_run": true } para apenas listar o que seria removido
+    """
+    if not USE_DB:
+        return jsonify({'success': False, 'error': 'USE_DB=false (não é Postgres).'}), 400
+    
+    if not _require_role_admin_secret():
+        return jsonify({'success': False, 'error': 'Não autorizado'}), 403
+    
+    try:
+        data = request.get_json() or {}
+        dry_run = data.get('dry_run', False)
+        
+        db = SessionLocal()
+        result = {
+            'success': True,
+            'dry_run': dry_run,
+            'removed': {'propostas': 0, 'clientes': 0},
+            'details': {'propostas': [], 'clientes': []}
+        }
+        
+        # ====== Limpeza de Propostas Duplicadas ======
+        # Identificar propostas com mesmo cliente + cidade + potência
+        duplicates = db.execute(text("""
+            SELECT cliente_nome, cidade, potencia_sistema
+            FROM propostas
+            WHERE cliente_nome IS NOT NULL AND cliente_nome != ''
+            GROUP BY cliente_nome, cidade, potencia_sistema
+            HAVING COUNT(*) > 1
+        """)).fetchall()
+        
+        for dup in duplicates:
+            cliente_nome, cidade, potencia = dup
+            # Buscar todas as propostas deste grupo
+            propostas_dup = db.query(PropostaDB).filter(
+                PropostaDB.cliente_nome == cliente_nome,
+                PropostaDB.cidade == cidade,
+                PropostaDB.potencia_sistema == potencia
+            ).order_by(PropostaDB.created_at.desc()).all()
+            
+            if len(propostas_dup) > 1:
+                # Manter o primeiro (mais recente), remover os outros
+                para_manter = propostas_dup[0]
+                para_remover = propostas_dup[1:]
+                
+                for prop in para_remover:
+                    result['details']['propostas'].append({
+                        'id': prop.id,
+                        'cliente': prop.cliente_nome,
+                        'cidade': prop.cidade,
+                        'mantido': para_manter.id
+                    })
+                    if not dry_run:
+                        db.delete(prop)
+                    result['removed']['propostas'] += 1
+        
+        # ====== Limpeza de Clientes Duplicados ======
+        clientes_dup = db.execute(text("""
+            SELECT nome
+            FROM clientes
+            WHERE nome IS NOT NULL AND nome != ''
+            GROUP BY nome
+            HAVING COUNT(*) > 1
+        """)).fetchall()
+        
+        for dup in clientes_dup:
+            nome = dup[0]
+            # Buscar todos os clientes com este nome
+            clientes = db.query(ClienteDB).filter(
+                ClienteDB.nome == nome
+            ).order_by(ClienteDB.created_at.desc()).all()
+            
+            if len(clientes) > 1:
+                # Manter o primeiro (mais recente), remover os outros
+                para_manter = clientes[0]
+                para_remover = clientes[1:]
+                
+                for cliente in para_remover:
+                    result['details']['clientes'].append({
+                        'id': cliente.id,
+                        'nome': cliente.nome,
+                        'mantido': para_manter.id
+                    })
+                    if not dry_run:
+                        # Atualizar propostas que referenciam o cliente removido
+                        db.execute(text("""
+                            UPDATE propostas SET cliente_id = :novo_id
+                            WHERE cliente_id = :antigo_id
+                        """), {'novo_id': para_manter.id, 'antigo_id': cliente.id})
+                        db.delete(cliente)
+                    result['removed']['clientes'] += 1
+        
+        if not dry_run:
+            db.commit()
+        db.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/db/fix-missing-fields', methods=['POST'])
+def db_fix_missing_fields():
+    """
+    Corrige propostas com campos faltantes preenchendo com valores do payload JSON.
+    Útil para migrar dados antigos que têm dados no payload mas não nas colunas.
+    """
+    if not USE_DB:
+        return jsonify({'success': False, 'error': 'USE_DB=false (não é Postgres).'}), 400
+    
+    if not _require_role_admin_secret():
+        return jsonify({'success': False, 'error': 'Não autorizado'}), 403
+    
+    try:
+        db = SessionLocal()
+        fixed_count = 0
+        
+        # Buscar todas as propostas
+        propostas = db.query(PropostaDB).all()
+        
+        for prop in propostas:
+            if not prop.payload:
+                continue
+            
+            payload = prop.payload if isinstance(prop.payload, dict) else {}
+            updated = False
+            
+            # Lista de campos para verificar e corrigir
+            campos = [
+                ('preco_venda', 'preco_venda', _to_float_or_none),
+                ('preco_final', 'preco_final', _to_float_or_none),
+                ('potencia_sistema', 'potencia_sistema', _to_float_or_none),
+                ('potencia_kw', 'potencia_kw', _to_float_or_none),
+                ('consumo_mensal_kwh', 'consumo_mensal_kwh', _to_float_or_none),
+                ('tarifa_energia', 'tarifa_energia', _to_float_or_none),
+                ('cliente_nome', 'cliente_nome', str),
+                ('cidade', 'cidade', str),
+                ('concessionaria', 'concessionaria', str),
+                ('status', 'status', str),
+            ]
+            
+            for col_name, payload_key, converter in campos:
+                current_val = getattr(prop, col_name, None)
+                payload_val = payload.get(payload_key)
+                
+                # Se coluna está vazia mas payload tem valor
+                if (current_val is None or current_val == 0 or current_val == '') and payload_val:
+                    try:
+                        new_val = converter(payload_val) if converter != str else str(payload_val)
+                        if new_val:
+                            setattr(prop, col_name, new_val)
+                            updated = True
+                    except Exception:
+                        pass
+            
+            if updated:
+                fixed_count += 1
+        
+        db.commit()
+        db.close()
+        
+        return jsonify({
+            'success': True,
+            'fixed_count': fixed_count,
+            'total_propostas': len(propostas)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/teste-imagem')
 def teste_imagem():
