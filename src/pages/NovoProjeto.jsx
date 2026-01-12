@@ -90,29 +90,79 @@ export default function NovoProjeto() {
   }, [hasConcessionaria]);
 
   // Cria um rascunho de projeto ao entrar na tela (se não existir)
+  // Também suporta clone_from para criar uma nova proposta a partir de outra existente
   useEffect(() => {
     const ensureDraft = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const projetoId = urlParams.get('projeto_id');
-      if (!projetoId) {
+      const cloneFromId = urlParams.get('clone_from');
+      
+      // Se já tem projeto_id, não precisa criar rascunho
+      if (projetoId) return;
+      
+      // Se tem clone_from, buscar dados do projeto original para clonar
+      if (cloneFromId) {
         try {
-          const clienteNomeDraft = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
+          console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
+          const projetoOriginal = await Projeto.getById(cloneFromId);
+          
+          if (projetoOriginal) {
+            // Remover campos que não devem ser clonados
+            const { id, created_at, updated_at, url_proposta, ...dadosParaClonar } = projetoOriginal;
+            
+            // Criar novo projeto baseado no original
+            const clienteNomeDraft = clientes.find(c => c.id === (dadosParaClonar?.cliente_id || ''))?.nome || dadosParaClonar?.cliente_nome || null;
+            const draft = await Projeto.create({
+              ...dadosParaClonar,
+              status: 'rascunho',
+              nome_projeto: `${dadosParaClonar.nome_projeto || 'Projeto'} (cópia)`,
+              cliente_nome: clienteNomeDraft || undefined,
+              descricao: `Criado a partir do projeto ${projetoOriginal.nome_projeto || cloneFromId}`,
+              created_by: user?.uid || null,
+              vendedor_email: user?.email || null
+            });
+            
+            // Redirecionar para o novo projeto (remover clone_from e adicionar projeto_id)
+            const search = new URLSearchParams();
+            search.set('projeto_id', draft.id);
+            navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
+            console.log('✅ [CLONE] Novo projeto criado:', draft.id);
+          }
+        } catch (e) {
+          console.warn('⚠️ Falha ao clonar projeto:', e);
+          // Se falhar o clone, criar um projeto novo vazio
           const draft = await Projeto.create({
             ...formData,
             status: 'rascunho',
             nome_projeto: formData?.nome_projeto || 'Novo Projeto',
-            cliente_id: formData?.cliente_id || null,
-            cliente_nome: clienteNomeDraft || undefined,
-            descricao: 'Rascunho automático',
             created_by: user?.uid || null,
             vendedor_email: user?.email || null
           });
-          const search = new URLSearchParams(window.location.search);
+          const search = new URLSearchParams();
           search.set('projeto_id', draft.id);
           navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
-        } catch (e) {
-          console.warn('⚠️ Falha ao criar rascunho automático:', e);
         }
+        return;
+      }
+      
+      // Sem projeto_id e sem clone_from: criar rascunho novo
+      try {
+        const clienteNomeDraft = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
+        const draft = await Projeto.create({
+          ...formData,
+          status: 'rascunho',
+          nome_projeto: formData?.nome_projeto || 'Novo Projeto',
+          cliente_id: formData?.cliente_id || null,
+          cliente_nome: clienteNomeDraft || undefined,
+          descricao: 'Rascunho automático',
+          created_by: user?.uid || null,
+          vendedor_email: user?.email || null
+        });
+        const search = new URLSearchParams(window.location.search);
+        search.set('projeto_id', draft.id);
+        navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
+      } catch (e) {
+        console.warn('⚠️ Falha ao criar rascunho automático:', e);
       }
     };
     // Só executa se tiver user carregado ou se user for null (não logado)

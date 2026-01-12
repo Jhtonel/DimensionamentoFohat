@@ -11,7 +11,7 @@ import {
   DollarSign,
   Calendar,
   MapPin,
-  Edit,
+  Copy,
   Trash2,
   FileText,
   LayoutGrid,
@@ -313,8 +313,8 @@ export default function Projetos() {
                           <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`} className="w-full cursor-pointer">
-                            <Edit className="w-4 h-4 mr-2" /> Editar
+                          <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
+                            <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewMetrics(projeto)}>
@@ -417,9 +417,9 @@ export default function Projetos() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => handleViewDetails(projeto)}>
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
+                          <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} title="Criar nova a partir desta">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary">
-                              <Edit className="w-4 h-4" />
+                              <Copy className="w-4 h-4" />
                             </Button>
                           </Link>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(projeto.id)}>
