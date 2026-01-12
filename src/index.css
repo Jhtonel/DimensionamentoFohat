@@ -13,24 +13,24 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
+    
     /* Primary: Fohat Blue Refinado (#005792 -> HSL 204 100% 29%) */
     /* Ajustado para um tom levemente mais vibrante para UI moderna */
     --primary: 204 100% 29%;
     --primary-foreground: 210 40% 98%;
-
+    
     /* Secondary: Fohat Orange (#F47920 -> HSL 25 90% 54%) */
     --secondary: 25 90% 54%;
     --secondary-foreground: 210 40% 98%;
-
+    
     /* Muted: Cinzas neutros e frios para elegância */
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
+    
     /* Accent: Para hovers e destaques sutis */
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
+    
     /* Destructive: Erros e perigo */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -85,20 +85,20 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
-
+  
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
+  
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
-
+  
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-gray-300 rounded-full hover:bg-gray-400 transition-colors;
   }
-
+  
   /* Glassmorphism Utilities */
   .glass {
     @apply bg-white/80 backdrop-blur-md border border-white/20;

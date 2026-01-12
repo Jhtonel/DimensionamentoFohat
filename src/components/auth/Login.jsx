@@ -42,8 +42,8 @@ const Login = ({ onLoginSuccess }) => {
             </div>
             <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Bem-vindo de volta!</h2>
             <p className="text-sm text-slate-500 mt-2">Acesse o CRM Fohat Energia</p>
-          </div>
-
+        </div>
+        
           {/* Form */}
           <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -54,17 +54,17 @@ const Login = ({ onLoginSuccess }) => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                   </div>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
                     className="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-medium"
                     placeholder="exemplo@fohat.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
               </div>
 
               <div className="space-y-1.5">
@@ -73,32 +73,32 @@ const Login = ({ onLoginSuccess }) => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                   </div>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
                     className="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-medium"
                     placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-              </div>
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
 
-              {error && (
+          {error && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm animate-in fade-in slide-in-from-top-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
-                </div>
-              )}
+            </div>
+          )}
 
               <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
+            <button
+              type="submit"
+              disabled={loading}
                   className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-primary/25 text-sm font-bold text-white bg-gradient-to-r from-primary to-blue-600 hover:from-blue-700 hover:to-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-70 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-                >
+            >
                   {loading ? (
                     <>
                       <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
@@ -107,9 +107,9 @@ const Login = ({ onLoginSuccess }) => {
                   ) : (
                     'Entrar no Sistema'
                   )}
-                </button>
-              </div>
-            </form>
+            </button>
+          </div>
+        </form>
           </div>
           
           {/* Footer */}

@@ -25,7 +25,8 @@ import {
   Sun,
   TrendingUp,
   Clock,
-  MoreVertical
+  MoreVertical,
+  Download
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -325,6 +326,9 @@ export default function Projetos() {
                             <FileText className="w-4 h-4 mr-2" /> Abrir Proposta
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')}>
+                          <Download className="w-4 h-4 mr-2" /> Baixar PDF
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleDelete(projeto.id)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
                           <Trash2 className="w-4 h-4 mr-2" /> Excluir
@@ -422,6 +426,9 @@ export default function Projetos() {
                               <Copy className="w-4 h-4" />
                             </Button>
                           </Link>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Baixar PDF">
+                            <Download className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(projeto.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>

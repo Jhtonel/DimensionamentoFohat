@@ -15,9 +15,9 @@ export default function StatsCard({ title, value, icon: Icon, gradient, trend, t
   const formattedStatic = useMemo(() => {
     // Se veio string (ex: "R$ 1.000,00" ou "15%"), manter como está se não for animar
     if (!isNumeric) return value;
-    return new Intl.NumberFormat("pt-BR", {
-      maximumFractionDigits: 0,
-    }).format(value);
+      return new Intl.NumberFormat("pt-BR", {
+        maximumFractionDigits: 0,
+      }).format(value);
   }, [isNumeric, value]);
 
   useEffect(() => {
@@ -82,16 +82,16 @@ export default function StatsCard({ title, value, icon: Icon, gradient, trend, t
                 {title}
               </span>
               <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                     <Info className="w-3 h-3 text-slate-300 hover:text-slate-500 cursor-help transition-colors" />
-                  </TooltipTrigger>
-                  <TooltipContent>
+                    </TooltipTrigger>
+                    <TooltipContent>
                     <p className="text-xs">{title}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             <div className="text-2xl font-bold text-slate-800 tracking-tight break-words">
               {/* Se for numérico, usa ref para animação. Se string complexa, renderiza direto */}
               {isNumeric ? <span ref={valueRef}>{formattedStatic}</span> : value}
@@ -119,8 +119,8 @@ export default function StatsCard({ title, value, icon: Icon, gradient, trend, t
                 {trendValue || trend}
              </span>
              <span className="text-xs text-slate-400 ml-auto">vs mês ant.</span>
-          </div>
-        )}
+            </div>
+          )}
       </div>
     </motion.div>
   );

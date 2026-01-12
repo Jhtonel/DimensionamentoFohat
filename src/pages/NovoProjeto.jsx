@@ -372,14 +372,16 @@ export default function NovoProjeto() {
           const clienteNomeDraft = clientesData.find(c => c.id === (dadosParaClonar?.cliente_id || ''))?.nome || dadosParaClonar?.cliente_nome || null;
           
           // Preparar dados para o clone
+          // IMPORTANTE: Manter o vendedor original do projeto clonado
           const dadosClone = {
             ...dadosParaClonar,
             status: 'rascunho',
             nome_projeto: `${dadosParaClonar.nome_projeto || 'Projeto'} (cópia)`,
             cliente_nome: clienteNomeDraft || undefined,
             descricao: `Criado a partir do projeto ${projetoOriginal.nome_projeto || cloneFromId}`,
-            created_by: user?.uid || null,
-            vendedor_email: user?.email || null
+            // Manter vendedor original em vez de substituir pelo usuário logado
+            created_by: dadosParaClonar.created_by || user?.uid || null,
+            vendedor_email: dadosParaClonar.vendedor_email || user?.email || null
           };
           
           // Criar novo projeto baseado no original
@@ -3696,7 +3698,7 @@ export default function NovoProjeto() {
 
                     {/* Botão flutuante para avançar para a aba de custos */}
                     {produtosDisponiveis.length > 0 && (
-                      <div className="sticky bottom-6 right-6 z-50 float-right">
+                      <div className="fixed bottom-6 right-6 z-50">
                         <Button 
                           onClick={() => goToTab('custos')}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"
@@ -4498,7 +4500,7 @@ export default function NovoProjeto() {
 
                 {/* Botão flutuante para gerar proposta e avançar para resultados */}
                 {(costs || kitSelecionado) && (
-                  <div className="sticky bottom-6 right-6 z-50 float-right">
+                  <div className="fixed bottom-6 right-6 z-50">
                     <Button 
                       onClick={gerarPropostaEAvançar}
                       className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-full"

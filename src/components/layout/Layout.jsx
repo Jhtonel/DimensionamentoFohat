@@ -120,7 +120,7 @@ const Layout = ({ children }) => {
         />
       )}
 
-      {/* Sidebar */}
+        {/* Sidebar */}
       <aside 
         className={`
           fixed lg:static inset-y-0 left-0 z-50
@@ -156,25 +156,25 @@ const Layout = ({ children }) => {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-1 scrollbar-thin">
-          {navItems
-            .filter(item => !item.roles || item.roles.includes(user?.role))
+            {navItems
+              .filter(item => !item.roles || item.roles.includes(user?.role))
             .map((item) => (
               <NavItem 
                 key={item.to} 
                 {...item} 
                 collapsed={!sidebarOpen && !mobileMenuOpen} 
               />
-          ))}
+            ))}
 
           {user?.role === 'admin' && (
             <div className="mt-6 pt-6 border-t border-slate-100">
               {(!sidebarOpen && !mobileMenuOpen) ? (
-                 <button 
+              <button
                  onClick={() => setSidebarOpen(true)}
                  className="w-full flex justify-center p-2 text-slate-400 hover:text-primary transition-colors"
-               >
+              >
                  <Settings className="w-5 h-5" />
-               </button>
+              </button>
               ) : (
                 <>
                   <div 
@@ -193,12 +193,12 @@ const Layout = ({ children }) => {
                           collapsed={false} 
                         />
                       ))}
-                    </div>
+                </div>
                   )}
                 </>
               )}
             </div>
-          )}
+            )}
         </div>
 
         {/* User Footer */}
@@ -225,17 +225,17 @@ const Layout = ({ children }) => {
                 <p className="text-sm font-semibold text-slate-700 truncate">{displayName}</p>
                 <p className="text-xs text-slate-500 truncate capitalize">{user?.role || 'Usuário'}</p>
               </div>
-              <button
-                onClick={handleLogout}
+            <button
+              onClick={handleLogout}
                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                 title="Sair"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
             </div>
           )}
-        </div>
-      </aside>
+          </div>
+        </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
@@ -243,12 +243,12 @@ const Layout = ({ children }) => {
         {/* Header Glassmorphism */}
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6 transition-all">
           <div className="flex items-center gap-4">
-            <button
+                    <button
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+                    >
+                      <Menu className="w-5 h-5" />
+                    </button>
             
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -269,7 +269,7 @@ const Layout = ({ children }) => {
                 </>
               )}
             </nav>
-          </div>
+                </div>
 
           <div className="flex items-center gap-3">
             {/* Search (Visual Only for now) */}
@@ -280,21 +280,21 @@ const Layout = ({ children }) => {
                 placeholder="Buscar..." 
                 className="pl-9 pr-4 py-1.5 w-48 focus:w-64 transition-all bg-slate-50 border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white"
               />
-            </div>
+                    </div>
 
             <button className="relative p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
-          </div>
-        </header>
+        </div>
+          </header>
 
         {/* Scrollable Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/50 p-4 lg:p-8 scrollbar-thin">
           <div className="max-w-7xl mx-auto w-full space-y-6">
-            {children}
+        {children}
           </div>
-        </main>
+      </main>
       </div>
     </div>
   );
