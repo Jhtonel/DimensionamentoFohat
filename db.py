@@ -45,7 +45,10 @@ def _build_connect_args(url: str) -> dict:
         # Allow overriding via env
         sslmode = os.getenv('PGSSLMODE', 'require')
 
-        args = {"sslmode": sslmode}
+        args = {
+            "sslmode": sslmode,
+            "connect_timeout": 10,  # Timeout de conexão em segundos
+        }
 
         # CA opcional (se fornecida via env)
         ca_env = os.getenv('PGSSLROOTCERT')
@@ -60,6 +63,9 @@ engine = create_engine(
     DATABASE_URL,
     connect_args=_build_connect_args(DATABASE_URL),
     future=True,
+    pool_pre_ping=True,  # Verificar conexão antes de usar
+    pool_timeout=30,     # Timeout para obter conexão do pool
+    pool_recycle=1800,   # Reciclar conexões a cada 30 min
 )
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)

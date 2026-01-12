@@ -13,7 +13,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    gnupg \
     fonts-dejavu-core \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     # Puppeteer/Chromium (PDF idêntico ao template)
     chromium \
     libnss3 \
@@ -53,6 +57,7 @@ ENV PYTHONUNBUFFERED=1
 ENV CHROMIUM_PATH=/usr/bin/chromium
 
 # Railway expõe a porta em $PORT
-CMD ["sh", "-lc", "gunicorn -b 0.0.0.0:${PORT:-8000} servidor_proposta:app"]
+# Timeout de 120s e workers baseados em CPU, preload para carregar app antes de fork
+CMD ["sh", "-lc", "gunicorn -b 0.0.0.0:${PORT:-8000} --timeout 120 --workers 2 --preload --access-logfile - --error-logfile - servidor_proposta:app"]
 
 

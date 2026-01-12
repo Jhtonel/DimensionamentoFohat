@@ -50,11 +50,26 @@ USE_DB = str(DATABASE_URL or "").startswith("postgresql")
 
 # Garantir que as tabelas existam também quando rodando via gunicorn (import mode),
 # especialmente em produção com Postgres.
+DB_READY = False
+print("🔄 Iniciando conexão com banco de dados...")
 try:
+    import sys
+    sys.stdout.flush()  # Forçar saída imediata dos logs
     init_db()
+    DB_READY = True
     print("✅ DB schema pronto (init_db)")
+    sys.stdout.flush()
 except Exception as _init_err:
     print(f"⚠️ Falha ao preparar schema do DB (init_db): {_init_err}")
+    import traceback
+    traceback.print_exc()
+    sys.stdout.flush()
+    # Não travar o servidor - continuar mesmo com erro no DB
+
+# Health check para Railway
+@app.route('/health')
+def health_check():
+    return jsonify({"status": "ok", "db_ready": DB_READY}), 200
 
 @app.after_request
 def add_security_headers(response):
