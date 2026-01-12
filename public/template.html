@@ -80,7 +80,7 @@
     html, body { 
       margin: 0 !important; 
       padding: 0 !important;
-      background: none;
+      background: none !important;
     }
     .page { 
       box-shadow: none !important; 
@@ -88,8 +88,29 @@
       page-break-after: always;
       page-break-inside: avoid;
       break-inside: avoid;
+      border: none !important;
     }
-    /* Garantir que a capa não tenha margem extra */
+
+    /* --- FIX: Remove artefatos (quadrados cinza) em leitores de PDF --- */
+    *, *::before, *::after {
+      box-shadow: none !important;
+      text-shadow: none !important;
+      filter: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    /* Ocultar glow complexo na impressão */
+    .slide-01-cover::before {
+      display: none !important;
+    }
+
+    /* Restaurar filtro do logo do rodapé (branco) */
+    .slide-01-logo-footer {
+      filter: brightness(0) invert(1) !important;
+    }
+
+    /* Garantir layout da capa */
     .slide-01-cover {
       margin: 0 !important;
       padding: 0 !important;
