@@ -2090,9 +2090,14 @@ export default function NovoProjeto() {
     const placasSinalizacao = Number(propostaCfg?.custo_placas_sinalizacao ?? 60) || 60; // R$/projeto
     const despesasGeraisPct = Number(propostaCfg?.percentual_despesas_gerais ?? 10) || 10;
     const despesasGerais = instalacao * (despesasGeraisPct / 100);
+    
+    // Custo de transporte: 10% sobre o valor do kit recebido da API AVT
+    const transportePct = Number(propostaCfg?.percentual_transporte ?? 10) || 10;
+    const transporte = custoEquipamentos * (transportePct / 100);
 
     return {
       equipamentos: custoEquipamentos,
+      transporte,
       instalacao,
       caAterramento,
       homologacao,
@@ -2100,7 +2105,7 @@ export default function NovoProjeto() {
       despesasGerais,
       instalacao_por_placa: infoInst?.final_por_placa || 0,
       instalacao_percentual_seguranca: infoInst?.percentual_seguranca ?? (propostaCfg?.instalacao_percentual_seguranca ?? 10),
-      total: custoEquipamentos + instalacao + caAterramento + homologacao + placasSinalizacao + despesasGerais
+      total: custoEquipamentos + transporte + instalacao + caAterramento + homologacao + placasSinalizacao + despesasGerais
     };
   };
 
@@ -3985,6 +3990,13 @@ export default function NovoProjeto() {
                                   <div className="text-right">{formatCurrency(custoEquipamentos)}</div>
                                   <div className="text-right">1,00</div>
                                   <div className="text-right font-semibold">{formatCurrency(custoEquipamentos)}</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-4 text-sm py-1">
+                                  <div>Transporte (10%)</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right">-</div>
+                                  <div className="text-right font-semibold">{formatCurrency(custoOp.transporte)}</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">

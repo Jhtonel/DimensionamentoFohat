@@ -72,8 +72,11 @@ export default function CostsDetailed({
     const custoEquipamentos = kitSelecionado?.precoTotal || resumoCalculos?.custoEquipamentos || 0;
     const fallbackInst = calcularInstalacaoPorPlaca(quantidadePlacas || 0, {});
     const fallbackInstTotal = (quantidadePlacas || 0) * (fallbackInst?.final_por_placa || 0);
+    // Custo de transporte: 10% sobre o valor do kit
+    const transporte = custoEquipamentos * 0.05;
     const custoOp = resumoCalculos?.custoOp || {
       equipamentos: custoEquipamentos,
+      transporte: transporte,
       instalacao: fallbackInstTotal,
       caAterramento: (quantidadePlacas || 0) * 100,
       homologacao: 500,
@@ -81,6 +84,7 @@ export default function CostsDetailed({
       despesasGerais: fallbackInstTotal * 0.1, // 10% sobre instalação (fallback)
       total:
         (custoEquipamentos || 0) +
+        transporte +
         fallbackInstTotal +
         ((quantidadePlacas || 0) * 100) +
         500 +
