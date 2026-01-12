@@ -312,8 +312,14 @@ export default function Configuracoes() {
                   <h4 className="font-semibold text-gray-700">Custos Operacionais</h4>
                   <div className="space-y-3">
                     <div>
-                      <Label>Instalação por placa (por faixa)</Label>
-                      {renderInstalacaoPorFaixa()}
+                      <Label>Transporte sobre Kit (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={hasPropostaConfigs ? (propostaConfigs.percentual_transporte ?? 5) : 5}
+                        onChange={(e) => setPropostaConfigs(prev => ({ ...prev, percentual_transporte: parseFloat(e.target.value) }))}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Percentual adicional sobre o valor do kit para custos de transporte</p>
                     </div>
                     <div>
                       <Label>Custo CA/Aterramento por Placa (R$)</Label>
