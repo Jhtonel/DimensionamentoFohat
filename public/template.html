@@ -312,127 +312,126 @@
   .tag.green { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
   .tag.red { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
 
-  /* --- CAPA (Slide 01 - Estilo Original FOHAT) --- */
-  .slide-01-cover{
-    background: var(--brand-primary);
-    background-image: url('img/fohat.svg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    color:white;
-    position:relative;
-    overflow:hidden;
+  /* --- CAPA (Slide 01 - Redesign Azul) --- */
+  .slide-01-cover {
+    background-color: #0B1E33 !important;
+    background-image: radial-gradient(circle at 50% 0%, #163a5f 0%, #0B1E33 80%);
+    color: white;
+    position: relative;
+    overflow: hidden;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  .slide-01-content{
-    position:relative;
-    z-index:2;
-    height:100%;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    text-align:center;
-    padding:64px;
-    margin-top: 220px;
-  }
-
-  .slide-01-client{
-    background:rgba(255,255,255,0.05);
-    border-radius:20px;
-    padding:48px;
-    border:2px solid rgba(255,255,255,0.3);
-    margin-top:0; /* Centralizado */
-    box-shadow:0 8px 24px rgba(0,0,0,0.3);
-    backdrop-filter:blur(5px);
-    min-width:500px;
-    position:relative;
-    overflow:hidden;
-  }
-  
-  /* Fallback para PDF onde backdrop-filter falha */
-  .slide-01-client::before {
-    content: "";
+  .slide-01-bg-pattern {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 75%;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: 0;
+    mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  }
+
+  .slide-01-header {
+    z-index: 1;
+    margin-top: 60px;
+    text-align: center;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .slide-01-logo-main {
+    width: 380px;
+    height: auto;
+    margin-bottom: 20px;
+  }
+
+  .slide-01-subtitle {
+    font-size: 24px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    margin-top: 10px;
+  }
+
+  .slide-01-client-box {
+    z-index: 1;
     background: rgba(255,255,255,0.1);
-    z-index: -1;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 40px 60px;
+    text-align: center;
+    max-width: 80%;
+    width: 900px;
+    margin-bottom: 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    /* Fallback cor sólida para leitores que não suportam transparência complexa */
+    background-color: rgba(255,255,255,0.1);
   }
 
-  .slide-01-client h2{
-    font-size:42px;
-    font-weight:700;
-    margin-bottom:20px;
-    color:white;
-    text-shadow:0 2px 4px rgba(0,0,0,0.5);
-    margin-top: 0;
+  .slide-01-client-name {
+    font-size: 42px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    color: #FFFFFF;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
 
-  .slide-01-client p{
-    font-size:24px;
-    margin:12px 0;
-    color:white;
-    opacity:0.95;
-    text-shadow:0 2px 4px rgba(0,0,0,0.4);
+  .slide-01-client-info {
+    font-size: 20px;
+    color: rgba(255,255,255,0.9);
+    margin: 8px 0;
+    font-weight: 400;
   }
 
-  .slide-01-footer{
-    position:absolute;
-    bottom:0;
-    left:0;
-    right:0;
-    background:rgba(0,0,0,0.6);
-    padding:24px 64px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    z-index:2;
-    border-top:1px solid rgba(255,255,255,0.3);
-    backdrop-filter:blur(10px);
+  .slide-01-footer {
+    z-index: 1;
+    width: 100%;
+    background: #081626;
+    padding: 25px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .slide-01-vendedor-info h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+    color: white;
   }
   
-  /* Fallback footer PDF */
-  .slide-01-footer::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: -1;
+  .slide-01-vendedor-info p {
+    font-size: 14px;
+    margin: 2px 0 0 0;
+    color: rgba(255,255,255,0.7);
   }
 
-  .slide-01-vendedor h3{
-    font-size:20px;
-    font-weight:700;
-    margin: 0 0 8px 0;
-    color:white;
-    text-shadow:0 2px 4px rgba(0,0,0,0.5);
+  .slide-01-date-info {
+    text-align: center;
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
   }
 
-  .slide-01-vendedor p{
-    font-size:14px;
-    margin:4px 0;
-    color:white;
-    opacity:0.9;
-  }
-
-  .slide-01-logo{
-    width:150px;
-    height:auto;
-    filter:brightness(0) invert(1);
-    opacity:0.95;
-  }
-
-  .slide-01-date{
-    text-align:right;
-    color:white;
-  }
-
-  .slide-01-date p{
-    font-size:14px;
-    margin:4px 0;
-    color:white;
-    opacity:0.9;
+  .slide-01-logo-footer {
+    height: 35px;
+    width: auto;
+    opacity: 0.9;
   }
 
   /* --- Ajustes Específicos para Slides --- */
@@ -735,31 +734,35 @@
 </head>
 <body>
 
-  <!-- ====== SLIDE 01: CAPA (Original FOHAT) ====== -->
+  <!-- ====== SLIDE 01: CAPA (Redesign Azul) ====== -->
   <section id="slide-01" class="page slide-01-cover">
-    <!-- Conteúdo principal -->
-    <div class="slide-01-content">
-      <div class="slide-01-client">
-        <h2>{{cliente_nome}}</h2>
-        <p>{{cliente_endereco}}</p>
-        <p>{{cliente_telefone}}</p>
-      </div>
+    <div class="slide-01-bg-pattern"></div>
+    
+    <div class="slide-01-header">
+      <img src="img/logo-green.svg" alt="Fohat Energia" class="slide-01-logo-main">
+      <div class="slide-01-subtitle">PROPOSTA COMERCIAL PARA:</div>
     </div>
 
-    <!-- Footer com dados do vendedor -->
+    <div class="slide-01-client-box">
+      <h1 class="slide-01-client-name">{{cliente_nome}}</h1>
+      <p class="slide-01-client-info">{{cliente_endereco}}</p>
+      <p class="slide-01-client-info">{{cliente_telefone}}</p>
+    </div>
+
     <div class="slide-01-footer">
-      <div class="slide-01-vendedor">
+      <div class="slide-01-vendedor-info">
         <h3>{{vendedor_nome}}</h3>
         <p>{{vendedor_cargo}}</p>
         <p>{{vendedor_telefone}} | {{vendedor_email}}</p>
       </div>
       
-      <div class="slide-01-date">
-        <p>Data da proposta:</p>
-        <p>{{data_proposta}}</p>
+      <div class="slide-01-date-info">
+        Data da proposta:<br>
+        <strong>{{data_proposta}}</strong>
       </div>
       
-      <img src="img/logo-green.svg" alt="Logo" class="slide-01-logo">
+      <!-- Logo branca no rodapé para contraste com fundo muito escuro -->
+      <img src="img/fohat.svg" alt="Fohat" class="slide-01-logo-footer" style="filter: brightness(0) invert(1);">
     </div>
   </section>
 
