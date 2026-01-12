@@ -90,60 +90,16 @@ export default function NovoProjeto() {
   }, [hasConcessionaria]);
 
   // Cria um rascunho de projeto ao entrar na tela (se não existir)
-  // Também suporta clone_from para criar uma nova proposta a partir de outra existente
+  // NOTA: A lógica de clone_from é tratada em loadData para garantir que os dados sejam carregados corretamente
   useEffect(() => {
     const ensureDraft = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const projetoId = urlParams.get('projeto_id');
       const cloneFromId = urlParams.get('clone_from');
       
-      // Se já tem projeto_id, não precisa criar rascunho
-      if (projetoId) return;
-      
-      // Se tem clone_from, buscar dados do projeto original para clonar
-      if (cloneFromId) {
-        try {
-          console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
-          const projetoOriginal = await Projeto.getById(cloneFromId);
-          
-          if (projetoOriginal) {
-            // Remover campos que não devem ser clonados
-            const { id, created_at, updated_at, url_proposta, ...dadosParaClonar } = projetoOriginal;
-            
-            // Criar novo projeto baseado no original
-            const clienteNomeDraft = clientes.find(c => c.id === (dadosParaClonar?.cliente_id || ''))?.nome || dadosParaClonar?.cliente_nome || null;
-            const draft = await Projeto.create({
-              ...dadosParaClonar,
-              status: 'rascunho',
-              nome_projeto: `${dadosParaClonar.nome_projeto || 'Projeto'} (cópia)`,
-              cliente_nome: clienteNomeDraft || undefined,
-              descricao: `Criado a partir do projeto ${projetoOriginal.nome_projeto || cloneFromId}`,
-              created_by: user?.uid || null,
-              vendedor_email: user?.email || null
-            });
-            
-            // Redirecionar para o novo projeto (remover clone_from e adicionar projeto_id)
-            const search = new URLSearchParams();
-            search.set('projeto_id', draft.id);
-            navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
-            console.log('✅ [CLONE] Novo projeto criado:', draft.id);
-          }
-        } catch (e) {
-          console.warn('⚠️ Falha ao clonar projeto:', e);
-          // Se falhar o clone, criar um projeto novo vazio
-          const draft = await Projeto.create({
-            ...formData,
-            status: 'rascunho',
-            nome_projeto: formData?.nome_projeto || 'Novo Projeto',
-            created_by: user?.uid || null,
-            vendedor_email: user?.email || null
-          });
-          const search = new URLSearchParams();
-          search.set('projeto_id', draft.id);
-          navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
-        }
-        return;
-      }
+      // Se já tem projeto_id ou clone_from, não precisa criar rascunho aqui
+      // clone_from é tratado em loadData
+      if (projetoId || cloneFromId) return;
       
       // Sem projeto_id e sem clone_from: criar rascunho novo
       try {
@@ -390,8 +346,9 @@ export default function NovoProjeto() {
 
   const loadData = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const projetoId = urlParams.get('projeto_id');
+    let projetoId = urlParams.get('projeto_id');
     const clienteIdFromUrl = urlParams.get('cliente_id');
+    const cloneFromId = urlParams.get('clone_from');
     
     const [clientesData, configsData, concessionariasData] = await Promise.all([
       Cliente.list(),
@@ -400,6 +357,114 @@ export default function NovoProjeto() {
     ]);
     
     setClientes(clientesData);
+    
+    // CLONE: Se tem clone_from, criar novo projeto baseado no original
+    if (cloneFromId && !projetoId) {
+      try {
+        console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
+        const projetoOriginal = await Projeto.getById(cloneFromId);
+        
+        if (projetoOriginal) {
+          // Remover campos que não devem ser clonados
+          const { id, created_at, updated_at, url_proposta, ...dadosParaClonar } = projetoOriginal;
+          
+          // Buscar nome do cliente
+          const clienteNomeDraft = clientesData.find(c => c.id === (dadosParaClonar?.cliente_id || ''))?.nome || dadosParaClonar?.cliente_nome || null;
+          
+          // Preparar dados para o clone
+          const dadosClone = {
+            ...dadosParaClonar,
+            status: 'rascunho',
+            nome_projeto: `${dadosParaClonar.nome_projeto || 'Projeto'} (cópia)`,
+            cliente_nome: clienteNomeDraft || undefined,
+            descricao: `Criado a partir do projeto ${projetoOriginal.nome_projeto || cloneFromId}`,
+            created_by: user?.uid || null,
+            vendedor_email: user?.email || null
+          };
+          
+          // Criar novo projeto baseado no original
+          const draft = await Projeto.create(dadosClone);
+          
+          console.log('✅ [CLONE] Novo projeto criado:', draft.id);
+          console.log('📋 [CLONE] Dados clonados:', dadosClone);
+          
+          // Atualizar a URL sem recarregar a página
+          const search = new URLSearchParams();
+          search.set('projeto_id', draft.id);
+          window.history.replaceState({}, '', `${window.location.pathname}?${search.toString()}`);
+          
+          // IMPORTANTE: Preencher o formulário diretamente com os dados clonados
+          // Isso evita ter que buscar novamente do backend
+          const formFinal = { ...dadosClone, id: draft.id };
+          
+          // Normalizações de campos
+          formFinal.nome_projeto = formFinal.nome_projeto || formFinal.nome || '';
+          formFinal.endereco_completo = formFinal.endereco_completo || formFinal.cliente_endereco || '';
+          formFinal.potencia_kw = formFinal.potencia_kw || formFinal.potencia_sistema || '';
+          formFinal.estado = formFinal.estado || formFinal.uf || formFinal.cliente_estado || '';
+          formFinal.cidade = formFinal.cidade || formFinal.cliente_cidade || '';
+          
+          console.log('🔥 [CLONE] Preenchendo formulário com dados clonados:', {
+            cliente_id: formFinal.cliente_id,
+            cliente_nome: formFinal.cliente_nome,
+            cep: formFinal.cep,
+            cidade: formFinal.cidade,
+            concessionaria: formFinal.concessionaria,
+            consumo_mensal_kwh: formFinal.consumo_mensal_kwh,
+            consumo_mes_a_mes: formFinal.consumo_mes_a_mes,
+            numero: formFinal.numero,
+            bairro: formFinal.bairro,
+          });
+          
+          // Atualizar o formulário
+          setFormData(prev => ({ ...prev, ...formFinal }));
+          
+          // Definir tipo de consumo se houver mês a mês
+          if (Array.isArray(formFinal.consumo_mes_a_mes) && formFinal.consumo_mes_a_mes.length > 0) {
+            console.log('📊 [CLONE] Configurando consumo mês a mês:', formFinal.consumo_mes_a_mes);
+            setTipoConsumo("mes_a_mes");
+          }
+          
+          // Carregar resultados se houver potência
+          const pot = formFinal.potencia_sistema_kwp || formFinal.potencia_sistema || formFinal.potencia_kw;
+          if (pot) {
+            setResultados({
+              potencia_sistema_kwp: formFinal.potencia_sistema_kwp || formFinal.potencia_sistema || formFinal.potencia_kw,
+              quantidade_placas: formFinal.quantidade_placas,
+              custo_total: formFinal.custo_total,
+              preco_final: formFinal.preco_final || formFinal.preco_venda,
+              economia_mensal_estimada: formFinal.economia_mensal_estimada,
+              payback_meses: formFinal.payback_meses,
+              custo_equipamentos: formFinal.custo_equipamentos,
+              custo_instalacao: formFinal.custo_instalacao,
+              custo_homologacao: formFinal.custo_homologacao,
+              custo_ca: formFinal.custo_ca,
+              custo_plaquinhas: formFinal.custo_plaquinhas,
+              custo_obra: formFinal.custo_obra
+            });
+          }
+          
+          // Carregar configs e concessionárias para o clone também
+          if (concessionariasData && concessionariasData.length > 0) {
+            setConcessionariasLista(concessionariasData.sort((a, b) => (a.ranking || 99) - (b.ranking || 99)));
+          }
+          const configsMap = {};
+          configsData.forEach(config => {
+            configsMap[config.chave] = config;
+          });
+          setConfigs(configsMap);
+          
+          // Marcar dados como carregados para habilitar auto-save
+          setTimeout(() => setDadosCarregados(true), 500);
+          
+          // Não precisamos carregar novamente - retornar aqui
+          return;
+        }
+      } catch (e) {
+        console.warn('⚠️ Falha ao clonar projeto:', e);
+        // Continua sem clonar, vai criar projeto novo
+      }
+    }
     
     // Carregar lista de usuários para dados do vendedor responsável
     try {
