@@ -1511,6 +1511,12 @@ def process_template_html(proposta_data, template_filename: str = "template.html
 
         # Substituir todas as variáveis {{}} no template (agora com valores normalizados)
         template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
+        
+        # Nome curto (Primeiro e Segundo) para a capa
+        c_nome_full = proposta_data.get('cliente_nome', 'Cliente')
+        c_parts = c_nome_full.split()
+        c_nome_curto = f"{c_parts[0]} {c_parts[1]}" if len(c_parts) >= 2 else c_nome_full
+        template_html = template_html.replace('{{cliente_nome_curto}}', c_nome_curto)
         endereco_resumido = format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade'))
         template_html = template_html.replace('{{cliente_endereco}}', endereco_resumido)
         template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
