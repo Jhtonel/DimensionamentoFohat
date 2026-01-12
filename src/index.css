@@ -4,33 +4,68 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%; /* Fundo cinza muito claro levemente azulado */
+    /* Cores Base - Fundo Clean e Moderno */
+    --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
+
+    /* Cartões com leve destaque */
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    
-    /* Azul Fohat (#005792) -> HSL: 204 100% 29% */
+
+    /* Primary: Fohat Blue Refinado (#005792 -> HSL 204 100% 29%) */
+    /* Ajustado para um tom levemente mais vibrante para UI moderna */
     --primary: 204 100% 29%;
     --primary-foreground: 210 40% 98%;
-    
-    /* Laranja Fohat (#F47920) -> HSL: 25 90% 54% */
+
+    /* Secondary: Fohat Orange (#F47920 -> HSL 25 90% 54%) */
     --secondary: 25 90% 54%;
     --secondary-foreground: 210 40% 98%;
-    
-    --muted: 210 40% 96%;
+
+    /* Muted: Cinzas neutros e frios para elegância */
+    --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    
-    --accent: 25 90% 54%; /* Accent agora é o laranja */
-    --accent-foreground: 222.2 84% 4.9%;
-    
+
+    /* Accent: Para hovers e destaques sutis */
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    /* Destructive: Erros e perigo */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+
+    /* Bordas sutis */
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 204 100% 29%; /* Ring com a cor primária */
+    
+    /* Ring de foco */
+    --ring: 204 100% 29%;
+
+    /* Arredondamento moderno (8px = 0.5rem) */
     --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
@@ -39,82 +74,38 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-gray-50 text-foreground antialiased font-sans;
+    /* Fonte Inter ou similar se disponível, fallback sans */
   }
 }
 
 @layer utilities {
+  /* Scrollbar Fina e Elegante */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgb(209 213 219) rgb(243 244 246);
+    scrollbar-color: hsl(var(--muted-foreground)) transparent;
   }
-  
-  .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
-    background-color: rgb(209 213 219);
-    border-radius: 0.5rem;
-    border: 1px solid rgb(243 244 246);
-  }
-  
-  .scrollbar-track-gray-100::-webkit-scrollbar-track {
-    background-color: rgb(243 244 246);
-    border-radius: 0.5rem;
-  }
-  
+
   .scrollbar-thin::-webkit-scrollbar {
-    height: 12px;
-    width: 12px;
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400 transition-colors;
+  }
+
+  /* Glassmorphism Utilities */
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20;
   }
   
-  .scrollbar-thin::-webkit-scrollbar:horizontal {
-    height: 12px;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar:vertical {
-    width: 12px;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar-corner {
-    background-color: rgb(243 244 246);
-  }
-  
-  /* Scrollbar horizontal para Kanban - FORÇA VISIBILIDADE */
-  .kanban-scroll {
-    overflow-x: scroll !important;
-    overflow-y: hidden !important;
-    scrollbar-width: auto !important;
-    scrollbar-color: #d1d5db #f3f4f6 !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar {
-    height: 16px !important;
-    width: 16px !important;
-    display: block !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-track {
-    background: #f3f4f6 !important;
-    border-radius: 8px !important;
-    border: 1px solid #e5e7eb !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-thumb {
-    background: #d1d5db !important;
-    border-radius: 8px !important;
-    border: 2px solid #f3f4f6 !important;
-    min-width: 20px !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-corner {
-    background: #f3f4f6 !important;
-  }
-  
-  /* Garantir que scrollbar seja sempre visível */
-  .kanban-scroll::-webkit-scrollbar:horizontal {
-    height: 16px !important;
-    display: block !important;
+  /* Text Balance para títulos */
+  .text-balance {
+    text-wrap: balance;
   }
 }
