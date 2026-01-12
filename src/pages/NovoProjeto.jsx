@@ -2091,8 +2091,8 @@ export default function NovoProjeto() {
     const despesasGeraisPct = Number(propostaCfg?.percentual_despesas_gerais ?? 10) || 10;
     const despesasGerais = instalacao * (despesasGeraisPct / 100);
     
-    // Custo de transporte: 10% sobre o valor do kit recebido da API AVT
-    const transportePct = Number(propostaCfg?.percentual_transporte ?? 10) || 10;
+    // Custo de transporte: 5% sobre o valor do kit recebido da API AVT
+    const transportePct = Number(propostaCfg?.percentual_transporte ?? 5) || 5;
     const transporte = custoEquipamentos * (transportePct / 100);
 
     return {
@@ -3993,7 +3993,7 @@ export default function NovoProjeto() {
                                 </div>
                                 
                                 <div className="grid grid-cols-4 gap-4 text-sm py-1">
-                                  <div>Transporte (10%)</div>
+                                  <div>Transporte (5%)</div>
                                   <div className="text-right">-</div>
                                   <div className="text-right">-</div>
                                   <div className="text-right font-semibold">{formatCurrency(custoOp.transporte)}</div>
