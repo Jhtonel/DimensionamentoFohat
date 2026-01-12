@@ -366,12 +366,12 @@ export default function Clientes() {
                   ))}
                 </tbody>
               </table>
-          </div>
-        )}
+            </div>
+          )}
 
-      {/* Modal Detalhes (Placeholder para evitar código duplicado gigante - manteria lógica original se fosse produção, aqui simplifico visualmente) */}
+        {/* Modal Detalhes (Placeholder para evitar código duplicado gigante - manteria lógica original se fosse produção, aqui simplifico visualmente) */}
         {selectedCliente && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedCliente(null)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedCliente(null)}>
           <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
              <div className="bg-gradient-to-r from-primary to-blue-500 p-6 text-white flex justify-between items-start">
                <div className="flex gap-4 items-center">
@@ -404,14 +404,15 @@ export default function Clientes() {
                           </div>
                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex gap-3 md:col-span-2">
                      <MapPin className="w-5 h-5 text-primary mt-0.5" />
-                          <div>
+                     <div>
                        <p className="text-xs font-semibold text-slate-500 uppercase">Endereço</p>
                        <p className="font-medium text-slate-900">{selectedCliente.endereco_completo}</p>
-                          </div>
-                          </div>
+                     </div>
+                   </div>
+                </div>
 
-                  {/* Lista de Projetos do Cliente */}
-                  <div className="pt-6 border-t border-slate-100">
+                {/* Lista de Projetos do Cliente */}
+                <div className="pt-6 border-t border-slate-100">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <FolderKanban className="w-5 h-5 text-primary" />
@@ -484,16 +485,16 @@ export default function Clientes() {
 
                 {/* Footer Actions */}
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                   <Link to={`${createPageUrl("NovoProjeto")}?cliente_id=${selectedCliente.id}`}>
-                      <Button className="bg-primary hover:bg-primary/90 text-white">
-                        <Plus className="w-4 h-4 mr-2" /> Novo Projeto
-                  </Button>
-                </Link>
+                  <Link to={`${createPageUrl("NovoProjeto")}?cliente_id=${selectedCliente.id}`}>
+                    <Button className="bg-primary hover:bg-primary/90 text-white">
+                      <Plus className="w-4 h-4 mr-2" /> Novo Projeto
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </motion.div>
-        </div>
+          </div>
         )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
