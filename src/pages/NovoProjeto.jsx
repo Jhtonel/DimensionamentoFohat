@@ -1319,17 +1319,25 @@ export default function NovoProjeto() {
       console.log('  - Cidade:', formData.cidade);
       console.log('  - Margem adicional:', margemAdicional);
       
+      // Potência mínima do sistema (menor kit disponível na API)
+      const POTENCIA_MINIMA_KWP = 2.44;
+      
       // Fallback se o cálculo falhar
-      if (!potenciaCalculada || potenciaCalculada < 1.0) {
+      if (!potenciaCalculada || potenciaCalculada <= 0) {
         console.warn('⚠️ Potência calculada inválida, tentando novamente...');
         potenciaCalculada = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
         console.log('🔍 Potência recalculada:', potenciaCalculada);
       }
       
-      // Garante potência válida para evitar erro na API
+      // Garante potência válida - usa o MAIOR entre o calculado e o mínimo do sistema
       if (!potenciaCalculada || potenciaCalculada <= 0) {
-        potenciaCalculada = 1.0; // Potência mínima reduzida para 1kW
-        console.log('⚠️ Potência inválida, usando padrão de 1kW');
+        potenciaCalculada = POTENCIA_MINIMA_KWP;
+        console.log('⚠️ Potência inválida, usando mínimo:', POTENCIA_MINIMA_KWP, 'kWp');
+      } else if (potenciaCalculada < POTENCIA_MINIMA_KWP) {
+        console.log('📊 Potência calculada:', potenciaCalculada, 'kWp é menor que o mínimo, usando:', POTENCIA_MINIMA_KWP, 'kWp');
+        potenciaCalculada = POTENCIA_MINIMA_KWP;
+      } else {
+        console.log('✅ Potência calculada válida:', potenciaCalculada, 'kWp (maior que mínimo de', POTENCIA_MINIMA_KWP, 'kWp)');
       }
 
       // Prepara dados base para montagem dos kits
@@ -1919,7 +1927,9 @@ export default function NovoProjeto() {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
         kwh: margemReaisPot > 0 ? margemReaisPot / tarifaPot : (parseFloat(formData.margem_adicional_kwh) || 0)
       };
-      potenciaKw = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional) || 1.0;
+      const potenciaCalculadaTemp = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
+      // Usa o maior entre a potência calculada e o mínimo de 2.44 kWp
+      potenciaKw = Math.max(potenciaCalculadaTemp || 2.44, 2.44);
     }
     
     console.log('Calculando quantidades para potência:', potenciaKw, 'kW');

@@ -18,45 +18,71 @@ export async function loadIrradianciaData() {
 
   try {
     console.log('📊 Carregando dados de irradiância do CSV...');
-    const response = await fetch('/src/data/irradiancia.csv');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    
+    // Tenta múltiplos caminhos para compatibilidade dev/prod
+    const paths = ['/irradiancia.csv', '/src/data/irradiancia.csv'];
+    let csvText = null;
+    
+    for (const path of paths) {
+      try {
+        const response = await fetch(path);
+        if (response.ok) {
+          csvText = await response.text();
+          if (csvText && csvText.length > 1000) { // CSV válido tem mais de 1KB
+            console.log('📊 CSV carregado de:', path);
+            break;
+          }
+        }
+      } catch (e) {
+        console.log('⚠️ Tentativa falhou para:', path);
+      }
     }
-    const csvText = await response.text();
+    
+    if (!csvText || csvText.length < 1000) {
+      throw new Error('CSV não encontrado ou muito pequeno');
+    }
+    
     console.log('📊 CSV carregado com sucesso, tamanho:', csvText.length, 'caracteres');
     
     const lines = csvText.split('\n');
     const headers = lines[0].split(';');
     
     irradianciaData = lines.slice(1)
-      .filter(line => line.trim())
+      .filter(line => line.trim() && line.split(';').length >= 7)
       .map(line => {
         const values = line.split(';');
+        const name = (values[3] || '').trim();
+        
+        // Ignora linhas sem nome de cidade válido
+        if (!name) return null;
+        
         return {
-          id: parseInt(values[0]),
-          longitude: parseFloat(values[1]),
-          latitude: parseFloat(values[2]),
-          name: values[3],
-          class: values[4],
-          state: values[5],
-          annual: parseFloat(values[6]),
+          id: parseInt(values[0]) || 0,
+          longitude: parseFloat(values[1]) || 0,
+          latitude: parseFloat(values[2]) || 0,
+          name: name,
+          class: (values[4] || '').trim(),
+          state: (values[5] || '').trim(),
+          annual: parseFloat(values[6]) || 0,
           monthly: {
-            jan: parseFloat(values[7]),
-            feb: parseFloat(values[8]),
-            mar: parseFloat(values[9]),
-            apr: parseFloat(values[10]),
-            may: parseFloat(values[11]),
-            jun: parseFloat(values[12]),
-            jul: parseFloat(values[13]),
-            aug: parseFloat(values[14]),
-            sep: parseFloat(values[15]),
-            oct: parseFloat(values[16]),
-            nov: parseFloat(values[17]),
-            dec: parseFloat(values[18])
+            jan: parseFloat(values[7]) || 0,
+            feb: parseFloat(values[8]) || 0,
+            mar: parseFloat(values[9]) || 0,
+            apr: parseFloat(values[10]) || 0,
+            may: parseFloat(values[11]) || 0,
+            jun: parseFloat(values[12]) || 0,
+            jul: parseFloat(values[13]) || 0,
+            aug: parseFloat(values[14]) || 0,
+            sep: parseFloat(values[15]) || 0,
+            oct: parseFloat(values[16]) || 0,
+            nov: parseFloat(values[17]) || 0,
+            dec: parseFloat(values[18]) || 0
           }
         };
-      });
+      })
+      .filter(item => item !== null && item.name && item.annual > 0);
     
+    console.log('📊 Total de cidades válidas carregadas:', irradianciaData.length);
     return irradianciaData;
   } catch (error) {
     console.error('Erro ao carregar dados de irradiância:', error);
@@ -80,9 +106,16 @@ export async function getIrradianciaByCity(cityName) {
   
   console.log('📊 Total de cidades carregadas:', data.length);
   
+  // Normaliza o nome da cidade para busca
+  const cityNameLower = (cityName || '').toLowerCase().trim();
+  if (!cityNameLower) {
+    console.log('⚠️ Nome da cidade vazio');
+    return null;
+  }
+  
   // Busca exata primeiro
   let city = data.find(item => 
-    item.name.toLowerCase() === cityName.toLowerCase()
+    item?.name && item.name.toLowerCase() === cityNameLower
   );
   
   if (city) {
@@ -92,7 +125,7 @@ export async function getIrradianciaByCity(cityName) {
   
   // Se não encontrar, busca parcial
   city = data.find(item => 
-    item.name.toLowerCase().includes(cityName.toLowerCase())
+    item?.name && item.name.toLowerCase().includes(cityNameLower)
   );
   
   if (city) {
@@ -100,15 +133,35 @@ export async function getIrradianciaByCity(cityName) {
     return city;
   }
   
-  // Fallback: usar São José dos Campos como padrão
-  console.log('⚠️ Cidade não encontrada, usando São José dos Campos como fallback');
+  // Tenta busca invertida (cidade contém o termo)
+  city = data.find(item => 
+    item?.name && cityNameLower.includes(item.name.toLowerCase())
+  );
+  
+  if (city) {
+    console.log('✅ Cidade encontrada (busca invertida):', city.name, 'Irradiância:', city.annual);
+    return city;
+  }
+  
+  // Fallback: usar São Paulo como padrão
+  console.log('⚠️ Cidade não encontrada, usando São Paulo como fallback');
   const fallbackCity = data.find(item => 
-    item.name.toLowerCase().includes('são josé dos campos')
+    item?.name && item.name.toLowerCase() === 'são paulo' && item.class === 'Capital Estadual'
   );
   
   if (fallbackCity) {
     console.log('✅ Fallback encontrado:', fallbackCity.name, 'Irradiância:', fallbackCity.annual);
     return fallbackCity;
+  }
+  
+  // Fallback secundário: qualquer cidade de São Paulo
+  const fallbackSP = data.find(item => 
+    item?.state && item.state.toLowerCase().includes('são paulo')
+  );
+  
+  if (fallbackSP) {
+    console.log('✅ Fallback SP encontrado:', fallbackSP.name, 'Irradiância:', fallbackSP.annual);
+    return fallbackSP;
   }
   
   console.log('❌ Nenhuma cidade encontrada, nem fallback');
