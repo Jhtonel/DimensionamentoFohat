@@ -4264,6 +4264,233 @@ export default function NovoProjeto() {
                       </CardContent>
                     </Card>
 
+                    {/* Debug de Cálculos - DETALHADO */}
+                    <Card className="border-2 border-orange-200 bg-orange-50/30">
+                      <CardHeader className="bg-orange-100/50">
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-orange-600">🔬</span>
+                          Debug de Cálculos (Detalhado)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-6 text-sm font-mono">
+                          {(() => {
+                            // Dados de entrada
+                            const consumoKwh = parseFloat(formData.consumo_mensal_kwh || 0);
+                            const consumoReais = parseFloat(formData.consumo_mensal_reais || 0);
+                            const tarifaKwh = parseFloat(formData.tarifa_energia || 0.75) || 0.75;
+                            const cidade = formData.cidade || 'N/A';
+                            const irradianciaAnual = irradianciaData?.annual || 0;
+                            const irradianciaDiaria = irradianciaAnual > 0 ? irradianciaAnual / 1000 : 5.0;
+                            const eficiencia = 0.80;
+                            const fatorCorrecao = 1.066;
+                            const margemPct = parseFloat(formData.margem_adicional_percentual || 0);
+                            const margemKwh = parseFloat(formData.margem_adicional_kwh || 0);
+                            const margemReais = parseFloat(formData.margem_adicional_reais || 0);
+                            
+                            // Cálculo do consumo base
+                            let consumoBase = consumoKwh;
+                            if (consumoBase <= 0 && consumoReais > 0 && tarifaKwh > 0) {
+                              consumoBase = consumoReais / tarifaKwh;
+                            }
+                            
+                            // Consumo mês a mês
+                            let consumoMesAMes = 0;
+                            if (Array.isArray(formData.consumo_mes_a_mes) && formData.consumo_mes_a_mes.length > 0) {
+                              const totalAnual = formData.consumo_mes_a_mes.reduce((sum, item) => sum + (parseFloat(item?.kwh) || 0), 0);
+                              consumoMesAMes = totalAnual / 12;
+                            }
+                            const consumoFinal = consumoMesAMes > 0 ? consumoMesAMes : consumoBase;
+                            
+                            // Consumo com margem
+                            let consumoComMargem = consumoFinal;
+                            let margemAplicada = '';
+                            if (margemPct > 0) {
+                              consumoComMargem = consumoFinal * (1 + margemPct / 100);
+                              margemAplicada = `${consumoFinal.toFixed(2)} × (1 + ${margemPct}%) = ${consumoComMargem.toFixed(2)} kWh`;
+                            } else if (margemKwh > 0) {
+                              consumoComMargem = consumoFinal + margemKwh;
+                              margemAplicada = `${consumoFinal.toFixed(2)} + ${margemKwh} = ${consumoComMargem.toFixed(2)} kWh`;
+                            } else if (margemReais > 0 && tarifaKwh > 0) {
+                              const margemKwhConv = margemReais / tarifaKwh;
+                              consumoComMargem = consumoFinal + margemKwhConv;
+                              margemAplicada = `${consumoFinal.toFixed(2)} + (R$${margemReais}÷${tarifaKwh.toFixed(2)}) = ${consumoComMargem.toFixed(2)} kWh`;
+                            }
+                            
+                            // Cálculo da potência
+                            const denominador = (irradianciaDiaria * eficiencia) * 30.4;
+                            const potenciaAntesFator = consumoComMargem / denominador;
+                            const potenciaCalculada = potenciaAntesFator * fatorCorrecao;
+                            const potenciaFinal = Math.round(potenciaCalculada * 100) / 100;
+                            
+                            // Custos
+                            const quantidadePlacas = quantidadesCalculadas.paineis || 0;
+                            const potenciaKwp = formData.potencia_kw || potenciaFinal;
+                            const custoEquipamentos = kitSelecionado?.precoTotal || 0;
+                            const custoOp = calcularCustoOperacional(quantidadePlacas, potenciaKwp, custoEquipamentos);
+                            const comissaoVendedor = formData.comissao_vendedor || 5;
+                            const margemDesejada = 25 + comissaoVendedor;
+                            const precoVenda = custoOp.total / (1 - margemDesejada / 100);
+                            
+                            return (
+                              <>
+                                {/* SEÇÃO 1: DADOS DE ENTRADA */}
+                                <div className="bg-white p-4 rounded-lg border border-orange-200">
+                                  <h4 className="font-bold text-orange-700 mb-3 text-base">📥 1. DADOS DE ENTRADA</h4>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>Consumo informado (kWh):</div>
+                                    <div className="text-right font-bold">{consumoKwh.toFixed(2)} kWh/mês</div>
+                                    <div>Consumo informado (R$):</div>
+                                    <div className="text-right font-bold">R$ {consumoReais.toFixed(2)}/mês</div>
+                                    <div>Tarifa energia:</div>
+                                    <div className="text-right font-bold">R$ {tarifaKwh.toFixed(4)}/kWh</div>
+                                    <div>Cidade:</div>
+                                    <div className="text-right font-bold">{cidade}</div>
+                                    <div>Irradiância anual (CSV):</div>
+                                    <div className="text-right font-bold">{irradianciaAnual.toFixed(0)} Wh/m²/dia</div>
+                                    <div>Irradiância diária:</div>
+                                    <div className="text-right font-bold">{irradianciaDiaria.toFixed(3)} kWh/m²/dia</div>
+                                    <div>Eficiência do sistema:</div>
+                                    <div className="text-right font-bold">{(eficiencia * 100).toFixed(0)}%</div>
+                                    <div>Fator de correção:</div>
+                                    <div className="text-right font-bold">{fatorCorrecao}</div>
+                                    <div>Margem adicional (%):</div>
+                                    <div className="text-right font-bold">{margemPct}%</div>
+                                    <div>Margem adicional (kWh):</div>
+                                    <div className="text-right font-bold">{margemKwh} kWh</div>
+                                    <div>Margem adicional (R$):</div>
+                                    <div className="text-right font-bold">R$ {margemReais.toFixed(2)}</div>
+                                  </div>
+                                </div>
+                                
+                                {/* SEÇÃO 2: CÁLCULO DO CONSUMO */}
+                                <div className="bg-white p-4 rounded-lg border border-blue-200">
+                                  <h4 className="font-bold text-blue-700 mb-3 text-base">📊 2. CÁLCULO DO CONSUMO</h4>
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between">
+                                      <span>Consumo base (kWh ou R$/tarifa):</span>
+                                      <span className="font-bold">{consumoBase.toFixed(2)} kWh/mês</span>
+                                    </div>
+                                    {consumoReais > 0 && consumoKwh <= 0 && (
+                                      <div className="bg-yellow-50 p-2 rounded text-xs">
+                                        <strong>Conversão:</strong> R$ {consumoReais.toFixed(2)} ÷ R$ {tarifaKwh.toFixed(4)} = {consumoBase.toFixed(2)} kWh
+                                      </div>
+                                    )}
+                                    {consumoMesAMes > 0 && (
+                                      <div className="bg-green-50 p-2 rounded text-xs">
+                                        <strong>Média mês a mês:</strong> {consumoMesAMes.toFixed(2)} kWh/mês (usado no cálculo)
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between">
+                                      <span>Consumo final (sem margem):</span>
+                                      <span className="font-bold">{consumoFinal.toFixed(2)} kWh/mês</span>
+                                    </div>
+                                    {margemAplicada && (
+                                      <div className="bg-purple-50 p-2 rounded text-xs">
+                                        <strong>Com margem:</strong> {margemAplicada}
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between text-lg">
+                                      <span className="font-bold">CONSUMO PARA CÁLCULO:</span>
+                                      <span className="font-bold text-blue-600">{consumoComMargem.toFixed(2)} kWh/mês</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* SEÇÃO 3: CÁLCULO DA POTÊNCIA */}
+                                <div className="bg-white p-4 rounded-lg border border-green-200">
+                                  <h4 className="font-bold text-green-700 mb-3 text-base">⚡ 3. CÁLCULO DA POTÊNCIA</h4>
+                                  <div className="space-y-3">
+                                    <div className="bg-green-50 p-3 rounded text-xs">
+                                      <strong>Fórmula:</strong><br/>
+                                      Potência = (Consumo ÷ ((Irradiância × Eficiência) × 30.4)) × Fator_Correção
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded space-y-1">
+                                      <div><strong>Passo 1:</strong> Irradiância × Eficiência</div>
+                                      <div className="pl-4">{irradianciaDiaria.toFixed(3)} × {eficiencia} = <strong>{(irradianciaDiaria * eficiencia).toFixed(4)}</strong></div>
+                                      
+                                      <div><strong>Passo 2:</strong> Resultado × 30.4 (dias médios/mês)</div>
+                                      <div className="pl-4">{(irradianciaDiaria * eficiencia).toFixed(4)} × 30.4 = <strong>{denominador.toFixed(4)}</strong></div>
+                                      
+                                      <div><strong>Passo 3:</strong> Consumo ÷ Resultado</div>
+                                      <div className="pl-4">{consumoComMargem.toFixed(2)} ÷ {denominador.toFixed(4)} = <strong>{potenciaAntesFator.toFixed(4)} kWp</strong></div>
+                                      
+                                      <div><strong>Passo 4:</strong> Aplicar fator de correção</div>
+                                      <div className="pl-4">{potenciaAntesFator.toFixed(4)} × {fatorCorrecao} = <strong>{potenciaCalculada.toFixed(4)} kWp</strong></div>
+                                    </div>
+                                    <div className="flex justify-between text-lg border-t pt-2">
+                                      <span className="font-bold">POTÊNCIA CALCULADA:</span>
+                                      <span className="font-bold text-green-600">{potenciaFinal.toFixed(2)} kWp</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Potência no formData (kit selecionado):</span>
+                                      <span className="font-bold text-orange-600">{(formData.potencia_kw || 0).toFixed(2)} kWp</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* SEÇÃO 4: CÁLCULO DOS CUSTOS */}
+                                <div className="bg-white p-4 rounded-lg border border-purple-200">
+                                  <h4 className="font-bold text-purple-700 mb-3 text-base">💰 4. CÁLCULO DOS CUSTOS</h4>
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>Quantidade de placas:</div>
+                                      <div className="text-right font-bold">{quantidadePlacas}</div>
+                                      <div>Custo equipamentos (kit):</div>
+                                      <div className="text-right font-bold">R$ {custoEquipamentos.toFixed(2)}</div>
+                                      <div>Custo transporte (5%):</div>
+                                      <div className="text-right font-bold">R$ {(custoOp.transporte || 0).toFixed(2)}</div>
+                                      <div>Custo instalação:</div>
+                                      <div className="text-right font-bold">R$ {custoOp.instalacao.toFixed(2)}</div>
+                                      <div>CA/Aterramento:</div>
+                                      <div className="text-right font-bold">R$ {custoOp.caAterramento.toFixed(2)}</div>
+                                      <div>Homologação:</div>
+                                      <div className="text-right font-bold">R$ {custoOp.homologacao.toFixed(2)}</div>
+                                      <div>Placas sinalização:</div>
+                                      <div className="text-right font-bold">R$ {custoOp.placasSinalizacao.toFixed(2)}</div>
+                                      <div>Despesas gerais:</div>
+                                      <div className="text-right font-bold">R$ {custoOp.despesasGerais.toFixed(2)}</div>
+                                    </div>
+                                    <div className="flex justify-between text-lg border-t pt-2">
+                                      <span className="font-bold">CUSTO OPERACIONAL TOTAL:</span>
+                                      <span className="font-bold text-purple-600">R$ {custoOp.total.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* SEÇÃO 5: CÁLCULO DO PREÇO DE VENDA */}
+                                <div className="bg-white p-4 rounded-lg border border-red-200">
+                                  <h4 className="font-bold text-red-700 mb-3 text-base">🏷️ 5. CÁLCULO DO PREÇO DE VENDA</h4>
+                                  <div className="space-y-3">
+                                    <div className="bg-red-50 p-3 rounded text-xs">
+                                      <strong>Fórmula:</strong><br/>
+                                      Preço = Custo_Operacional ÷ (1 - Margem_Desejada%)
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>Margem base:</div>
+                                      <div className="text-right font-bold">25%</div>
+                                      <div>Comissão vendedor:</div>
+                                      <div className="text-right font-bold">{comissaoVendedor}%</div>
+                                      <div>Margem desejada total:</div>
+                                      <div className="text-right font-bold">{margemDesejada}%</div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded">
+                                      <strong>Cálculo:</strong><br/>
+                                      R$ {custoOp.total.toFixed(2)} ÷ (1 - {margemDesejada/100}) = R$ {custoOp.total.toFixed(2)} ÷ {(1 - margemDesejada/100).toFixed(4)} = <strong>R$ {precoVenda.toFixed(2)}</strong>
+                                    </div>
+                                    <div className="flex justify-between text-lg border-t pt-2">
+                                      <span className="font-bold">PREÇO DE VENDA:</span>
+                                      <span className="font-bold text-red-600">R$ {precoVenda.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </CardContent>
+                    </Card>
+
                     {/* Resumo - Variáveis Calculadas */}
                     <Card>
                       <CardHeader>
