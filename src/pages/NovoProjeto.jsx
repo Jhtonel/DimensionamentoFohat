@@ -1268,19 +1268,43 @@ export default function NovoProjeto() {
       // Se não houver kWh, mas houver consumo em R$, converter usando a tarifa
       if (consumoParaCalculo <= 0) {
         const consumoReais = parseFloat(formData.consumo_mensal_reais) || 0;
+        console.log('🔄 [DEBUG] Convertendo R$ para kWh...');
+        console.log('  📌 consumoReais:', consumoReais);
+        console.log('  📌 formData.tarifa_energia:', formData.tarifa_energia);
+        console.log('  📌 formData.concessionaria:', formData.concessionaria);
+        
         if (consumoReais > 0) {
           let tarifa = parseFloat(formData.tarifa_energia) || 0;
+          let fonteTarifa = 'formData.tarifa_energia';
+          
           if ((!tarifa || tarifa <= 0 || tarifa > 10) && formData?.concessionaria) {
             try {
               const t = await Configuracao.getTarifaByConcessionaria(formData.concessionaria);
-              if (t && t > 0 && t <= 10) tarifa = t;
-            } catch (_) {}
+              console.log('  📌 Tarifa da concessionária:', t);
+              if (t && t > 0 && t <= 10) {
+                tarifa = t;
+                fonteTarifa = `Concessionária "${formData.concessionaria}"`;
+              }
+            } catch (e) {
+              console.warn('  ⚠️ Erro ao buscar tarifa da concessionária:', e);
+            }
           }
-          if (tarifa > 0) {
-            consumoParaCalculo = consumoReais / tarifa;
+          
+          // Fallback se não conseguir obter tarifa
+          if (!tarifa || tarifa <= 0) {
+            tarifa = 0.85; // Valor padrão médio SP
+            fonteTarifa = 'Fallback padrão (0.85)';
           }
+          
+          console.log('  📌 Tarifa FINAL usada:', tarifa, 'R$/kWh');
+          console.log('  📌 Fonte da tarifa:', fonteTarifa);
+          
+          consumoParaCalculo = consumoReais / tarifa;
+          console.log('  📌 Consumo calculado:', consumoReais, '/', tarifa, '=', consumoParaCalculo.toFixed(2), 'kWh/mês');
         }
       }
+      
+      console.log('🔢 [DEBUG] Consumo para cálculo FINAL:', consumoParaCalculo, 'kWh/mês');
 
       setProgressMonotonic(35, 'Calculando potência do sistema...');
       
@@ -4278,10 +4302,19 @@ export default function NovoProjeto() {
                             // Dados de entrada
                             const consumoKwh = parseFloat(formData.consumo_mensal_kwh || 0);
                             const consumoReais = parseFloat(formData.consumo_mensal_reais || 0);
-                            const tarifaKwh = parseFloat(formData.tarifa_energia || 0.75) || 0.75;
+                            
+                            // Tarifa: prioriza formData, senão usa valor padrão
+                            let tarifaKwh = parseFloat(formData.tarifa_energia || 0);
+                            let fonteTarifa = 'formData.tarifa_energia';
+                            if (!tarifaKwh || tarifaKwh <= 0 || tarifaKwh > 10) {
+                              tarifaKwh = 0.85; // Média SP
+                              fonteTarifa = 'Fallback padrão (0.85)';
+                            }
+                            
                             const cidade = formData.cidade || 'N/A';
                             const irradianciaAnual = irradianciaData?.annual || 0;
                             const irradianciaDiaria = irradianciaAnual > 0 ? irradianciaAnual / 1000 : 5.0;
+                            const fonteIrradiancia = irradianciaAnual > 0 ? `CSV (${irradianciaData?.name || cidade})` : 'Fallback padrão (5.0)';
                             const eficiencia = 0.80;
                             const fatorCorrecao = 1.066;
                             const margemPct = parseFloat(formData.margem_adicional_percentual || 0);
@@ -4336,18 +4369,26 @@ export default function NovoProjeto() {
                               <>
                                 {/* SEÇÃO 1: DADOS DE ENTRADA */}
                                 <div className="bg-white p-4 rounded-lg border border-orange-200">
-                                  <h4 className="font-bold text-orange-700 mb-3 text-base">📥 1. DADOS DE ENTRADA</h4>
+                                  <h4 className="font-bold text-orange-700 mb-3 text-base">📥 1. DADOS DE ENTRADA (valores brutos do formulário)</h4>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>Consumo informado (kWh):</div>
                                     <div className="text-right font-bold">{consumoKwh.toFixed(2)} kWh/mês</div>
                                     <div>Consumo informado (R$):</div>
-                                    <div className="text-right font-bold">R$ {consumoReais.toFixed(2)}/mês</div>
+                                    <div className="text-right font-bold text-blue-600">R$ {consumoReais.toFixed(2)}/mês</div>
                                     <div>Tarifa energia:</div>
-                                    <div className="text-right font-bold">R$ {tarifaKwh.toFixed(4)}/kWh</div>
+                                    <div className="text-right">
+                                      <span className="font-bold">R$ {tarifaKwh.toFixed(4)}/kWh</span>
+                                      <span className="text-xs text-gray-500 block">Fonte: {fonteTarifa}</span>
+                                    </div>
+                                    <div>Concessionária:</div>
+                                    <div className="text-right font-bold">{formData.concessionaria || 'Não informada'}</div>
                                     <div>Cidade:</div>
                                     <div className="text-right font-bold">{cidade}</div>
-                                    <div>Irradiância anual (CSV):</div>
-                                    <div className="text-right font-bold">{irradianciaAnual.toFixed(0)} Wh/m²/dia</div>
+                                    <div>Irradiância anual:</div>
+                                    <div className="text-right">
+                                      <span className="font-bold">{irradianciaAnual.toFixed(0)} Wh/m²/dia</span>
+                                      <span className="text-xs text-gray-500 block">Fonte: {fonteIrradiancia}</span>
+                                    </div>
                                     <div>Irradiância diária:</div>
                                     <div className="text-right font-bold">{irradianciaDiaria.toFixed(3)} kWh/m²/dia</div>
                                     <div>Eficiência do sistema:</div>
@@ -4355,13 +4396,47 @@ export default function NovoProjeto() {
                                     <div>Fator de correção:</div>
                                     <div className="text-right font-bold">{fatorCorrecao}</div>
                                     <div>Margem adicional (%):</div>
-                                    <div className="text-right font-bold">{margemPct}%</div>
+                                    <div className="text-right font-bold text-green-600">{margemPct}%</div>
                                     <div>Margem adicional (kWh):</div>
                                     <div className="text-right font-bold">{margemKwh} kWh</div>
                                     <div>Margem adicional (R$):</div>
                                     <div className="text-right font-bold">R$ {margemReais.toFixed(2)}</div>
                                   </div>
                                 </div>
+                                
+                                {/* SEÇÃO ALERTAS */}
+                                {(() => {
+                                  const alertas = [];
+                                  if (consumoKwh <= 0 && consumoReais <= 0) {
+                                    alertas.push('⚠️ Nenhum consumo informado (nem kWh nem R$)');
+                                  }
+                                  if (fonteTarifa.includes('Fallback')) {
+                                    alertas.push(`⚠️ Tarifa usando fallback: ${tarifaKwh.toFixed(2)}. Selecione uma concessionária para usar tarifa oficial.`);
+                                  }
+                                  if (fonteIrradiancia.includes('Fallback')) {
+                                    alertas.push('⚠️ Irradiância usando fallback. Cidade não encontrada no CSV.');
+                                  }
+                                  if (!formData.concessionaria) {
+                                    alertas.push('⚠️ Concessionária não selecionada. Tarifa pode estar incorreta.');
+                                  }
+                                  if (margemPct <= 0 && margemKwh <= 0) {
+                                    alertas.push('ℹ️ Nenhuma margem adicional configurada.');
+                                  }
+                                  
+                                  if (alertas.length > 0) {
+                                    return (
+                                      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-300 mb-4">
+                                        <h4 className="font-bold text-yellow-700 mb-2">🚨 ALERTAS</h4>
+                                        <ul className="text-yellow-800 text-xs space-y-1">
+                                          {alertas.map((alerta, i) => (
+                                            <li key={i}>{alerta}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                                 
                                 {/* SEÇÃO 2: CÁLCULO DO CONSUMO */}
                                 <div className="bg-white p-4 rounded-lg border border-blue-200">
