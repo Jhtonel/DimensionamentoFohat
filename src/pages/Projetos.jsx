@@ -533,17 +533,73 @@ export default function Projetos() {
                <Button variant="ghost" size="icon" onClick={() => setShowDetailsModal(false)}><X className="w-5 h-5" /></Button>
              </div>
              <div className="p-6 space-y-6">
+                {/* Resumo Principal */}
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Valor</p>
-                      <p className="text-lg font-bold text-slate-900">{Number(selectedProjeto.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</p>
+                   <div className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
+                      <p className="text-xs font-semibold text-emerald-600 uppercase">Valor Total</p>
+                      <p className="text-xl font-bold text-emerald-700">{Number(selectedProjeto.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</p>
                    </div>
-                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Potência</p>
-                      <p className="text-lg font-bold text-slate-900">{(selectedProjeto.potencia_sistema_kwp || 0).toFixed(2)} kWp</p>
+                   <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                      <p className="text-xs font-semibold text-blue-600 uppercase">Potência</p>
+                      <p className="text-xl font-bold text-blue-700">{(selectedProjeto.potencia_sistema_kwp || 0).toFixed(2)} kWp</p>
                    </div>
                 </div>
-                {/* ... Mais detalhes ... */}
+
+                {/* Equipamento */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
+                    Equipamento
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-xs text-slate-500">Módulos</p>
+                      <p className="text-lg font-bold text-slate-900">{selectedProjeto.quantidade_modulos || '-'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 col-span-2">
+                      <p className="text-xs text-slate-500">Marca</p>
+                      <p className="text-sm font-semibold text-slate-900 truncate">{selectedProjeto.marca_modulo || '-'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 col-span-2">
+                      <p className="text-xs text-slate-500">Modelo Módulo</p>
+                      <p className="text-sm font-semibold text-slate-900 truncate">{selectedProjeto.modelo_modulo || '-'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-xs text-slate-500">Área</p>
+                      <p className="text-sm font-semibold text-slate-900">{selectedProjeto.area_estimada ? `${selectedProjeto.area_estimada} m²` : '-'}</p>
+                    </div>
+                    {selectedProjeto.marca_inversor && (
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 col-span-3">
+                        <p className="text-xs text-slate-500">Inversor</p>
+                        <p className="text-sm font-semibold text-slate-900">{selectedProjeto.marca_inversor} {selectedProjeto.modelo_inversor || ''}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Geração e Consumo */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                    Energia
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-xs text-amber-600">Geração Média</p>
+                      <p className="text-lg font-bold text-amber-700">{selectedProjeto.geracao_media_mensal ? `${Number(selectedProjeto.geracao_media_mensal).toFixed(0)} kWh/mês` : '-'}</p>
+                    </div>
+                    <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <p className="text-xs text-orange-600">Consumo Médio</p>
+                      <p className="text-lg font-bold text-orange-700">{selectedProjeto.consumo_medio ? `${Number(selectedProjeto.consumo_medio).toFixed(0)} kWh/mês` : '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Extra */}
+                <div className="pt-4 border-t border-slate-100 flex justify-between text-sm text-slate-500">
+                  <span>Criado em: {selectedProjeto.data_criacao ? new Date(selectedProjeto.data_criacao).toLocaleDateString('pt-BR') : '-'}</span>
+                  <span>ID: {selectedProjeto.id?.substring(0, 8)}...</span>
+                </div>
              </div>
           </motion.div>
         </div>

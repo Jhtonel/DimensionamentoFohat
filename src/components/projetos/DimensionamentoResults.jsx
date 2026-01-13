@@ -29,7 +29,18 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     const responsavelEmail = (clienteInfo.created_by_email || clienteInfo.created_by || '').toLowerCase();
     const responsavelUid = clienteInfo.created_by || '';
     
-    // 2. Tentar encontrar na lista de usuários (admin/gestor vendo todos)
+    // 2. PRIORIDADE: Verifica se o responsável é o PRÓPRIO usuário logado
+    // Isso evita depender da lista de usuários (que requer permissão admin)
+    if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
+       return {
+        nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
+        cargo: user.cargo || 'Consultor de Energia Solar',
+        email: user.email || '',
+        telefone: user.telefone || user.phone || ''
+      };
+    }
+
+    // 3. Tentar encontrar na lista de usuários (admin/gestor vendo todos)
     const responsavel = usuarios.find(u => 
       (u.email && u.email.toLowerCase() === responsavelEmail) || 
       (u.uid && u.uid === responsavelUid)
@@ -41,16 +52,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         cargo: responsavel.cargo || 'Consultor de Energia Solar',
         email: responsavel.email || '',
         telefone: responsavel.telefone || responsavel.phone || ''
-      };
-    }
-
-    // 3. Verifica se o responsável é o PRÓPRIO usuário logado (caso a lista de usuários esteja incompleta)
-    if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
-       return {
-        nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
-        cargo: user.cargo || 'Consultor de Energia Solar',
-        email: user.email || '',
-        telefone: user.telefone || user.phone || ''
       };
     }
     

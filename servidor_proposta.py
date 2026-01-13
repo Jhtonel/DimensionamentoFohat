@@ -540,7 +540,7 @@ def auth_login():
         return jsonify({
             "success": True,
             "token": token,
-            "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid}
+            "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid, "telefone": u.telefone or ""}
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -556,7 +556,7 @@ def auth_me():
         db.close()
         if not u:
             return jsonify({"success": False, "message": "Usuário não encontrado"}), 404
-        return jsonify({"success": True, "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid}})
+        return jsonify({"success": True, "user": {"email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "uid": u.uid, "telefone": u.telefone or ""}})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
