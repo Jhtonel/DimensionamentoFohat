@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Projeto, Cliente, Configuracao, IrradiacaoSolar } from "@/entities";
 import { InvokeLLM } from "@/integrations/Core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,7 @@ export default function NovoProjeto() {
   const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
   const [dadosCarregados, setDadosCarregados] = useState(false); // Flag para prevenir auto-save antes de carregar
+  const draftCreatedRef = useRef(false); // Ref para evitar criação duplicada de rascunho
   
   // Hook para gerenciar custos via API Solaryum
   const {
@@ -93,6 +94,12 @@ export default function NovoProjeto() {
   // NOTA: A lógica de clone_from é tratada em loadData para garantir que os dados sejam carregados corretamente
   useEffect(() => {
     const ensureDraft = async () => {
+      // Evitar criação duplicada (React 18 Strict Mode pode chamar useEffect duas vezes)
+      if (draftCreatedRef.current) {
+        console.log('⏭️ [DRAFT] Já criado, ignorando...');
+        return;
+      }
+      
       const urlParams = new URLSearchParams(window.location.search);
       const projetoId = urlParams.get('projeto_id');
       const cloneFromId = urlParams.get('clone_from');
@@ -101,8 +108,12 @@ export default function NovoProjeto() {
       // clone_from é tratado em loadData
       if (projetoId || cloneFromId) return;
       
+      // Marcar que vamos criar o draft
+      draftCreatedRef.current = true;
+      
       // Sem projeto_id e sem clone_from: criar rascunho novo
       try {
+        console.log('📝 [DRAFT] Criando novo rascunho...');
         const clienteNomeDraft = clientes.find(c => c.id === (formData?.cliente_id || ''))?.nome || formData?.cliente_nome || null;
         const draft = await Projeto.create({
           ...formData,
@@ -114,11 +125,14 @@ export default function NovoProjeto() {
           created_by: user?.uid || null,
           vendedor_email: user?.email || null
         });
+        console.log('✅ [DRAFT] Rascunho criado:', draft.id);
         const search = new URLSearchParams(window.location.search);
         search.set('projeto_id', draft.id);
         navigate(`${window.location.pathname}?${search.toString()}`, { replace: true });
       } catch (e) {
         console.warn('⚠️ Falha ao criar rascunho automático:', e);
+        // Se falhou, permitir tentar novamente
+        draftCreatedRef.current = false;
       }
     };
     // Só executa se tiver user carregado ou se user for null (não logado)
@@ -360,6 +374,13 @@ export default function NovoProjeto() {
     
     // CLONE: Se tem clone_from, criar novo projeto baseado no original
     if (cloneFromId && !projetoId) {
+      // Evitar criação duplicada
+      if (draftCreatedRef.current) {
+        console.log('⏭️ [CLONE] Já criado, ignorando...');
+        return;
+      }
+      draftCreatedRef.current = true;
+      
       try {
         console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
         const projetoOriginal = await Projeto.getById(cloneFromId);
