@@ -1517,7 +1517,37 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         c_parts = c_nome_full.split()
         c_nome_curto = f"{c_parts[0]} {c_parts[1]}" if len(c_parts) >= 2 else c_nome_full
         template_html = template_html.replace('{{cliente_nome_curto}}', c_nome_curto)
-        endereco_resumido = format_endereco_resumido(proposta_data.get('cliente_endereco', ''), proposta_data.get('cidade'))
+        
+        # Prioridade para endereço: endereco_completo da proposta > cliente_endereco do cliente
+        # Monta endereço a partir dos campos individuais da proposta se disponíveis
+        endereco_proposta = proposta_data.get('endereco_completo') or ''
+        if not endereco_proposta:
+            # Tentar montar a partir dos campos individuais
+            rua = proposta_data.get('rua') or proposta_data.get('logradouro') or ''
+            numero = proposta_data.get('numero') or ''
+            bairro = proposta_data.get('bairro') or ''
+            cidade = proposta_data.get('cidade') or ''
+            estado = proposta_data.get('estado') or proposta_data.get('uf') or ''
+            
+            partes = []
+            if rua:
+                if numero:
+                    partes.append(f"{rua}, {numero}")
+                else:
+                    partes.append(rua)
+            if bairro:
+                partes.append(bairro)
+            if cidade:
+                if estado:
+                    partes.append(f"{cidade}/{estado}")
+                else:
+                    partes.append(cidade)
+            
+            endereco_proposta = ' - '.join(partes) if partes else ''
+        
+        # Fallback para cliente_endereco se não houver endereço na proposta
+        endereco_para_template = endereco_proposta or proposta_data.get('cliente_endereco', '')
+        endereco_resumido = format_endereco_resumido(endereco_para_template, proposta_data.get('cidade'))
         template_html = template_html.replace('{{cliente_endereco}}', endereco_resumido)
         template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
         template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))

@@ -374,16 +374,29 @@ export default function NovoProjeto() {
     
     // CLONE: Se tem clone_from, criar novo projeto baseado no original
     if (cloneFromId && !projetoId) {
-      // Evitar criação duplicada
-      if (draftCreatedRef.current) {
-        console.log('⏭️ [CLONE] Já criado, ignorando...');
-        return;
-      }
-      draftCreatedRef.current = true;
+      // Evitar criação duplicada usando sessionStorage (persiste entre remounts do Strict Mode)
+      const cloneKey = `clone_in_progress_${cloneFromId}`;
+      const existingCloneId = sessionStorage.getItem(cloneKey);
       
-      try {
-        console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
-        const projetoOriginal = await Projeto.getById(cloneFromId);
+      if (existingCloneId) {
+        console.log('⏭️ [CLONE] Clone já existe, redirecionando para:', existingCloneId);
+        // Redirecionar para o projeto já criado
+        const search = new URLSearchParams();
+        search.set('projeto_id', existingCloneId);
+        window.history.replaceState({}, '', `${window.location.pathname}?${search.toString()}`);
+        // Atualizar projetoId local e continuar carregando
+        projetoId = existingCloneId;
+        // Limpar a flag após usar
+        sessionStorage.removeItem(cloneKey);
+      } else if (draftCreatedRef.current) {
+        console.log('⏭️ [CLONE] Já em processamento, ignorando...');
+        return;
+      } else {
+        draftCreatedRef.current = true;
+      
+        try {
+          console.log('🔄 [CLONE] Clonando projeto:', cloneFromId);
+          const projetoOriginal = await Projeto.getById(cloneFromId);
         
         if (projetoOriginal) {
           // Remover campos que não devem ser clonados
@@ -410,6 +423,9 @@ export default function NovoProjeto() {
           
           console.log('✅ [CLONE] Novo projeto criado:', draft.id);
           console.log('📋 [CLONE] Dados clonados:', dadosClone);
+          
+          // Salvar no sessionStorage para evitar duplicação em caso de remount
+          sessionStorage.setItem(cloneKey, draft.id);
           
           // Atualizar a URL sem recarregar a página
           const search = new URLSearchParams();
@@ -480,12 +496,19 @@ export default function NovoProjeto() {
           // Marcar dados como carregados para habilitar auto-save
           setTimeout(() => setDadosCarregados(true), 500);
           
+          // Limpar sessionStorage após sucesso
+          sessionStorage.removeItem(cloneKey);
+          
           // Não precisamos carregar novamente - retornar aqui
           return;
         }
-      } catch (e) {
-        console.warn('⚠️ Falha ao clonar projeto:', e);
-        // Continua sem clonar, vai criar projeto novo
+        } catch (e) {
+          console.warn('⚠️ Falha ao clonar projeto:', e);
+          // Limpar flag em caso de erro para permitir nova tentativa
+          sessionStorage.removeItem(cloneKey);
+          draftCreatedRef.current = false;
+          // Continua sem clonar, vai criar projeto novo
+        }
       }
     }
     
@@ -2054,6 +2077,15 @@ export default function NovoProjeto() {
     }
   }, [calcularQuantidadesDoKit, formData.potencia_kw, handleChange, selecionandoKit]);
 
+  // Auto-seleção do kit #1 (Top Recomendado) assim que carregar
+  const hasAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (kitsRecomendadosMicro?.length > 0 && !hasAutoSelectedRef.current && !kitSelecionado) {
+      selecionarKit(kitsRecomendadosMicro[0]);
+      hasAutoSelectedRef.current = true;
+    }
+  }, [kitsRecomendadosMicro, selecionarKit, kitSelecionado]);
+
 
   const calcularPotenciaSistema = async (consumoMensalKwh, cidade = 'São José dos Campos', margemAdicional = {}) => {
     try {
@@ -2100,6 +2132,27 @@ export default function NovoProjeto() {
       // A irradiância anual está em Wh/m²/dia (média diária anual)
       // Convertemos para kWh/m²/dia dividindo por 1000
       const irradianciaDiaria = irradianciaDataLocal.annual / 1000;
+      
+      // Extrair irradiância mensal (Wh/m²/dia -> kWh/m²/dia) para usar nos cálculos de produção
+      if (irradianciaDataLocal.monthly) {
+        const irradianciasMensais = [
+          irradianciaDataLocal.monthly.jan / 1000,
+          irradianciaDataLocal.monthly.feb / 1000,
+          irradianciaDataLocal.monthly.mar / 1000,
+          irradianciaDataLocal.monthly.apr / 1000,
+          irradianciaDataLocal.monthly.may / 1000,
+          irradianciaDataLocal.monthly.jun / 1000,
+          irradianciaDataLocal.monthly.jul / 1000,
+          irradianciaDataLocal.monthly.aug / 1000,
+          irradianciaDataLocal.monthly.sep / 1000,
+          irradianciaDataLocal.monthly.oct / 1000,
+          irradianciaDataLocal.monthly.nov / 1000,
+          irradianciaDataLocal.monthly.dec / 1000,
+        ];
+        console.log('📊 Irradiância mensal (kWh/m²/dia):', irradianciasMensais);
+        // Salvar no formData para enviar ao backend
+        handleChange('irradiancia_mensal_kwh_m2_dia', irradianciasMensais);
+      }
     
       // Eficiência do sistema (80%)
       const eficienciaSistema = 0.80;
@@ -2516,7 +2569,27 @@ export default function NovoProjeto() {
       let irradianciaDataLocal = irradianciaData;
       if (!irradianciaDataLocal) {
         irradianciaDataLocal = await getIrradianciaByCity(formData.cidade || 'São Paulo');
-        if (irradianciaDataLocal) setIrradianciaData(irradianciaDataLocal);
+        if (irradianciaDataLocal) {
+          setIrradianciaData(irradianciaDataLocal);
+          // Extrair irradiância mensal para cálculos de produção
+          if (irradianciaDataLocal.monthly) {
+            const irradianciasMensais = [
+              irradianciaDataLocal.monthly.jan / 1000,
+              irradianciaDataLocal.monthly.feb / 1000,
+              irradianciaDataLocal.monthly.mar / 1000,
+              irradianciaDataLocal.monthly.apr / 1000,
+              irradianciaDataLocal.monthly.may / 1000,
+              irradianciaDataLocal.monthly.jun / 1000,
+              irradianciaDataLocal.monthly.jul / 1000,
+              irradianciaDataLocal.monthly.aug / 1000,
+              irradianciaDataLocal.monthly.sep / 1000,
+              irradianciaDataLocal.monthly.oct / 1000,
+              irradianciaDataLocal.monthly.nov / 1000,
+              irradianciaDataLocal.monthly.dec / 1000,
+            ];
+            handleChange('irradiancia_mensal_kwh_m2_dia', irradianciasMensais);
+          }
+        }
       }
       
       if (!irradianciaDataLocal) {
@@ -3465,7 +3538,7 @@ export default function NovoProjeto() {
                                 return (
                                   <Card
                                     key={`reco-${kit.id}`}
-                                    className={`cursor-pointer transition-all duration-200 ${
+                                    className={`cursor-pointer transition-all duration-200 relative overflow-visible ${
                                       kitSelecionado?.id === kit.id
                                         ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
                                         : selecionandoKit
@@ -3479,19 +3552,24 @@ export default function NovoProjeto() {
                                       await selecionarKit(kit);
                                     }}
                                   >
+                                    {/* Badge Flutuante de Ranking */}
+                                    <div className={`absolute -top-3 -right-3 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg z-20 ${
+                                        idx === 0 ? 'bg-emerald-600 ring-4 ring-white' : 
+                                        idx === 1 ? 'bg-sky-600 ring-4 ring-white' : 
+                                        'bg-slate-500 ring-4 ring-white'
+                                      }`}>
+                                      #{idx + 1}
+                                    </div>
+
                                     <CardHeader className="pb-3">
                                       <div className="flex items-center justify-between">
-                                        <CardTitle className="text-lg">
+                                        <CardTitle className="text-lg pr-6">
                                           {kit.nome}
                                           {selecionandoKit && kitSelecionado?.id === kit.id && (
                                             <span className="ml-2 text-yellow-600 text-sm">⏳ Selecionando...</span>
                                           )}
                                         </CardTitle>
-                                        {kitSelecionado?.id !== kit.id && (
-                                          <Badge className={idx === 0 ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}>
-                                            {badgeRank}
-                                          </Badge>
-                                        )}
+                                        
                                         {kitSelecionado?.id === kit.id && (
                                           <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                                             <Check className="w-4 h-4 text-white" />
