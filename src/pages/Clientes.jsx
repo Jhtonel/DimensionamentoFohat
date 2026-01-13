@@ -60,32 +60,49 @@ export default function Clientes() {
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [transferMode, setTransferMode] = useState(false);
 
-  const handleTransfer = async (newUserId) => {
-    if (!selectedCliente || !newUserId) return;
-    if (!window.confirm("Confirma a transferência deste cliente?")) return;
+  // Modal States
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
 
-    try {
-      const serverUrl = getBackendUrl();
-      const token = localStorage.getItem('app_jwt_token');
-      const res = await fetch(`${serverUrl}/clientes/transfer/${selectedCliente.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ new_owner_uid: newUserId })
-      });
-      
-      if (res.ok) {
-        alert("Transferência realizada!");
-        setSelectedCliente(null);
-        setTransferMode(false);
-        loadData();
-      } else {
-        const err = await res.json();
-        alert(err.message || "Erro ao transferir.");
+  const handleTransfer = (newUserId) => {
+    if (!selectedCliente || !newUserId) return;
+    
+    setConfirmTitle("Transferir Cliente");
+    setConfirmMessage("Confirma a transferência deste cliente para outro usuário?");
+    setConfirmAction(() => async () => {
+      try {
+        const serverUrl = getBackendUrl();
+        const token = localStorage.getItem('app_jwt_token');
+        const res = await fetch(`${serverUrl}/clientes/transfer/${selectedCliente.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ new_owner_uid: newUserId })
+        });
+        
+        if (res.ok) {
+          setSelectedCliente(null);
+          setTransferMode(false);
+          loadData();
+        } else {
+           setTimeout(() => {
+              setConfirmTitle("Erro");
+              setConfirmMessage("Erro ao transferir cliente.");
+              setConfirmAction(null);
+              setConfirmModalOpen(true);
+           }, 300);
+        }
+      } catch (e) {
+         setTimeout(() => {
+            setConfirmTitle("Erro");
+            setConfirmMessage("Erro de conexão.");
+            setConfirmAction(null);
+            setConfirmModalOpen(true);
+         }, 300);
       }
-    } catch (e) {
-      console.error(e);
-      alert("Erro de conexão.");
-    }
+    });
+    setConfirmModalOpen(true);
   };
 
   useEffect(() => { loadData(); loadUsers(); }, []);
@@ -165,11 +182,14 @@ export default function Clientes() {
     loadData();
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Tem certeza que deseja excluir este cliente?")) {
+  const handleDelete = (id) => {
+    setConfirmTitle("Excluir Cliente");
+    setConfirmMessage("Tem certeza que deseja excluir este cliente?");
+    setConfirmAction(() => async () => {
       await Cliente.delete(id);
       loadData();
-    }
+    });
+    setConfirmModalOpen(true);
   };
 
   const getProjetosCount = (clienteId) => {
@@ -517,11 +537,10 @@ export default function Clientes() {
                 {/* Footer Actions */}
                 <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-2">
-                    {user?.role === 'admin' && (
-                      transferMode ? (
-                        <div className="flex items-center gap-2">
+                    {transferMode && user?.role === 'admin' ? (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-5">
                           <Select onValueChange={handleTransfer}>
-                            <SelectTrigger className="w-[200px] h-9 text-xs">
+                            <SelectTrigger className="w-[180px] h-9 text-xs">
                               <SelectValue placeholder="Novo responsável" />
                             </SelectTrigger>
                             <SelectContent>
@@ -534,11 +553,17 @@ export default function Clientes() {
                             Cancelar
                           </Button>
                         </div>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => setTransferMode(true)} className="text-slate-500 border-slate-200 hover:border-primary hover:text-primary text-xs">
-                          <User className="w-3.5 h-3.5 mr-2" /> Transferir
+                    ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => user?.role === 'admin' && setTransferMode(true)} 
+                          className={`text-xs border-slate-200 ${user?.role === 'admin' ? 'text-slate-600 hover:border-primary hover:text-primary' : 'text-slate-500 cursor-default hover:bg-transparent'}`}
+                          title={user?.role === 'admin' ? "Clique para alterar responsável" : "Responsável pelo cliente"}
+                        >
+                          <User className="w-3.5 h-3.5 mr-2" /> 
+                          {usuarios.find(u => u.uid === selectedCliente.created_by)?.nome || selectedCliente.created_by_email?.split('@')[0] || "Sem responsável"}
                         </Button>
-                      )
                     )}
                   </div>
                   <Link to={`${createPageUrl("NovoProjeto")}?cliente_id=${selectedCliente.id}`}>
@@ -552,5 +577,32 @@ export default function Clientes() {
           </div>
         )}
       </div>
-    );
-  }
+
+      {/* Confirm/Alert Modal */}
+      {confirmModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={() => !confirmAction && setConfirmModalOpen(false)}>
+           <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+             <div className="p-6 text-center space-y-4">
+               {confirmTitle && <h3 className="font-bold text-xl text-slate-900">{confirmTitle}</h3>}
+               <p className="text-slate-600">{confirmMessage}</p>
+               <div className="flex justify-center gap-3 pt-4">
+                  {confirmAction ? (
+                    <>
+                      <Button variant="outline" onClick={() => setConfirmModalOpen(false)}>Cancelar</Button>
+                      <Button onClick={async () => {
+                         await confirmAction();
+                         setConfirmModalOpen(false);
+                      }} className="bg-red-600 hover:bg-red-700 text-white">Confirmar</Button>
+                    </>
+                  ) : (
+                    <Button onClick={() => setConfirmModalOpen(false)} className="bg-slate-900 text-white">OK</Button>
+                  )}
+               </div>
+             </div>
+           </motion.div>
+        </div>
+      )}
+
+    </div>
+  );
+}

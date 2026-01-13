@@ -75,6 +75,16 @@ export default function Projetos() {
   const [showMetricsModal, setShowMetricsModal] = useState(false);
   const [metricsData, setMetricsData] = useState(null);
   const [metricsProjetoId, setMetricsProjetoId] = useState(null);
+  
+  // Modal States
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [projectToRename, setProjectToRename] = useState(null);
+  const [newName, setNewName] = useState("");
+
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
 
   // Carregamento de dados (mantido igual)
   useEffect(() => { loadData(); loadUsers(); }, []);
@@ -168,11 +178,14 @@ export default function Projetos() {
     localStorage.setItem('admin_filter_user_email', v);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Tem certeza que deseja excluir este projeto?")) {
-      await Projeto.delete(id);
-      loadData();
-    }
+  const handleDelete = (id) => {
+    setConfirmTitle("Excluir Projeto");
+    setConfirmMessage("Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita.");
+    setConfirmAction(() => async () => {
+       await Projeto.delete(id);
+       loadData();
+    });
+    setConfirmModalOpen(true);
   };
 
   const getClienteNome = (clienteId) => {
@@ -192,9 +205,14 @@ export default function Projetos() {
     return null;
   };
 
-  const handleRename = async (projeto) => {
-    const newName = window.prompt("Novo nome do projeto:", projeto.nome_projeto);
-    if (!newName || newName.trim() === "") return;
+  const handleRename = (projeto) => {
+    setProjectToRename(projeto);
+    setNewName(projeto.nome_projeto || "");
+    setRenameModalOpen(true);
+  };
+
+  const confirmRename = async () => {
+    if (!projectToRename || !newName.trim()) return;
 
     try {
       const serverUrl = getBackendUrl();
@@ -207,19 +225,26 @@ export default function Projetos() {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          id: projeto.id,
+          id: projectToRename.id,
           nome_projeto: newName
         })
       });
 
       if (response.ok) {
-        setProjetos(prev => prev.map(p => p.id === projeto.id ? { ...p, nome_projeto: newName } : p));
+        setProjetos(prev => prev.map(p => p.id === projectToRename.id ? { ...p, nome_projeto: newName } : p));
+        setRenameModalOpen(false);
       } else {
-        alert("Erro ao renomear projeto.");
+        setConfirmTitle("Erro");
+        setConfirmMessage("Erro ao renomear projeto.");
+        setConfirmAction(null);
+        setConfirmModalOpen(true);
       }
     } catch (error) {
       console.error(error);
-      alert("Erro ao renomear projeto.");
+      setConfirmTitle("Erro");
+      setConfirmMessage("Erro de conexão.");
+      setConfirmAction(null);
+      setConfirmModalOpen(true);
     }
   };
 
@@ -562,6 +587,59 @@ export default function Projetos() {
               </div>
             </motion.div>
          </div>
+      )}
+
+      {/* Rename Modal */}
+      {renameModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setRenameModalOpen(false)}>
+           <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+               <h3 className="font-bold text-lg text-slate-900">Renomear Projeto</h3>
+               <Button variant="ghost" size="icon" onClick={() => setRenameModalOpen(false)}><X className="w-5 h-5" /></Button>
+             </div>
+             <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                   <label className="text-sm font-medium text-slate-700">Novo Nome</label>
+                   <Input 
+                      value={newName} 
+                      onChange={(e) => setNewName(e.target.value)} 
+                      placeholder="Nome do projeto"
+                      autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+                   />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                   <Button variant="outline" onClick={() => setRenameModalOpen(false)}>Cancelar</Button>
+                   <Button onClick={confirmRename} className="bg-primary hover:bg-primary/90 text-white">Salvar</Button>
+                </div>
+             </div>
+           </motion.div>
+        </div>
+      )}
+
+      {/* Confirm/Alert Modal */}
+      {confirmModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={() => !confirmAction && setConfirmModalOpen(false)}>
+           <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+             <div className="p-6 text-center space-y-4">
+               {confirmTitle && <h3 className="font-bold text-xl text-slate-900">{confirmTitle}</h3>}
+               <p className="text-slate-600">{confirmMessage}</p>
+               <div className="flex justify-center gap-3 pt-4">
+                  {confirmAction ? (
+                    <>
+                      <Button variant="outline" onClick={() => setConfirmModalOpen(false)}>Cancelar</Button>
+                      <Button onClick={async () => {
+                         await confirmAction();
+                         setConfirmModalOpen(false);
+                      }} className="bg-red-600 hover:bg-red-700 text-white">Confirmar</Button>
+                    </>
+                  ) : (
+                    <Button onClick={() => setConfirmModalOpen(false)} className="bg-slate-900 text-white">OK</Button>
+                  )}
+               </div>
+             </div>
+           </motion.div>
+        </div>
       )}
 
     </div>

@@ -6391,15 +6391,32 @@ def _load_irradiancia_csv():
     if _IRR_CSV_CACHE is not None:
         return _IRR_CSV_CACHE
     try:
-        csv_path = Path(__file__).parent / "src" / "data" / "irradiancia.csv"
-        if not csv_path.exists():
+        # Tentar múltiplos caminhos possíveis
+        possible_paths = [
+            Path(__file__).parent / "public" / "irradiancia.csv",  # Desenvolvimento
+            Path(__file__).parent / "dist" / "irradiancia.csv",    # Produção (Vite build)
+            Path(__file__).parent / "src" / "data" / "irradiancia.csv",  # Fallback antigo
+        ]
+        
+        csv_path = None
+        for p in possible_paths:
+            if p.exists():
+                csv_path = p
+                print(f"📊 [IRRADIÂNCIA] CSV encontrado em: {csv_path}")
+                break
+        
+        if csv_path is None:
+            print("⚠️ [IRRADIÂNCIA] CSV não encontrado em nenhum dos caminhos esperados")
             return None
+            
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             rows = [r for r in reader]
         _IRR_CSV_CACHE = rows
+        print(f"✅ [IRRADIÂNCIA] {len(rows)} cidades carregadas do CSV")
         return rows
-    except Exception:
+    except Exception as e:
+        print(f"❌ [IRRADIÂNCIA] Erro ao carregar CSV: {e}")
         return None
 
 def _resolve_irr_vec_from_csv(cidade: str | None, irr_media_fallback: float = 5.15) -> list[float] | None:
@@ -6407,15 +6424,27 @@ def _resolve_irr_vec_from_csv(cidade: str | None, irr_media_fallback: float = 5.
     """
     df = _load_irradiancia_csv()
     if df is None or len(df) == 0:
+        print(f"⚠️ [IRRADIÂNCIA] CSV não carregado ou vazio")
         return None
     cols = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
     try:
         if cidade:
-            needle = str(cidade).lower()
+            needle = str(cidade).lower().strip()
+            # Busca exata primeiro
             for row in df:
-                name = str(row.get("NAME", "")).lower()
+                name = str(row.get("NAME", "")).lower().strip()
+                if needle == name:
+                    irr_vec = [float(row.get(c, 0) or 0) / 1000.0 for c in cols]
+                    print(f"✅ [IRRADIÂNCIA] Cidade '{cidade}' encontrada (exata): {irr_vec}")
+                    return irr_vec
+            # Busca parcial
+            for row in df:
+                name = str(row.get("NAME", "")).lower().strip()
                 if needle and needle in name:
-                    return [float(row.get(c, 0) or 0) / 1000.0 for c in cols]
+                    irr_vec = [float(row.get(c, 0) or 0) / 1000.0 for c in cols]
+                    print(f"✅ [IRRADIÂNCIA] Cidade '{cidade}' encontrada (parcial em '{name}'): {irr_vec}")
+                    return irr_vec
+            print(f"⚠️ [IRRADIÂNCIA] Cidade '{cidade}' não encontrada no CSV")
 
         # fallback: média nacional (sem pandas)
         sums = {c: 0.0 for c in cols}

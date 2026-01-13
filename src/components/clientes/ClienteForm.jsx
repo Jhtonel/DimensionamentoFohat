@@ -103,21 +103,30 @@ export default function ClienteForm({ cliente, onSave, onCancel, usuarios, curre
                 </Select>
               </div>
 
-              {currentUser?.role === 'admin' && (
-                <div className="space-y-2">
-                  <Label htmlFor="created_by">Responsável (Admin)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="created_by">
+                  Responsável {currentUser?.role === 'admin' && <span className="text-xs text-gray-500">(Admin)</span>}
+                </Label>
+                {currentUser?.role === 'admin' ? (
                   <Select value={formData.created_by || currentUser?.uid} onValueChange={(value) => handleChange("created_by", value)}>
                     <SelectTrigger className="bg-white/50 border-sky-200">
                       <SelectValue placeholder="Selecione o responsável" />
                     </SelectTrigger>
                     <SelectContent>
                       {usuarios?.map(u => (
-                        <SelectItem key={u.uid} value={u.uid}>{u.nome}</SelectItem>
+                        <SelectItem key={u.uid} value={u.uid}>{u.nome || u.email}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
+                ) : (
+                  <Input
+                    id="created_by_display"
+                    value={currentUser?.nome || currentUser?.email || 'Você'}
+                    disabled
+                    className="bg-gray-100 border-sky-200"
+                  />
+                )}
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="telefone">Telefone *</Label>
                 <Input
