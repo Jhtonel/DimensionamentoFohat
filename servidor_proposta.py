@@ -1766,6 +1766,18 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                         _consumo_kwh = sum(arr_vals) / len(arr_vals)
                 except Exception:
                     pass
+            # Buscar irradiância mensal do CSV pela cidade
+            _irr_media = parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
+            _irr_custom = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
+            if isinstance(_irr_custom, list) and len(_irr_custom) == 12:
+                _irr_vec = [parse_float(v, 0.0) for v in _irr_custom]
+            else:
+                try:
+                    _irr_vec_csv = _resolve_irr_vec_from_csv(proposta_data.get('cidade'), _irr_media)
+                    _irr_vec = _irr_vec_csv if (isinstance(_irr_vec_csv, list) and len(_irr_vec_csv) == 12) else [_irr_media] * 12
+                except Exception:
+                    _irr_vec = [_irr_media] * 12
+            
             core_payload = {
                 "consumo_mensal_reais": parse_float(proposta_data.get('consumo_mensal_reais', 0), 0.0),
                 "consumo_mensal_kwh": _consumo_kwh,
@@ -1777,13 +1789,14 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                                                         proposta_data.get('custo_total_projeto', 0))),
                     0.0
                 ),
-                "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
+                "irradiacao_media": _irr_media,
+                "irradiancia_mensal_kwh_m2_dia": _irr_vec,
                 "ano_instalacao": 2026,  # Lei 14.300
             }
             print(f"🧮 [ECON25] core_payload (Lei 14.300) -> consumo_kwh={core_payload['consumo_mensal_kwh']}, "
                   f"consumo_r$={core_payload['consumo_mensal_reais']}, tarifa={core_payload['tarifa_energia']}, "
                   f"potencia={core_payload['potencia_sistema']}, preco_venda={core_payload['preco_venda']}, "
-                  f"irr_media={core_payload['irradiacao_media']}")
+                  f"irr_mensal={_irr_vec[:3]}...")
             core_calc = calcular_dimensionamento(core_payload)
             tabelas = core_calc.get("tabelas") or {}
             kpis_core = core_calc.get("metrics") or {}
@@ -3429,13 +3442,26 @@ def build_relatorio_calculos_proposta(proposta_data: dict, include_render: bool 
             except Exception:
                 pass
 
+        # Buscar irradiância mensal do CSV pela cidade para HTML
+        _irr_media_html = parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
+        _irr_custom_html = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
+        if isinstance(_irr_custom_html, list) and len(_irr_custom_html) == 12:
+            _irr_vec_html = [parse_float(v, 0.0) for v in _irr_custom_html]
+        else:
+            try:
+                _irr_vec_csv_html = _resolve_irr_vec_from_csv(proposta_data.get('cidade'), _irr_media_html)
+                _irr_vec_html = _irr_vec_csv_html if (isinstance(_irr_vec_csv_html, list) and len(_irr_vec_csv_html) == 12) else [_irr_media_html] * 12
+            except Exception:
+                _irr_vec_html = [_irr_media_html] * 12
+        
         core_payload_html = {
             "consumo_mensal_reais": parse_float(proposta_data.get('consumo_mensal_reais', 0), 0.0),
             "consumo_mensal_kwh": consumo_kwh,
             "tarifa_energia": parse_float(proposta_data.get('tarifa_energia', 0), 0.0),
             "potencia_sistema": parse_float(proposta_data.get('potencia_sistema', proposta_data.get('potencia_kwp', 0)), 0.0),
             "preco_venda": parse_float(proposta_data.get('preco_venda', proposta_data.get('preco_final', proposta_data.get('custo_total_projeto', 0))), 0.0),
-            "irradiacao_media": parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15),
+            "irradiacao_media": _irr_media_html,
+            "irradiancia_mensal_kwh_m2_dia": _irr_vec_html,
             "ano_instalacao": 2026,
         }
         core_html = calcular_dimensionamento(core_payload_html) or {}
@@ -4268,13 +4294,26 @@ def salvar_proposta():
             needs_kpis = True
         if needs_kpis:
             print("ℹ️ [salvar-proposta] KPIs ausentes -> calculando via núcleo (Lei 14.300).")
+            # Buscar irradiância mensal do CSV pela cidade
+            _irr_media_kpis = parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
+            _irr_custom_kpis = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
+            if isinstance(_irr_custom_kpis, list) and len(_irr_custom_kpis) == 12:
+                _irr_vec_kpis = [parse_float(v, 0.0) for v in _irr_custom_kpis]
+            else:
+                try:
+                    _irr_vec_csv_kpis = _resolve_irr_vec_from_csv(proposta_data.get('cidade'), _irr_media_kpis)
+                    _irr_vec_kpis = _irr_vec_csv_kpis if (isinstance(_irr_vec_csv_kpis, list) and len(_irr_vec_csv_kpis) == 12) else [_irr_media_kpis] * 12
+                except Exception:
+                    _irr_vec_kpis = [_irr_media_kpis] * 12
+            
             core_payload = {
                 "consumo_mensal_reais": data.get('consumo_mensal_reais', 0),
                 "consumo_mensal_kwh": proposta_data.get('consumo_mensal_kwh', 0),
                 "tarifa_energia": proposta_data.get('tarifa_energia', 0),
                 "potencia_sistema": proposta_data.get('potencia_sistema', 0),
                 "preco_venda": proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)),
-                "irradiacao_media": proposta_data.get('irradiacao_media', 5.15),
+                "irradiacao_media": _irr_media_kpis,
+                "irradiancia_mensal_kwh_m2_dia": _irr_vec_kpis,
                 "ano_instalacao": 2026,  # Lei 14.300
             }
             try:

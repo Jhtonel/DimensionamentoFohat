@@ -576,7 +576,6 @@ export default function Clientes() {
             </motion.div>
           </div>
         )}
-      </div>
 
       {/* Confirm/Alert Modal */}
       {confirmModalOpen && (
