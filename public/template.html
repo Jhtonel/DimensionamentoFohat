@@ -1555,42 +1555,65 @@
         <div class="header-meta">{{cliente_nome}} | 12</div>
       </div>
 
-      <div class="content-area grid-2">
-        <!-- À Vista / Cartão -->
-        <div class="card">
-          <h3 class="card-title">Cartão de Crédito</h3>
-          
-          <div class="info-group" style="margin-bottom:20px; text-align:center; background:var(--success-bg); border-color:var(--success-border);">
-            <span class="stat-label">À vista no cartão</span>
-            <div style="font-size:32px; font-weight:800; color:var(--success-text); margin-top:4px;">{{valor_avista_cartao}}</div>
+      <div class="content-area" style="flex-direction: column; gap: 20px;">
+        
+        <!-- Grid Superior: Opções de Prazo -->
+        <div class="grid-2" style="flex:1; min-height:0;">
+          <!-- À Vista / Cartão -->
+          <div class="card">
+            <h3 class="card-title">Cartão de Crédito</h3>
+            
+            <div class="info-group" style="margin-bottom:20px; text-align:center; background:var(--success-bg); border-color:var(--success-border); overflow: hidden;">
+              <span class="stat-label">À vista no cartão</span>
+              <div style="font-size:26px; font-weight:800; color:var(--success-text); margin-top:4px; word-wrap: break-word; line-height: 1.2;">{{valor_avista_cartao}}</div>
+            </div>
+
+            <div style="overflow-y:auto; flex:1;">
+              <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Parcelamento (Cartão):</p>
+              <div class="payment-table-container">
+                {{parcelas_cartao}}
+              </div>
+            </div>
           </div>
 
-          <div style="overflow-y:auto; flex:1;">
-            <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Parcelamento (Cartão):</p>
-            <div class="payment-table-container">
-              {{parcelas_cartao}}
+          <!-- Financiamento -->
+          <div class="card highlight" style="border:2px solid var(--brand-primary);">
+            <h3 class="card-title">Financiamento Solar</h3>
+            <p style="font-size:14px;">Troque sua conta de luz pela parcela do financiamento.</p>
+
+            <div class="info-group" style="margin:20px 0; text-align:center; background:var(--brand-primary); color:white; overflow: hidden;">
+              <span class="stat-label" style="color:rgba(255,255,255,0.8);">Parcela Sugerida</span>
+              <div style="font-size:26px; font-weight:800; color:white; margin-top:4px; word-wrap: break-word; line-height: 1.2;">{{menor_parcela_financiamento}}</div>
             </div>
+
+            <div style="overflow-y:auto; flex:1;">
+              <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Opções de Financiamento:</p>
+              <div class="payment-table-container">
+                {{parcelas_financiamento}}
+              </div>
+            </div>
+            <p style="font-size:12px; color:var(--n-600); margin-top:10px; text-align:center;">* Sujeito à análise de crédito.</p>
           </div>
         </div>
 
-        <!-- Financiamento -->
-        <div class="card highlight" style="border:2px solid var(--brand-primary);">
-          <h3 class="card-title">Financiamento Solar</h3>
-          <p style="font-size:14px;">Troque sua conta de luz pela parcela do financiamento.</p>
-
-          <div class="info-group" style="margin:20px 0; text-align:center; background:var(--brand-primary); color:white;">
-            <span class="stat-label" style="color:rgba(255,255,255,0.8);">Parcela Sugerida</span>
-            <div style="font-size:40px; font-weight:800; color:white; margin-top:4px;">{{menor_parcela_financiamento}}</div>
-          </div>
-
-          <div style="overflow-y:auto; flex:1;">
-            <p style="font-size:14px; margin-bottom:12px; font-weight:600; color:var(--n-700);">Opções de Financiamento:</p>
-            <div class="payment-table-container">
-              {{parcelas_financiamento}}
-            </div>
-          </div>
-          <p style="font-size:12px; color:var(--n-600); margin-top:10px; text-align:center;">* Sujeito à análise de crédito.</p>
+        <!-- Card Inferior: À Vista com Desconto -->
+        <div class="card" style="height: auto; flex-direction: row; justify-content: space-between; align-items: center; min-height: auto; border: 2px solid var(--success-border); background: var(--success-bg); padding: 24px 32px;">
+           <div style="display:flex; align-items:center; gap:24px;">
+             <div style="background:var(--success-text); color:white; width:64px; height:64px; border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(21, 128, 61, 0.2);">
+               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+             </div>
+             <div>
+               <h3 class="card-title" style="color:var(--success-text); margin-bottom:6px;">Pagamento à Vista (PIX/TED)</h3>
+               <p style="margin:0; font-size:16px; color:var(--n-800); font-weight:500;">Melhor condição com desconto máximo aplicado.</p>
+             </div>
+           </div>
+           
+           <div style="text-align:right;">
+              <div style="font-size:14px; color:var(--success-text); margin-bottom:4px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Preço Final com Desconto</div>
+              <div style="font-size:36px; font-weight:800; color:var(--success-text); line-height:1; word-wrap: break-word;">{{preco_final}}</div>
+           </div>
         </div>
+
       </div>
     </div>
   </section>
