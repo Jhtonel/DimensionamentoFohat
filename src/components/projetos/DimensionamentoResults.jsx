@@ -339,11 +339,11 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         estado: formData?.estado || formData?.uf || null,
         tipo_telhado: formData?.tipo_telhado || null,
         tensao: formData?.tensao || null,
-        cliente_id: formData?.cliente_id || null,
-        cliente_nome: clienteInfo?.nome || 'Cliente',
+        cliente_id: formData?.cliente_id,
+        cliente_nome: clienteInfo?.nome,
         // Endereço deve vir da aba Dados Básicos (formData.endereco_completo)
-        cliente_endereco: formData?.endereco_completo || clienteInfo?.endereco_completo || 'Endereço não informado',
-        cliente_telefone: clienteInfo?.telefone || 'Telefone não informado',
+        cliente_endereco: formData?.endereco_completo || clienteInfo?.endereco_completo,
+        cliente_telefone: clienteInfo?.telefone,
         potencia_sistema: (Number(formData?.potencia_kw) || 0) > 0
           ? Number(formData.potencia_kw)
           : dadosSeguros.potencia_sistema_kwp,
@@ -351,64 +351,59 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         // Importante: formData.preco_venda às vezes vem como string "892.857" (milhar BR).
         // Number("892.857") => 892.857 (errado). Normalizar antes.
         preco_venda: (() => {
-          const v = formData?.preco_venda ?? dadosSeguros?.preco_final ?? 0;
+          const v = formData?.preco_venda ?? dadosSeguros?.preco_final;
+          if (v === undefined || v === null) return undefined;
           if (typeof v === 'number') return v;
-          const s = String(v || '').replace(/\s+/g, '').replace('R$', '');
+          const s = String(v).replace(/\s+/g, '').replace('R$', '');
           // "10.495,50" -> "10495.50"; "892.857" -> "892857"
           const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
           const n = Number(normalized);
-          return Number.isFinite(n) ? n : 0;
+          return Number.isFinite(n) ? n : undefined;
         })(),
         preco_final: (() => {
-          const v = formData?.preco_venda ?? dadosSeguros?.preco_final ?? 0;
+          const v = formData?.preco_venda ?? dadosSeguros?.preco_final;
+          if (v === undefined || v === null) return undefined;
           if (typeof v === 'number') return v;
-          const s = String(v || '').replace(/\s+/g, '').replace('R$', '');
+          const s = String(v).replace(/\s+/g, '').replace('R$', '');
           const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
           const n = Number(normalized);
-          return Number.isFinite(n) ? n : 0;
+          return Number.isFinite(n) ? n : undefined;
         })(),
-        concessionaria: formData?.concessionaria || '',
-        cidade: formData?.cidade || 'Projeto',
+        concessionaria: formData?.concessionaria,
+        cidade: formData?.cidade,
         vendedor_nome: vendedorDados.nome,
         vendedor_cargo: vendedorDados.cargo,
         vendedor_telefone: vendedorDados.telefone,
         vendedor_email: vendedorDados.email,
-        // Dados financeiros
-        conta_atual_anual: 0, // será definido pelas métricas do backend
-        anos_payback: 0,
-        payback_anos: 0,
-        payback_meses: 0,
-        gasto_acumulado_payback: 0,
-        consumo_mensal_kwh: consumoKwhParaEnvio || 0,
-        consumo_mes_a_mes: Array.isArray(formData?.consumo_mes_a_mes) ? formData.consumo_mes_a_mes : [],
-        // Usar apenas tarifa válida do formulário (preenchida a partir da concessionária)
-        tarifa_energia: tarifaParaEnvio || 0,
-        economia_mensal_estimada: 0, // será definido pelas métricas do backend
+        // Dados financeiros (serão calculados pelo backend)
+        consumo_mensal_kwh: consumoKwhParaEnvio,
+        consumo_mes_a_mes: Array.isArray(formData?.consumo_mes_a_mes) ? formData.consumo_mes_a_mes : undefined,
+        tarifa_energia: tarifaParaEnvio,
         // Dados do kit
-        quantidade_placas: dadosSeguros.quantidade_placas || 0,
-        potencia_placa_w: dadosSeguros.potencia_placa_w || 0,
-        area_necessaria: dadosSeguros.area_necessaria || 0,
-        irradiacao_media: dadosSeguros.irradiacao_media || 5.15,
-        geracao_media_mensal: dadosSeguros.geracao_media_mensal || 0,
-        creditos_anuais: dadosSeguros.creditos_anuais || 0,
-        economia_total_25_anos: dadosSeguros.economia_total_25_anos || 0,
+        quantidade_placas: dadosSeguros.quantidade_placas,
+        potencia_placa_w: dadosSeguros.potencia_placa_w,
+        area_necessaria: dadosSeguros.area_necessaria,
+        irradiacao_media: dadosSeguros.irradiacao_media,
+        geracao_media_mensal: dadosSeguros.geracao_media_mensal,
+        creditos_anuais: dadosSeguros.creditos_anuais,
+        economia_total_25_anos: dadosSeguros.economia_total_25_anos,
         // Custos
-        custo_total_projeto: dadosSeguros.custo_total_projeto || 0,
-        custo_equipamentos: dadosSeguros.custo_equipamentos || 0,
-        custo_instalacao: dadosSeguros.custo_instalacao || 0,
-        custo_homologacao: dadosSeguros.custo_homologacao || 0,
-        custo_outros: dadosSeguros.custo_outros || 0,
-        margem_lucro: dadosSeguros.margem_lucro || 0,
+        custo_total_projeto: dadosSeguros.custo_total_projeto,
+        custo_equipamentos: dadosSeguros.custo_equipamentos,
+        custo_instalacao: dadosSeguros.custo_instalacao,
+        custo_homologacao: dadosSeguros.custo_homologacao,
+        custo_outros: dadosSeguros.custo_outros,
+        margem_lucro: dadosSeguros.margem_lucro,
         // Comissão do vendedor (vem da aba de custos)
-        comissao_vendedor: formData?.comissao_vendedor || 5,
+        comissao_vendedor: formData?.comissao_vendedor,
         // Margem/produção adicional (%, R$ ou kWh)
-        margem_adicional_percentual: formData?.margem_adicional_percentual || '',
-        margem_adicional_kwh: formData?.margem_adicional_kwh || '',
-        margem_adicional_reais: formData?.margem_adicional_reais || '',
+        margem_adicional_percentual: formData?.margem_adicional_percentual,
+        margem_adicional_kwh: formData?.margem_adicional_kwh,
+        margem_adicional_reais: formData?.margem_adicional_reais,
         // Potência (para persistir o valor calculado)
-        potencia_kw: formData?.potencia_kw || dadosSeguros.potencia_sistema_kwp || 0,
+        potencia_kw: formData?.potencia_kw || dadosSeguros.potencia_sistema_kwp,
         // Consumo mensal em R$ (para persistir)
-        consumo_mensal_reais: formData?.consumo_mensal_reais || ''
+        consumo_mensal_reais: formData?.consumo_mensal_reais
       };
 
       // Extrair equipamentos do kit (marca/modelo/tipo) para proposta
