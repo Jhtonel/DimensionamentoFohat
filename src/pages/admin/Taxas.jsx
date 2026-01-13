@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Plus, Trash2, CreditCard, Building2, Save } from "lucide-react";
 import { getBackendUrl } from "@/services/backendUrl.js";
+import { useToast } from "@/hooks/useToast";
 
 const API_BASE = () => getBackendUrl();
 
@@ -63,6 +64,7 @@ const TAXAS_PADRAO = {
 };
 
 export default function AdminTaxas() {
+  const { toast } = useToast();
   const base = useMemo(() => API_BASE(), []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,13 +113,13 @@ export default function AdminTaxas() {
       });
       const j = await r.json();
       if (j.success) {
-        alert("Taxas salvas com sucesso!");
+        toast({ title: "Sucesso", description: "Taxas salvas com sucesso!", variant: "success" });
       } else {
-        alert(j.message || "Erro ao salvar.");
+        toast({ title: "Erro", description: j.message || "Erro ao salvar.", variant: "destructive" });
       }
     } catch (e) {
       console.error(e);
-      alert("Erro ao conectar com o servidor.");
+      toast({ title: "Erro", description: "Erro ao conectar com o servidor.", variant: "destructive" });
     } finally {
       setSaving(false);
     }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trash2, GripVertical, User, Shield, Briefcase, Wrench, Settings, X, Check, Users, FileText, Target, Lock, BarChart3, Download, UserPlus, UserMinus, Save, Pencil, Phone } from "lucide-react";
+import { useToast } from "@/hooks/useToast";
 
 // Configuração visual das roles
 const ROLE_CONFIG = {
@@ -770,6 +771,7 @@ const KanbanColumn = ({ role, users, onRemoveUser, onDropUser, onOpenSettings, p
 // Componente Principal
 // ============================================================================
 export default function AdminUsuarios() {
+  const { toast } = useToast();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -847,9 +849,9 @@ export default function AdminUsuarios() {
       }));
       
       setEditedUsers({});
-      alert('Alterações salvas com sucesso!');
+      toast({ title: "Sucesso", description: "Alterações salvas com sucesso!", variant: "success" });
     } catch (e) {
-      alert('Erro ao salvar alterações');
+      toast({ title: "Erro", description: "Erro ao salvar alterações", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -908,7 +910,9 @@ export default function AdminUsuarios() {
       });
       setRolePermissions(prev => ({ ...prev, [role]: permissions }));
     } catch (e) {
-      alert('Erro ao salvar permissões');
+      // toast comes from parent scope, might be tricky if used inside sub-component passed via props?
+      // Wait, savePermissions is defined inside AdminUsuarios, so it has access to toast.
+      toast({ title: "Erro", description: "Erro ao salvar permissões", variant: "destructive" });
     }
   };
 
@@ -923,7 +927,7 @@ export default function AdminUsuarios() {
       });
       setEquipes(novasEquipes);
     } catch (e) {
-      alert('Erro ao salvar equipes');
+      toast({ title: "Erro", description: "Erro ao salvar equipes", variant: "destructive" });
     }
   };
 
@@ -1174,7 +1178,7 @@ export default function AdminUsuarios() {
                       setCreateModal({ open: false });
                       await load();
                     } catch (e) {
-                      alert(e?.message || 'Erro ao criar usuário');
+                      toast({ title: "Erro", description: e?.message || 'Erro ao criar usuário', variant: "destructive" });
                     }
                   }}
                 >
@@ -1260,7 +1264,7 @@ export default function AdminUsuarios() {
                       setEditModal({ open: false, user: null });
                       await load();
                     } catch (e) {
-                      alert(e?.message || 'Erro ao atualizar usuário');
+                      toast({ title: "Erro", description: e?.message || 'Erro ao atualizar usuário', variant: "destructive" });
                     }
                   }}
                 >

@@ -7,15 +7,17 @@ import { baixarPdfPuppeteer } from "@/services/pdfService.js";
 import { propostaService } from '../../services/propostaService';
 import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
 import { Projeto, Configuracao } from '../../entities';
+import { useToast } from "@/hooks/useToast";
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [] }) {
+  const { toast } = useToast();
   // Dados do vendedor: usar o RESPONSÁVEL pelo cliente (created_by), não o usuário logado
   const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
   
   // Buscar dados do vendedor responsável pelo cliente
   const getVendedorResponsavel = () => {
+    // 1. Sem cliente vinculado? Usa o usuário logado (fallback imediato)
     if (!clienteInfo) {
-      // Fallback para usuário logado se não tiver cliente
       return {
         nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
         cargo: user?.cargo || 'Consultor de Energia Solar',
@@ -24,14 +26,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       };
     }
     
-    // Buscar o usuário responsável pelo cliente
-    const responsavelEmail = clienteInfo.created_by_email || clienteInfo.created_by || '';
+    const responsavelEmail = (clienteInfo.created_by_email || clienteInfo.created_by || '').toLowerCase();
     const responsavelUid = clienteInfo.created_by || '';
     
-    // Tentar encontrar na lista de usuários
+    // 2. Tentar encontrar na lista de usuários (admin/gestor vendo todos)
     const responsavel = usuarios.find(u => 
-      (u.email && responsavelEmail && u.email.toLowerCase() === responsavelEmail.toLowerCase()) || 
-      (u.uid && responsavelUid && u.uid === responsavelUid)
+      (u.email && u.email.toLowerCase() === responsavelEmail) || 
+      (u.uid && u.uid === responsavelUid)
     );
     
     if (responsavel) {
@@ -42,18 +43,29 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         telefone: responsavel.telefone || responsavel.phone || ''
       };
     }
+
+    // 3. Verifica se o responsável é o PRÓPRIO usuário logado (caso a lista de usuários esteja incompleta)
+    if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
+       return {
+        nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
+        cargo: user.cargo || 'Consultor de Energia Solar',
+        email: user.email || '',
+        telefone: user.telefone || user.phone || ''
+      };
+    }
     
-    // Se não encontrou o usuário, usar o email como nome
+    // 4. Se não encontrou o usuário, usar o email como nome (Fallback final)
     if (responsavelEmail && responsavelEmail.includes('@')) {
       return {
         nome: responsavelEmail.split('@')[0],
         cargo: 'Consultor de Energia Solar',
         email: responsavelEmail,
-        telefone: ''
+        // Tenta usar o telefone do logado como último recurso se não tiver outro
+        telefone: user?.telefone || user?.phone || '' 
       };
     }
     
-    // Último fallback: usuário logado
+    // 5. Último fallback: usuário logado
     return {
       nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
       cargo: user?.cargo || 'Consultor de Energia Solar',
@@ -387,6 +399,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         custo_homologacao: dadosSeguros.custo_homologacao || 0,
         custo_outros: dadosSeguros.custo_outros || 0,
         margem_lucro: dadosSeguros.margem_lucro || 0,
+        // Comissão do vendedor (vem da aba de custos)
+        comissao_vendedor: formData?.comissao_vendedor || 5,
         // Margem/produção adicional (%, R$ ou kWh)
         margem_adicional_percentual: formData?.margem_adicional_percentual || '',
         margem_adicional_kwh: formData?.margem_adicional_kwh || '',
@@ -564,7 +578,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       }
       
     } catch (error) {
-      alert('Erro ao salvar proposta: ' + error.message);
+      toast({ title: "Erro", description: 'Erro ao salvar proposta: ' + error.message, variant: "destructive" });
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -585,7 +599,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // Função para gerar PDF (somente Puppeteer backend: idêntico ao template.html)
   const gerarPDF = async () => {
     if (!propostaId) {
-      alert("Proposta não salva. Gere a proposta primeiro.");
+      toast({ title: "Atenção", description: "Proposta não salva. Gere a proposta primeiro.", variant: "warning" });
       return;
     }
     setIsGeneratingPDF(true);
@@ -604,7 +618,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         const fileName = `${clienteNomeSafe} - ${dd}-${mm}-${yy} - FOHAT ENERGIA SOLAR.pdf`;
       saveAs(blob, fileName);
     } catch (e) {
-      alert("Erro ao gerar PDF: " + (e?.message || e));
+      toast({ title: "Erro", description: "Erro ao gerar PDF: " + (e?.message || e), variant: "destructive" });
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -649,7 +663,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
                       onClick={() => {
                         const url = propostaService.getPropostaURL(propostaId);
                         navigator.clipboard.writeText(url).then(() => {
-                          alert('✅ Link copiado!\n\n' + url);
+                          toast({ title: "Sucesso", description: "Link copiado!", variant: "success" });
                         }).catch(() => {
                           // Fallback: usar prompt para copiar manualmente
                           prompt('Copie o link abaixo:', url);

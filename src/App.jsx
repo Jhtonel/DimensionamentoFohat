@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { ToastProvider } from './hooks/useToast';
+import { Toaster } from './components/ui/Toaster';
 import { useAuth } from './services/authService.jsx';
 import Login from './components/auth/Login';
 import Layout from './components/layout/Layout.jsx';
@@ -119,7 +121,12 @@ function AppWithAuth() {
 }
 
 function App() {
-  return <AppWithAuth />;
+  return (
+    <ToastProvider>
+      <AppWithAuth />
+      <Toaster />
+    </ToastProvider>
+  );
 }
 
 export default App;

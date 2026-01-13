@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Calculator, Save, DollarSign, TrendingUp, MapPin, Search, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useToast } from "@/hooks/useToast";
 import { motion } from "framer-motion";
 import cepService from "../services/cepService";
 import solaryumApi from "../services/solaryumApi";
@@ -28,6 +29,7 @@ import { getBackendUrl } from "@/services/backendUrl.js";
 
 export default function NovoProjeto() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [configs, setConfigs] = useState({});
@@ -83,7 +85,7 @@ export default function NovoProjeto() {
     // Só exigimos concessionária para sair do "basico"
     const requiresConcessionaria = nextTab !== "basico";
     if (requiresConcessionaria && !hasConcessionaria()) {
-      alert("Selecione a concessionária para avançar.");
+      toast({ title: "Atenção", description: "Selecione a concessionária para avançar.", variant: "warning" });
       setActiveTab("basico");
       return;
     }
@@ -681,10 +683,10 @@ export default function NovoProjeto() {
       } catch (e) {
         console.error("❌ Falha ao carregar proposta para edição:", e?.message || e);
         if (e?.message?.includes('Não autorizado') || e?.message?.includes('403')) {
-          alert('Você não tem permissão para editar este projeto.');
+          toast({ title: "Acesso negado", description: "Você não tem permissão para editar este projeto.", variant: "destructive" });
           navigate(createPageUrl("Projetos"));
         } else if (e?.message?.includes('Não encontrada') || e?.message?.includes('404')) {
-          alert('Projeto não encontrado.');
+          toast({ title: "Erro", description: "Projeto não encontrado.", variant: "destructive" });
           navigate(createPageUrl("Projetos"));
         }
       }
@@ -1224,7 +1226,7 @@ export default function NovoProjeto() {
       
     } catch (error) {
       console.error('❌ Erro ao buscar filtros:', error);
-      alert('Erro ao buscar filtros disponíveis. Tente novamente.');
+      toast({ title: "Erro", description: "Erro ao buscar filtros disponíveis. Tente novamente.", variant: "destructive" });
     } finally {
       setLoadingFiltros(false);
     }
@@ -1232,7 +1234,7 @@ export default function NovoProjeto() {
 
   const buscarProdutosDisponiveis = async () => {
     if (!temConsumoPreenchido()) {
-      alert('Por favor, preencha pelo menos um tipo de consumo (valor em R$, kWh/mês ou consumo mês a mês)');
+      toast({ title: "Atenção", description: "Por favor, preencha pelo menos um tipo de consumo (valor em R$, kWh/mês ou consumo mês a mês)", variant: "warning" });
       return;
     }
 
@@ -1244,14 +1246,14 @@ export default function NovoProjeto() {
         .filter(x => x.vazio)
         .map(x => x.i + 1);
       if (mesesEmBranco.length > 0) {
-        alert('Preencha todos os meses do consumo (kWh). Existem meses em branco.');
+        toast({ title: "Atenção", description: "Preencha todos os meses do consumo (kWh). Existem meses em branco.", variant: "warning" });
         return;
       }
     }
 
     // Valida se o CEP foi preenchido (necessário para obter o código IBGE)
     if (!formData.cep || !formData.ibge) {
-      alert('Por favor, preencha o CEP e clique em "Buscar CEP" para obter o código IBGE necessário para a consulta de equipamentos.');
+      toast({ title: "CEP Necessário", description: "Por favor, preencha o CEP e clique em 'Buscar CEP' para obter o código IBGE necessário para a consulta de equipamentos.", variant: "warning" });
       return;
     }
 
@@ -1676,7 +1678,12 @@ export default function NovoProjeto() {
         ? "💡 Dica: Execute 'testAuthentication()' no console para testar diferentes formatos de autenticação."
         : "💡 Dica: Execute 'testConnectivity()' no console para diagnosticar o problema. Verifique se está acessando http://192.168.1.9:3002";
       
-      alert(`❌ Erro ao buscar equipamentos:\n\n${errorMessage}\n\n${errorDetails}\n\n${errorBody}\n\n${diagnosticTip}`);
+      console.error(`❌ Erro ao buscar equipamentos:\n\n${errorMessage}\n\n${errorDetails}\n\n${errorBody}\n\n${diagnosticTip}`);
+      toast({
+        title: "Erro ao buscar equipamentos",
+        description: errorMessage || "Erro desconhecido. Consulte o console para mais detalhes.",
+        variant: "destructive"
+      });
     } finally {
       setLoadingProdutos(false);
       // Se ocorrer erro, garantir fechar popup
@@ -1686,7 +1693,7 @@ export default function NovoProjeto() {
 
   const buscarCEP = async () => {
     if (!formData.cep || formData.cep.length < 8) {
-      alert('Por favor, digite um CEP válido');
+      toast({ title: "CEP Inválido", description: "Por favor, digite um CEP válido", variant: "warning" });
       return;
     }
     
@@ -1717,7 +1724,7 @@ export default function NovoProjeto() {
       }
     } catch (error) {
       console.error('❌ Erro ao buscar CEP:', error);
-      alert(`Erro ao buscar CEP: ${error.message}`);
+      toast({ title: "Erro ao buscar CEP", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -2496,7 +2503,7 @@ export default function NovoProjeto() {
       setActiveTab("resultados");
     } catch (error) {
       console.error('Erro no dimensionamento:', error);
-      alert('Erro ao calcular dimensionamento: ' + error.message);
+      toast({ title: "Erro no cálculo", description: error.message, variant: "destructive" });
     } finally {
       setCalculando(false);
     }
@@ -2638,7 +2645,7 @@ export default function NovoProjeto() {
   const gerarPropostaEAvançar = async () => {
     try {
       if (!hasConcessionaria()) {
-        alert("Selecione a concessionária para avançar.");
+        toast({ title: "Atenção", description: "Selecione a concessionária para avançar.", variant: "warning" });
         setActiveTab("basico");
         return;
       }
@@ -2646,7 +2653,7 @@ export default function NovoProjeto() {
       setActiveTab('resultados');
     } catch (error) {
       console.error('Erro ao gerar proposta:', error);
-      alert('Erro ao gerar proposta: ' + error.message);
+      toast({ title: "Erro ao gerar proposta", description: error.message, variant: "destructive" });
     }
   };
 

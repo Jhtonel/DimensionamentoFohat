@@ -5,8 +5,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "../../services/authService.jsx";
 import { getBackendUrl } from "../../services/backendUrl.js";
+import { useToast } from "@/hooks/useToast";
 
 const ClientesManager = () => {
+  const { toast } = useToast();
   const { user, getAuthToken } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,13 +73,14 @@ const ClientesManager = () => {
       if (response.ok) {
         await loadClientes();
         resetForm();
+        toast({ title: "Sucesso", description: "Cliente salvo com sucesso!", variant: "success" });
       } else {
         const error = await response.json();
-        alert(`Erro: ${error.error}`);
+        toast({ title: "Erro", description: `Erro: ${error.error}`, variant: "destructive" });
       }
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
-      alert('Erro ao salvar cliente');
+      toast({ title: "Erro", description: 'Erro ao salvar cliente', variant: "destructive" });
     }
   };
 
@@ -99,13 +102,14 @@ const ClientesManager = () => {
 
       if (response.ok) {
         await loadClientes();
+        toast({ title: "Sucesso", description: "Cliente removido com sucesso!", variant: "success" });
       } else {
         const error = await response.json();
-        alert(`Erro: ${error.error}`);
+        toast({ title: "Erro", description: `Erro: ${error.error}`, variant: "destructive" });
       }
     } catch (error) {
       console.error('Erro ao deletar cliente:', error);
-      alert('Erro ao deletar cliente');
+      toast({ title: "Erro", description: 'Erro ao deletar cliente', variant: "destructive" });
     }
   };
 

@@ -5,8 +5,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "../../services/authService.jsx";
 import { getBackendUrl } from "../../services/backendUrl.js";
+import { useToast } from "@/hooks/useToast";
 
 const Configuracoes = () => {
+  const { toast } = useToast();
   const { getAuthToken } = useAuth();
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,14 +77,14 @@ const Configuracoes = () => {
       if (response.ok) {
         const data = await response.json();
         setConfig(data);
-        alert('Configurações salvas com sucesso!');
+        toast({ title: "Sucesso", description: "Configurações salvas com sucesso!", variant: "success" });
       } else {
         const error = await response.json();
-        alert(`Erro: ${error.error}`);
+        toast({ title: "Erro", description: `Erro: ${error.error}`, variant: "destructive" });
       }
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações');
+      toast({ title: "Erro", description: 'Erro ao salvar configurações', variant: "destructive" });
     } finally {
       setSaving(false);
     }

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { propostaService } from '../services/propostaService';
+import { useToast } from "@/hooks/useToast";
 
 export default function PropostaView() {
+  const { toast } = useToast();
   console.log('🚀 PropostaView carregada!');
   const { propostaId } = useParams();
   console.log('📋 PropostaId recebido:', propostaId);
@@ -72,7 +74,7 @@ export default function PropostaView() {
       console.log('✅ Download concluído');
     } catch (error) {
       console.error('❌ Erro ao baixar:', error);
-      alert('Erro ao baixar proposta: ' + error.message);
+      toast({ title: "Erro", description: 'Erro ao baixar proposta: ' + error.message, variant: "destructive" });
     }
   };
 

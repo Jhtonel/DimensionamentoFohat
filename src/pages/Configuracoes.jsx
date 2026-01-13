@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Settings, Save } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/useToast";
 
 export default function Configuracoes() {
+  const { toast } = useToast();
   const [configs, setConfigs] = useState([]);
   const [propostaConfigs, setPropostaConfigs] = useState({});
   const [loading, setLoading] = useState(false);
@@ -137,10 +139,10 @@ export default function Configuracoes() {
         const saved = await Configuracao.create(payload);
         if (saved) setPropostaConfigs(saved);
       }
-      alert('Configurações de proposta salvas com sucesso!');
+      toast({ title: "Sucesso", description: "Configurações de proposta salvas com sucesso!", variant: "success" });
     } catch (error) {
       console.error('Erro ao salvar configurações de proposta:', error);
-      alert(error?.message || 'Erro ao salvar configurações de proposta');
+      toast({ title: "Erro", description: error?.message || 'Erro ao salvar configurações de proposta', variant: "destructive" });
     } finally {
       setLoading(false);
     }
