@@ -58,6 +58,35 @@ export default function Clientes() {
   );
   const [viewMode, setViewMode] = useState("grid");
   const [selectedCliente, setSelectedCliente] = useState(null);
+  const [transferMode, setTransferMode] = useState(false);
+
+  const handleTransfer = async (newUserId) => {
+    if (!selectedCliente || !newUserId) return;
+    if (!window.confirm("Confirma a transferência deste cliente?")) return;
+
+    try {
+      const serverUrl = getBackendUrl();
+      const token = localStorage.getItem('app_jwt_token');
+      const res = await fetch(`${serverUrl}/clientes/transfer/${selectedCliente.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ new_owner_uid: newUserId })
+      });
+      
+      if (res.ok) {
+        alert("Transferência realizada!");
+        setSelectedCliente(null);
+        setTransferMode(false);
+        loadData();
+      } else {
+        const err = await res.json();
+        alert(err.message || "Erro ao transferir.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro de conexão.");
+    }
+  };
 
   useEffect(() => { loadData(); loadUsers(); }, []);
 
@@ -214,6 +243,8 @@ export default function Clientes() {
           {showForm && (
             <ClienteForm
               cliente={editingCliente}
+              usuarios={usuarios}
+              currentUser={user}
               onSave={handleSave}
             onCancel={() => { setShowForm(false); setEditingCliente(null); }}
             />
@@ -371,7 +402,7 @@ export default function Clientes() {
 
         {/* Modal Detalhes (Placeholder para evitar código duplicado gigante - manteria lógica original se fosse produção, aqui simplifico visualmente) */}
         {selectedCliente && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedCliente(null)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setSelectedCliente(null); setTransferMode(false); }}>
           <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
              <div className="bg-gradient-to-r from-primary to-blue-500 p-6 text-white flex justify-between items-start">
                <div className="flex gap-4 items-center">
@@ -383,7 +414,7 @@ export default function Clientes() {
                    <p className="text-blue-100">{selectedCliente.tipo}</p>
                   </div>
                 </div>
-               <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={() => setSelectedCliente(null)}><X className="w-5 h-5" /></Button>
+               <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={() => { setSelectedCliente(null); setTransferMode(false); }}><X className="w-5 h-5" /></Button>
               </div>
 
              <div className="p-6 space-y-6">
@@ -484,7 +515,32 @@ export default function Clientes() {
                   </div>
 
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'admin' && (
+                      transferMode ? (
+                        <div className="flex items-center gap-2">
+                          <Select onValueChange={handleTransfer}>
+                            <SelectTrigger className="w-[200px] h-9 text-xs">
+                              <SelectValue placeholder="Novo responsável" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {usuarios.map(u => (
+                                <SelectItem key={u.uid} value={u.uid}>{u.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button variant="ghost" size="sm" onClick={() => setTransferMode(false)} className="h-9 text-xs">
+                            Cancelar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setTransferMode(true)} className="text-slate-500 border-slate-200 hover:border-primary hover:text-primary text-xs">
+                          <User className="w-3.5 h-3.5 mr-2" /> Transferir
+                        </Button>
+                      )
+                    )}
+                  </div>
                   <Link to={`${createPageUrl("NovoProjeto")}?cliente_id=${selectedCliente.id}`}>
                     <Button className="bg-primary hover:bg-primary/90 text-white">
                       <Plus className="w-4 h-4 mr-2" /> Novo Projeto

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion } from "framer-motion";
 import { X, Save } from "lucide-react";
 import cepService from "@/services/cepService.js";
-export default function ClienteForm({ cliente, onSave, onCancel }) {
+export default function ClienteForm({ cliente, onSave, onCancel, usuarios, currentUser }) {
   const [formData, setFormData] = useState(cliente || {
     nome: "",
     telefone: "",
@@ -16,7 +16,8 @@ export default function ClienteForm({ cliente, onSave, onCancel }) {
     endereco_completo: "",
     cep: "",
     tipo: "residencial",
-    observacoes: ""
+    observacoes: "",
+    created_by: currentUser?.uid || ""
   });
   const [loadingCep, setLoadingCep] = useState(false);
   const [cepHint, setCepHint] = useState("");
@@ -101,6 +102,22 @@ export default function ClienteForm({ cliente, onSave, onCancel }) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {currentUser?.role === 'admin' && (
+                <div className="space-y-2">
+                  <Label htmlFor="created_by">Responsável (Admin)</Label>
+                  <Select value={formData.created_by || currentUser?.uid} onValueChange={(value) => handleChange("created_by", value)}>
+                    <SelectTrigger className="bg-white/50 border-sky-200">
+                      <SelectValue placeholder="Selecione o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usuarios?.map(u => (
+                        <SelectItem key={u.uid} value={u.uid}>{u.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="telefone">Telefone *</Label>
                 <Input

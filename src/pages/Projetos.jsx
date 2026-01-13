@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Clock,
   MoreVertical,
-  Download
+  Download,
+  Edit
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -191,6 +192,37 @@ export default function Projetos() {
     return null;
   };
 
+  const handleRename = async (projeto) => {
+    const newName = window.prompt("Novo nome do projeto:", projeto.nome_projeto);
+    if (!newName || newName.trim() === "") return;
+
+    try {
+      const serverUrl = getBackendUrl();
+      const token = await authService.getAuthToken();
+      
+      const response = await fetch(`${serverUrl}/salvar-proposta`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          id: projeto.id,
+          nome_projeto: newName
+        })
+      });
+
+      if (response.ok) {
+        setProjetos(prev => prev.map(p => p.id === projeto.id ? { ...p, nome_projeto: newName } : p));
+      } else {
+        alert("Erro ao renomear projeto.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao renomear projeto.");
+    }
+  };
+
   const handleViewDetails = async (projeto) => {
     setSelectedProjeto(projeto);
     setProjetoViews(null);
@@ -313,6 +345,9 @@ export default function Projetos() {
                         <DropdownMenuItem onClick={() => handleViewDetails(projeto)}>
                           <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleRename(projeto)}>
+                          <Edit className="w-4 h-4 mr-2" /> Renomear
+                        </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                           <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
                             <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta
@@ -420,6 +455,9 @@ export default function Projetos() {
                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => handleViewDetails(projeto)}>
                             <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => handleRename(projeto)} title="Renomear">
+                            <Edit className="w-4 h-4" />
                           </Button>
                           <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} title="Criar nova a partir desta">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary">

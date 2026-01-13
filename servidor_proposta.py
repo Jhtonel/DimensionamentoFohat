@@ -5318,6 +5318,21 @@ def criar_cliente():
         data = request.get_json() or {}
         cliente_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
+
+        owner_uid = me.uid if USE_DB and me else data.get("created_by")
+        owner_email = me.email if USE_DB and me else data.get("created_by_email")
+
+        # Admin override
+        if USE_DB and me and getattr(me, 'role', '') == 'admin' and data.get("created_by"):
+            try:
+                db_t = SessionLocal()
+                tu = db_t.get(UserDB, data.get("created_by"))
+                db_t.close()
+                if tu:
+                    owner_uid = tu.uid
+                    owner_email = tu.email
+            except:
+                pass
         
         cliente = {
             "id": cliente_id,
@@ -5328,9 +5343,9 @@ def criar_cliente():
             "cep": data.get("cep"),
             "tipo": data.get("tipo"),
             "observacoes": data.get("observacoes"),
-            # Vincular sempre ao usuário logado
-            "created_by": (me.uid if USE_DB and me else data.get("created_by")),
-            "created_by_email": (me.email if USE_DB and me else data.get("created_by_email")),
+            # Vincular ao dono definido
+            "created_by": owner_uid,
+            "created_by_email": owner_email,
             "created_at": now,
             "updated_at": now
         }
