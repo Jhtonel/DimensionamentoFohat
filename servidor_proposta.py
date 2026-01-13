@@ -4038,13 +4038,24 @@ def salvar_proposta():
 
         def _to_money(v, d=0.0):
             return _to_float(v, d)
-        status_payload = (data.get("status") or "").strip().lower() or "dimensionamento"
+        status_payload = (data.get("status") or "").strip().lower() or existing_payload.get("status", "") or "dimensionamento"
         is_draft = status_payload in ("rascunho", "draft")
+        
+        # Para atualizações (ex: renomear), usar valores existentes se não vierem no payload
+        is_update = bool(incoming_id and existing_payload)
 
         concessionaria_payload = (data.get('concessionaria') or data.get('concessionária') or '').strip()
-        tarifa_payload = _to_float(data.get('tarifa_energia', 0), 0.0)
-        # Em rascunho, permitimos salvar sem tarifa/concessionária (o usuário ainda não preencheu tudo).
-        if not is_draft:
+        if not concessionaria_payload and is_update:
+            concessionaria_payload = (existing_payload.get('concessionaria') or existing_payload.get('concessionária') or '').strip()
+        
+        tarifa_payload = _to_float(data.get('tarifa_energia'), None)
+        if tarifa_payload is None and is_update:
+            tarifa_payload = _to_float(existing_payload.get('tarifa_energia', 0), 0.0)
+        elif tarifa_payload is None:
+            tarifa_payload = 0.0
+            
+        # Em rascunho ou atualização simples (renomear), permitimos salvar sem validação completa
+        if not is_draft and not is_update:
             if not concessionaria_payload or tarifa_payload <= 0 or tarifa_payload > 10:
                 return jsonify({
                     "success": False,
