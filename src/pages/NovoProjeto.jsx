@@ -1283,18 +1283,21 @@ export default function NovoProjeto() {
       }
 
       setProgressMonotonic(35, 'Calculando potência do sistema...');
-      let potenciaCalculada = formData.potencia_kw || await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
+      
+      // SEMPRE recalcular a potência baseada no consumo informado
+      // Não usar formData.potencia_kw porque pode ser de um kit anterior que não corresponde ao consumo atual
+      let potenciaCalculada = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
       
       console.log('🔍 Debug da potência:');
-      console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
-      console.log('  - potenciaCalculada:', potenciaCalculada, typeof potenciaCalculada);
-      console.log('  - Consumo mensal:', formData.consumo_mensal_kwh);
+      console.log('  - formData.potencia_kw (ignorado):', formData.potencia_kw, typeof formData.potencia_kw);
+      console.log('  - potenciaCalculada (baseada no consumo):', potenciaCalculada, typeof potenciaCalculada);
+      console.log('  - Consumo para cálculo:', consumoParaCalculo, 'kWh/mês');
       console.log('  - Cidade:', formData.cidade);
       console.log('  - Margem adicional:', margemAdicional);
       
-      // Força recálculo se potenciaCalculada for muito baixa
-      if (potenciaCalculada < 1.0) {
-        console.warn('⚠️ Potência muito baixa, forçando recálculo...');
+      // Fallback se o cálculo falhar
+      if (!potenciaCalculada || potenciaCalculada < 1.0) {
+        console.warn('⚠️ Potência calculada inválida, tentando novamente...');
         potenciaCalculada = await calcularPotenciaSistema(consumoParaCalculo, formData.cidade, margemAdicional);
         console.log('🔍 Potência recalculada:', potenciaCalculada);
       }
