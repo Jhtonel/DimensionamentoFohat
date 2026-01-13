@@ -266,6 +266,7 @@ def init_db():
                 
                 # Migrações para tabela 'users'
                 add_column_if_not_exists('users', 'password_hash', 'TEXT')
+                add_column_if_not_exists('users', 'telefone', 'VARCHAR(50)')
                 
                 # Migrações para tabela 'propostas' - novas colunas
                 add_column_if_not_exists('propostas', 'updated_at', 'TIMESTAMP')
@@ -318,6 +319,7 @@ def init_db():
                         pass
                 
                 add_sqlite_column('users', 'password_hash', 'TEXT')
+                add_sqlite_column('users', 'telefone', 'VARCHAR(50)')
                 # Adicionar novas colunas da proposta
                 for col, typ in [
                     ('updated_at', 'TIMESTAMP'), ('nome_projeto', 'TEXT'), ('status', 'TEXT'),
