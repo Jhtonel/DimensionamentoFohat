@@ -624,7 +624,7 @@ def admin_list_users():
         db = SessionLocal()
         rows = db.query(UserDB).order_by(UserDB.created_at.desc()).all()
         db.close()
-        items = [{"uid": u.uid, "email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "created_at": str(u.created_at)} for u in rows]
+        items = [{"uid": u.uid, "email": u.email, "nome": u.nome, "role": u.role, "cargo": u.cargo, "telefone": u.telefone or "", "created_at": str(u.created_at)} for u in rows]
         return jsonify({"success": True, "items": items})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -640,6 +640,7 @@ def admin_create_user():
         nome = (data.get("nome") or "").strip() or None
         role = (data.get("role") or "vendedor").strip().lower()
         cargo = (data.get("cargo") or "").strip() or None
+        telefone = (data.get("telefone") or "").strip() or None
         if not email or not password:
             return jsonify({"success": False, "message": "Email e senha obrigatórios"}), 400
         if role not in ("admin", "gestor", "vendedor", "instalador"):
@@ -650,7 +651,7 @@ def admin_create_user():
             db.close()
             return jsonify({"success": False, "message": "Usuário já existe"}), 400
         uid = str(uuid.uuid4())
-        u = UserDB(uid=uid, email=email, nome=nome or email.split("@")[0], role=role, cargo=cargo, password_hash=_hash_password(password))
+        u = UserDB(uid=uid, email=email, nome=nome or email.split("@")[0], role=role, cargo=cargo, telefone=telefone, password_hash=_hash_password(password))
         db.add(u)
         db.commit()
         db.close()
@@ -673,6 +674,8 @@ def admin_update_user(uid):
             u.nome = (data.get("nome") or "").strip()
         if "cargo" in data:
             u.cargo = (data.get("cargo") or "").strip()
+        if "telefone" in data:
+            u.telefone = (data.get("telefone") or "").strip()
         if "role" in data:
             role = (data.get("role") or "").strip().lower()
             if role not in ("admin", "gestor", "vendedor", "instalador"):

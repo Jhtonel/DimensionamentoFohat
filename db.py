@@ -180,6 +180,7 @@ class UserDB(Base):
     nome = Column(String(255))
     role = Column(String(32))
     cargo = Column(String(255), nullable=True)
+    telefone = Column(String(50), nullable=True)
     password_hash = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, GripVertical, User, Shield, Briefcase, Wrench, Settings, X, Check, Users, FileText, Target, Lock, BarChart3, Download, UserPlus, UserMinus, Save } from "lucide-react";
+import { Trash2, GripVertical, User, Shield, Briefcase, Wrench, Settings, X, Check, Users, FileText, Target, Lock, BarChart3, Download, UserPlus, UserMinus, Save, Pencil, Phone } from "lucide-react";
 
 // Configuração visual das roles
 const ROLE_CONFIG = {
@@ -558,12 +558,13 @@ function PermissionsModal({ role, isOpen, onClose, permissions, onSave, usuarios
 // ============================================================================
 // Card de usuário com drag & drop
 // ============================================================================
-const UserCard = React.memo(({ user, onRemove, gestorNome, onFieldChange, editedData }) => {
+const UserCard = React.memo(({ user, onRemove, gestorNome, onFieldChange, editedData, onEdit }) => {
   const [isDragging, setIsDragging] = useState(false);
   
   // Usar dados editados ou originais
   const nome = editedData?.nome ?? user.nome ?? '';
   const cargo = editedData?.cargo ?? user.cargo ?? '';
+  const telefone = user.telefone || '';
   const hasChanges = editedData && (editedData.nome !== user.nome || editedData.cargo !== user.cargo);
 
   const handleDragStart = (e) => {
@@ -599,6 +600,13 @@ const UserCard = React.memo(({ user, onRemove, gestorNome, onFieldChange, edited
             onClick={(e) => e.stopPropagation()}
           />
           <button
+            onClick={(e) => { e.stopPropagation(); onEdit(user); }}
+            className="text-sky-500 hover:bg-sky-50 h-8 w-8 rounded flex items-center justify-center"
+            title="Editar"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); onRemove(user.id); }}
             className="text-red-500 hover:bg-red-50 h-8 w-8 rounded flex items-center justify-center"
             title="Excluir"
@@ -608,6 +616,14 @@ const UserCard = React.memo(({ user, onRemove, gestorNome, onFieldChange, edited
         </div>
         
         <div className="text-xs text-gray-500 truncate pl-6">{user.email}</div>
+        
+        {/* Mostrar telefone se existir */}
+        {telefone && (
+          <div className="text-xs text-gray-500 pl-6 flex items-center gap-1">
+            <Phone className="w-3 h-3" />
+            {telefone}
+          </div>
+        )}
         
         {/* Mostrar gestor responsável */}
         {gestorNome && (
@@ -634,7 +650,7 @@ const UserCard = React.memo(({ user, onRemove, gestorNome, onFieldChange, edited
 // ============================================================================
 // Coluna do Kanban
 // ============================================================================
-const KanbanColumn = ({ role, users, onRemoveUser, onDropUser, onOpenSettings, permissions, equipes, onFieldChange, editedUsers }) => {
+const KanbanColumn = ({ role, users, onRemoveUser, onDropUser, onOpenSettings, permissions, equipes, onFieldChange, editedUsers, onEditUser }) => {
   const config = ROLE_CONFIG[role];
   const Icon = config.icon;
   const [isDragOver, setIsDragOver] = useState(false);
@@ -731,6 +747,7 @@ const KanbanColumn = ({ role, users, onRemoveUser, onDropUser, onOpenSettings, p
               gestorNome={(role === 'vendedor' || role === 'instalador') ? gestorNome : null}
               onFieldChange={onFieldChange}
               editedData={editedUsers?.[user.id]}
+              onEdit={onEditUser}
             />
           );
         })}
@@ -770,7 +787,9 @@ export default function AdminUsuarios() {
   const [equipes, setEquipes] = useState({}); // { gestorEmail: [membroEmail1, membroEmail2, ...] }
   const [editedUsers, setEditedUsers] = useState({}); // { [userId]: { nome, cargo } }
   const [createModal, setCreateModal] = useState({ open: false });
-  const [newUser, setNewUser] = useState({ email: "", nome: "", cargo: "", role: "vendedor", password: "" });
+  const [newUser, setNewUser] = useState({ email: "", nome: "", cargo: "", telefone: "", role: "vendedor", password: "" });
+  const [editModal, setEditModal] = useState({ open: false, user: null });
+  const [editingUser, setEditingUser] = useState({ nome: "", email: "", cargo: "", telefone: "", role: "" });
   
   // Contar alterações pendentes
   const pendingChangesCount = Object.keys(editedUsers).filter(id => {
@@ -925,7 +944,7 @@ export default function AdminUsuarios() {
         uid: u.uid,
         nome: u.nome || (u.email ? String(u.email).split('@')[0] : 'Usuário'),
         email: u.email || '',
-        telefone: '',
+        telefone: u.telefone || '',
         role: u.role || 'vendedor',
         cargo: u.cargo || '',
         metadata: {}
@@ -1108,6 +1127,10 @@ export default function AdminUsuarios() {
                 <Input value={newUser.cargo} onChange={(e) => setNewUser(prev => ({ ...prev, cargo: e.target.value }))} placeholder="Cargo" />
               </div>
               <div className="space-y-1">
+                <Label>Telefone</Label>
+                <Input value={newUser.telefone} onChange={(e) => setNewUser(prev => ({ ...prev, telefone: e.target.value }))} placeholder="(11) 99999-9999" />
+              </div>
+              <div className="space-y-1">
                 <Label>Role</Label>
                 <select
                   value={newUser.role}
@@ -1141,6 +1164,7 @@ export default function AdminUsuarios() {
                           email: newUser.email,
                           nome: newUser.nome,
                           cargo: newUser.cargo,
+                          telefone: newUser.telefone,
                           role: newUser.role,
                           password: newUser.password
                         })
@@ -1163,6 +1187,92 @@ export default function AdminUsuarios() {
         </div>
       )}
 
+      {/* Modal editar usuário */}
+      {editModal.open && editModal.user && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && setEditModal({ open: false, user: null })}>
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl border">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div className="font-semibold text-gray-900">Editar usuário</div>
+              <button className="p-2 rounded hover:bg-gray-100" onClick={() => setEditModal({ open: false, user: null })} aria-label="Fechar">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <Label>E-mail</Label>
+                <Input value={editingUser.email} disabled className="bg-gray-100 text-gray-500" />
+              </div>
+              <div className="space-y-1">
+                <Label>Nome</Label>
+                <Input value={editingUser.nome} onChange={(e) => setEditingUser(prev => ({ ...prev, nome: e.target.value }))} placeholder="Nome" />
+              </div>
+              <div className="space-y-1">
+                <Label>Cargo</Label>
+                <Input value={editingUser.cargo} onChange={(e) => setEditingUser(prev => ({ ...prev, cargo: e.target.value }))} placeholder="Cargo" />
+              </div>
+              <div className="space-y-1">
+                <Label>Telefone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input 
+                    value={editingUser.telefone} 
+                    onChange={(e) => setEditingUser(prev => ({ ...prev, telefone: e.target.value }))} 
+                    placeholder="(11) 99999-9999"
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Role</Label>
+                <select
+                  value={editingUser.role}
+                  onChange={(e) => setEditingUser(prev => ({ ...prev, role: e.target.value }))}
+                  className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="gestor">Gestor</option>
+                  <option value="vendedor">Vendedor</option>
+                  <option value="instalador">Instalador</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditModal({ open: false, user: null })}>Cancelar</Button>
+                <Button
+                  type="button"
+                  className="bg-sky-600 hover:bg-sky-700"
+                  onClick={async () => {
+                    try {
+                      const serverUrl = getServerUrl();
+                      const token = await getAuthToken();
+                      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+                      const resp = await fetch(`${serverUrl}/admin/users/${encodeURIComponent(editModal.user.uid || editModal.user.id)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders },
+                        body: JSON.stringify({
+                          nome: editingUser.nome,
+                          cargo: editingUser.cargo,
+                          telefone: editingUser.telefone,
+                          role: editingUser.role
+                        })
+                      });
+                      const json = await resp.json().catch(() => ({}));
+                      if (!resp.ok || !json?.success) throw new Error(json?.message || 'Falha ao atualizar usuário');
+                      setEditModal({ open: false, user: null });
+                      await load();
+                    } catch (e) {
+                      alert(e?.message || 'Erro ao atualizar usuário');
+                    }
+                  }}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {['admin', 'gestor', 'vendedor', 'instalador'].map(role => (
@@ -1177,6 +1287,16 @@ export default function AdminUsuarios() {
             equipes={equipes}
             onFieldChange={handleFieldChange}
             editedUsers={editedUsers}
+            onEditUser={(user) => {
+              setEditingUser({
+                nome: user.nome || '',
+                email: user.email || '',
+                cargo: user.cargo || '',
+                telefone: user.telefone || '',
+                role: user.role || 'vendedor'
+              });
+              setEditModal({ open: true, user });
+            }}
           />
         ))}
       </div>

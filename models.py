@@ -17,12 +17,20 @@ class User:
     role: str  # 'admin' ou 'comum'
     created_at: str
     updated_at: str
+    telefone: str = ""  # Telefone do usuário
+    cargo: str = ""  # Cargo do usuário
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'User':
+        # Suportar dados antigos sem os novos campos
+        data = data.copy()
+        if 'telefone' not in data:
+            data['telefone'] = ""
+        if 'cargo' not in data:
+            data['cargo'] = ""
         return cls(**data)
 
 @dataclass
