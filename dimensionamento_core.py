@@ -71,6 +71,58 @@ def _to_float(v: Any, d: float = 0.0) -> float:
     except Exception:
         return d
 
+
+def normalizar_dados_consumo(payload: Dict[str, Any]) -> Dict[str, float]:
+    """
+    Normaliza os dados de consumo para garantir consistência nos cálculos.
+    
+    REGRAS:
+    1. A tarifa da concessionária é SEMPRE a fonte de verdade (totalComImpostos)
+    2. Se veio consumo em R$, converte para kWh usando a tarifa atual
+    3. Se veio consumo em kWh, recalcula o valor em R$ usando a tarifa atual
+    4. NUNCA usa o valor em R$ informado diretamente (pode ser de conta antiga)
+    
+    Retorna:
+    - consumo_kwh: Consumo normalizado em kWh/mês
+    - consumo_reais: Consumo recalculado em R$/mês (usando tarifa atual)
+    - tarifa: Tarifa da concessionária (R$/kWh com impostos)
+    - conta_mensal: Valor correto da conta mensal (consumo_kwh × tarifa)
+    - conta_anual: Valor correto da conta anual (conta_mensal × 12)
+    """
+    consumo_reais_informado = _to_float(payload.get('consumo_mensal_reais', 0), 0.0)
+    consumo_kwh_informado = _to_float(payload.get('consumo_mensal_kwh', 0), 0.0)
+    tarifa = _to_float(payload.get('tarifa_energia', payload.get('tarifa_kwh', 0)), 0.0)
+    
+    # Validar tarifa (deve estar entre 0.30 e 2.00 R$/kWh para ser realista)
+    if tarifa <= 0 or tarifa > 3.0:
+        tarifa = 0.80  # Fallback para média SP
+    
+    # Prioridade para consumo em kWh (mais preciso)
+    if consumo_kwh_informado > 0:
+        consumo_kwh = consumo_kwh_informado
+    elif consumo_reais_informado > 0 and tarifa > 0:
+        # Converter R$ para kWh usando a tarifa atual
+        consumo_kwh = consumo_reais_informado / tarifa
+    else:
+        consumo_kwh = 0.0
+    
+    # SEMPRE recalcular o valor em R$ usando a tarifa atual
+    # Isso garante que usamos a tarifa correta da concessionária
+    consumo_reais_calculado = consumo_kwh * tarifa if (consumo_kwh > 0 and tarifa > 0) else 0.0
+    
+    # Conta mensal e anual (sempre calculados com tarifa atual)
+    conta_mensal = consumo_reais_calculado
+    conta_anual = conta_mensal * 12.0
+    
+    return {
+        'consumo_kwh': consumo_kwh,
+        'consumo_reais': consumo_reais_calculado,
+        'consumo_reais_informado': consumo_reais_informado,  # Valor original (para referência)
+        'tarifa': tarifa,
+        'conta_mensal': conta_mensal,
+        'conta_anual': conta_anual,
+    }
+
 # ------------------------
 # Decomposição da Tarifa (Lei 14.300/2022)
 # ------------------------
@@ -244,16 +296,19 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     - TUSD Fio B (não compensável - cresce até 2029)
     - Custos de manutenção (1% ao ano)
     - Degradação do sistema (0.75% ao ano)
+    
+    IMPORTANTE: Usa normalizar_dados_consumo() para garantir que:
+    - A tarifa da concessionária (totalComImpostos) é sempre usada
+    - Valores em R$ são recalculados com a tarifa atual
     """
-    consumo_reais = _to_float(payload.get('consumo_mensal_reais', 0), 0.0)
-    consumo_kwh = _to_float(payload.get('consumo_mensal_kwh', 0), 0.0)
-    tarifa = _to_float(payload.get('tarifa_energia', payload.get('tarifa_kwh', 0)), 0.0)
+    # Normalizar dados de entrada (garante consistência da tarifa)
+    dados = normalizar_dados_consumo(payload)
+    consumo_kwh = dados['consumo_kwh']
+    tarifa = dados['tarifa']
+    conta_atual_anual = dados['conta_anual']
+    
     preco_venda = _to_float(payload.get('preco_venda', payload.get('preco_final', 0)), 0.0)
     ano_referencia = int(payload.get('ano_instalacao', 2026))
-
-    # Converter kWh quando veio apenas R$
-    if consumo_kwh <= 0 and consumo_reais > 0 and tarifa > 0:
-        consumo_kwh = consumo_reais / tarifa
 
     # Calcular decomposição da tarifa conforme Lei 14.300
     decomposicao = calcular_decomposicao_tarifa(tarifa, consumo_kwh, ano_referencia)
@@ -262,8 +317,7 @@ def calcular_kpis(payload: Dict[str, Any]) -> Dict[str, float]:
     economia_mensal = decomposicao["economia_real"]
     custo_residual_mensal = decomposicao["custo_residual"]
     
-    # Conta atual anual (sem solar)
-    conta_atual_anual = (consumo_reais * 12.0) if consumo_reais > 0 else (consumo_kwh * tarifa * 12.0)
+    # conta_atual_anual já vem normalizada (consumo_kwh × tarifa × 12)
     conta_atual_anual = conta_atual_anual if isfinite(conta_atual_anual) else 0.0
 
     # Custo anual de manutenção (1% do investimento)
@@ -654,19 +708,17 @@ def calcular_dimensionamento(payload: Dict[str, Any]) -> Dict[str, Any]:
       - Tabelas 25 anos com degradação, custos e Lei 14.300
       - VPL (Valor Presente Líquido)
     Retorna {"metrics": {...}, "tabelas": {...}}.
+    
+    IMPORTANTE: Usa normalizar_dados_consumo() para garantir que:
+    - A tarifa da concessionária (totalComImpostos) é sempre usada
+    - Valores em R$ são recalculados com a tarifa atual
     """
     kpis = calcular_kpis(payload)
 
-    # Preparar dados para tabelas (se possível)
-    consumo_kwh = _to_float(payload.get('consumo_mensal_kwh', 0), 0.0)
-    if consumo_kwh <= 0:
-        # Derivar de R$ quando possível
-        consumo_reais = _to_float(payload.get('consumo_mensal_reais', 0), 0.0)
-        tarifa = _to_float(payload.get('tarifa_energia', 0), 0.0)
-        if consumo_reais > 0 and tarifa > 0:
-            consumo_kwh = consumo_reais / tarifa
-
-    tarifa_kwh = _to_float(payload.get('tarifa_energia', 0), 0.0)
+    # Normalizar dados de entrada (garante consistência da tarifa)
+    dados = normalizar_dados_consumo(payload)
+    consumo_kwh = dados['consumo_kwh']
+    tarifa_kwh = dados['tarifa']
     potencia_kwp = _to_float(payload.get('potencia_sistema', payload.get('potencia_kwp', 0)), 0.0)
     irr_vec = payload.get('irradiancia_mensal_kwh_m2_dia')
     if not (isinstance(irr_vec, list) and len(irr_vec) == 12):

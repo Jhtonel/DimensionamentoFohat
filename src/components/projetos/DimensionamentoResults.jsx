@@ -403,8 +403,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         margem_adicional_reais: formData?.margem_adicional_reais,
         // Potência (para persistir o valor calculado)
         potencia_kw: formData?.potencia_kw || dadosSeguros.potencia_sistema_kwp,
-        // Consumo mensal em R$ (para persistir)
-        consumo_mensal_reais: formData?.consumo_mensal_reais
+        // Consumo mensal em R$ (recalculado com tarifa atual para consistência)
+        consumo_mensal_reais: (consumoKwhParaEnvio > 0 && tarifaParaEnvio > 0) 
+          ? consumoKwhParaEnvio * tarifaParaEnvio 
+          : formData?.consumo_mensal_reais
       };
 
       // Extrair equipamentos do kit (marca/modelo/tipo) para proposta
@@ -441,10 +443,14 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // 1) Geração dos gráficos antes de salvar (analise financeira)
       try {
-        // Derivar consumo em R$ se necessário (kWh × tarifa)
-        let consumoReaisParaEnvio = Number(formData?.consumo_mensal_reais) || 0;
-        if ((!consumoReaisParaEnvio || consumoReaisParaEnvio <= 0) && (consumoKwhParaEnvio > 0) && (tarifaParaEnvio > 0)) {
+        // SEMPRE recalcular consumo em R$ usando a tarifa atual da concessionária
+        // O valor informado pelo usuário pode ser de uma conta antiga com tarifa diferente
+        let consumoReaisParaEnvio = 0;
+        if (consumoKwhParaEnvio > 0 && tarifaParaEnvio > 0) {
           consumoReaisParaEnvio = consumoKwhParaEnvio * tarifaParaEnvio;
+        } else {
+          // Fallback: usar valor informado apenas se não tiver kWh
+          consumoReaisParaEnvio = Number(formData?.consumo_mensal_reais) || 0;
         }
 
         const graficosPayload = {

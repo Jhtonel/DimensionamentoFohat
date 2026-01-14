@@ -274,10 +274,20 @@ export default function NovoProjeto() {
         const comissaoVendedor = Number(formData?.comissao_vendedor || 5);
         // Preço de venda deve refletir exatamente o mostrado na aba de custos
         const precoVenda = calcularPrecoVenda(custoOp.total, comissaoVendedor) || 0;
+        
+        // SEMPRE recalcular consumo em R$ usando a tarifa atual da concessionária
+        // O valor informado pelo usuário pode ser de uma conta antiga com tarifa diferente
+        let consumoReaisCalculado = 0;
+        if (consumoKwhParaEnvio > 0 && tarifaParaEnvio > 0) {
+          consumoReaisCalculado = consumoKwhParaEnvio * tarifaParaEnvio;
+        } else {
+          consumoReaisCalculado = Number(formData?.consumo_mensal_reais) || 0;
+        }
+        
         // Preparar payload
         const payload = {
           consumo_mensal_kwh: consumoKwhParaEnvio || undefined,
-          consumo_mensal_reais: Number(formData?.consumo_mensal_reais) || undefined,
+          consumo_mensal_reais: consumoReaisCalculado || undefined,
           tarifa_energia: tarifaParaEnvio || 0,
           potencia_sistema: potenciaKwp,
           preco_venda: precoVenda,
@@ -327,7 +337,7 @@ export default function NovoProjeto() {
         try {
           const nucleo = await propostaService.calcularNucleo({
             consumo_mensal_kwh: consumoKwhParaEnvio || undefined,
-            consumo_mensal_reais: Number(formData?.consumo_mensal_reais) || undefined,
+            consumo_mensal_reais: consumoReaisCalculado || undefined,
             tarifa_energia: tarifaParaEnvio || 0,
             potencia_sistema: potenciaKwp,
             preco_venda: precoVenda,
