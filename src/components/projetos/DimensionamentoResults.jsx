@@ -643,7 +643,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
               <Button onClick={gerarPDF} disabled={isGeneratingPDF} className="bg-green-600 hover:bg-green-700 text-white">
                 {isGeneratingPDF ? 'Gerando PDF...' : 'Download PDF'}
               </Button>
-              <Button onClick={() => window.location.href = '/dashboard'} className="bg-slate-600 hover:bg-slate-700 text-white">
+              <Button onClick={() => window.location.href = '/'} className="bg-slate-600 hover:bg-slate-700 text-white">
                 Salvar e Sair
               </Button>
               <div className="relative" ref={shareMenuRef}>
