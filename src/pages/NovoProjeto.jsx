@@ -1410,10 +1410,14 @@ export default function NovoProjeto() {
       }
 
       // Busca kits para cada potência de painel E cada tipo de inversor
-      const todasPotencias = Array.isArray(filtros.potenciasPaineis) ? filtros.potenciasPaineis : [];
+      // FILTRO: apenas painéis com potência >= 585W
+      const POTENCIA_MINIMA_PAINEL_W = 585;
+      const todasPotenciasRaw = Array.isArray(filtros.potenciasPaineis) ? filtros.potenciasPaineis : [];
+      const todasPotencias = todasPotenciasRaw.filter(p => parseFloat(p.potencia) >= POTENCIA_MINIMA_PAINEL_W);
       const tiposInversor = [0, 1, 2]; // Tipos de inversor: 0, 1, 2
       
-      console.log('⚡ Potências de painéis encontradas:', todasPotencias);
+      console.log('⚡ Potências de painéis (raw):', todasPotenciasRaw.map(p => p.potencia));
+      console.log('⚡ Potências de painéis filtradas (>= 585W):', todasPotencias.map(p => p.potencia));
       console.log('🔌 Tipos de inversor a buscar:', tiposInversor);
       
       // Se não há potências específicas, faz uma busca geral para cada tipo de inversor
@@ -1529,12 +1533,22 @@ export default function NovoProjeto() {
       // Processa todos os kits encontrados
       const kitsDisponiveis = [];
       
+      // FILTRO: potência mínima do painel = 585W
+      const POTENCIA_MINIMA_PAINEL_W = 585;
+      
       if (todosOsKits.length > 0) {
         console.log('🔧 Processando todos os kits encontrados...');
         setProgressMonotonic(85, 'Processando kits encontrados...');
         
         // Processa cada kit como uma opção completa
         todosOsKits.forEach((kit, index) => {
+          // Verificar se o kit possui painel com potência >= 585W
+          const painelDoKit = (kit.composicao || []).find(c => c.agrupamento === 'Painel');
+          const potenciaPainelW = parseFloat(painelDoKit?.potencia || 0);
+          if (potenciaPainelW > 0 && potenciaPainelW < POTENCIA_MINIMA_PAINEL_W) {
+            console.log(`⚠️ Kit ${index} ignorado: painel ${potenciaPainelW}W < ${POTENCIA_MINIMA_PAINEL_W}W mínimo`);
+            return; // Ignora este kit
+          }
           // Função para gerar o título do kit no novo formato
           const gerarTituloKit = (composicao) => {
             if (!composicao || !Array.isArray(composicao)) return `Kit Solar ${kit.potencia}kWp`;
@@ -3421,7 +3435,9 @@ export default function NovoProjeto() {
                                     </span>
                                   </span>
                                 </SelectItem>
-                                {filtrosDisponiveis.potenciasPaineis.map((potencia) => (
+                                {filtrosDisponiveis.potenciasPaineis
+                                  .filter((potencia) => parseFloat(potencia.potencia) >= 585)
+                                  .map((potencia) => (
                                   <SelectItem key={potencia.potencia} value={potencia.potencia.toString()}>
                                     <span className="flex items-center justify-between w-full gap-2">
                                       <span>{potencia.potencia}W</span>
