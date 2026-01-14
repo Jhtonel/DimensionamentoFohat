@@ -6440,10 +6440,30 @@ def get_projeto(projeto_id):
             if not data.get("cliente_nome") and cliente_data.get("nome"):
                 data["cliente_nome"] = cliente_data["nome"]
 
+        # Fallback de dados do vendedor (garantir que sempre vêm do payload se existirem)
+        # Esses campos são salvos quando a proposta é gerada e não devem ser recalculados
+        if not data.get("vendedor_nome"):
+            payload_vendedor = (row.payload or {}).get("vendedor_nome")
+            if payload_vendedor:
+                data["vendedor_nome"] = payload_vendedor
+        if not data.get("vendedor_cargo"):
+            payload_cargo = (row.payload or {}).get("vendedor_cargo")
+            if payload_cargo:
+                data["vendedor_cargo"] = payload_cargo
+        if not data.get("vendedor_telefone"):
+            payload_tel = (row.payload or {}).get("vendedor_telefone")
+            if payload_tel:
+                data["vendedor_telefone"] = payload_tel
+        if not data.get("vendedor_email"):
+            payload_email = (row.payload or {}).get("vendedor_email")
+            if payload_email:
+                data["vendedor_email"] = payload_email
+                
         # Retornar payload completo (mergeando id)
         result = {"id": row.id, **data}
         print(f"📋 [get_projeto] Retornando projeto {row.id} com campos: {list(result.keys())}")
         print(f"📋 [get_projeto] cliente_id={result.get('cliente_id')}, cep={result.get('cep')}, concessionaria={result.get('concessionaria')}")
+        print(f"📋 [get_projeto] vendedor_nome={result.get('vendedor_nome')}, vendedor_cargo={result.get('vendedor_cargo')}")
         return jsonify({
             "success": True,
             "projeto": result,

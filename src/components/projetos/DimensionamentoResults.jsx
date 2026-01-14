@@ -16,6 +16,17 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   
   // Buscar dados do vendedor responsável pelo cliente
   const getVendedorResponsavel = () => {
+    // 0. PRIORIDADE MÁXIMA: Se o formData já tem dados do vendedor salvos (projeto existente)
+    // Usar esses dados diretamente - eles foram salvos corretamente na criação
+    if (formData?.vendedor_nome && formData.vendedor_nome !== 'Representante Comercial') {
+      return {
+        nome: formData.vendedor_nome,
+        cargo: formData.vendedor_cargo || 'Consultor de Energia Solar',
+        email: formData.vendedor_email || '',
+        telefone: formData.vendedor_telefone || ''
+      };
+    }
+    
     // 1. Sem cliente vinculado? Usa o usuário logado (fallback imediato)
     if (!clienteInfo) {
       return {
