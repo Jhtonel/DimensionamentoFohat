@@ -6179,6 +6179,7 @@ def listar_projetos():
                     "status": data.get("status") or "dimensionamento",
                     "prioridade": data.get("prioridade") or "Normal",
                     "created_date": (r.created_at.isoformat() if r.created_at else None),
+                    "data_criacao": (r.created_at.isoformat() if r.created_at else None),
                     "url_proposta": f"/proposta/{r.id}",
                     "potencia_sistema": r.potencia_sistema or 0,
                     "potencia_sistema_kwp": r.potencia_sistema or 0,
@@ -6186,11 +6187,14 @@ def listar_projetos():
                     "anos_payback": r.anos_payback or 0,
                     "payback_meses": r.payback_meses or 0,
                     "consumo_mensal_kwh": r.consumo_mensal_kwh or 0,
+                    "consumo_medio": r.consumo_mensal_kwh or data.get("consumo_medio") or 0,
                     "tarifa_energia": r.tarifa_energia or 0,
                     "quantidade_placas": r.quantidade_placas or 0,
+                    "quantidade_modulos": r.quantidade_placas or data.get("quantidade_modulos") or 0,
                     "potencia_placa_w": r.potencia_placa_w or 0,
-                    "geracao_media_mensal": r.geracao_media_mensal or 0,
+                    "geracao_media_mensal": r.geracao_media_mensal or data.get("geracao_media_mensal") or 0,
                     "area_necessaria": r.area_necessaria or 0,
+                    "area_estimada": r.area_necessaria or data.get("area_estimada") or 0,
                     "irradiacao_media": r.irradiacao_media or 5.15,
                     "economia_total_25_anos": r.economia_total_25_anos or 0,
                     "tipo_telhado": data.get("tipo_telhado"),
@@ -6203,6 +6207,11 @@ def listar_projetos():
                     "created_by_email": r.created_by_email,
                     "user_id": r.created_by,
                     "vendedor_email": data.get("vendedor_email"),
+                    # Equipamentos - Detalhes
+                    "marca_modulo": r.modulo_marca or data.get("marca_modulo") or data.get("modulo_marca") or "",
+                    "modelo_modulo": r.modulo_modelo or data.get("modelo_modulo") or data.get("modulo_modelo") or "",
+                    "marca_inversor": r.inversor_marca or data.get("marca_inversor") or data.get("inversor_marca") or "",
+                    "modelo_inversor": r.inversor_modelo or data.get("modelo_inversor") or data.get("inversor_modelo") or "",
                 })
             return jsonify(projetos)
 
@@ -6229,6 +6238,7 @@ def listar_projetos():
                     "status": data.get("status") or "dimensionamento",
                     "prioridade": data.get("prioridade") or "Normal",
                     "created_date": data.get("data_criacao") or datetime.now().isoformat(),
+                    "data_criacao": data.get("data_criacao") or datetime.now().isoformat(),
                     "url_proposta": f"/proposta/{file.stem}",
                     # Dados técnicos
                     "potencia_sistema": data.get("potencia_sistema") or 0,
@@ -6237,11 +6247,14 @@ def listar_projetos():
                     "anos_payback": data.get("anos_payback") or 0,
                     "payback_meses": data.get("payback_meses") or 0,
                     "consumo_mensal_kwh": data.get("consumo_mensal_kwh") or 0,
+                    "consumo_medio": data.get("consumo_mensal_kwh") or data.get("consumo_medio") or 0,
                     "tarifa_energia": data.get("tarifa_energia") or 0,
                     "quantidade_placas": data.get("quantidade_placas") or 0,
+                    "quantidade_modulos": data.get("quantidade_placas") or data.get("quantidade_modulos") or 0,
                     "potencia_placa_w": data.get("potencia_placa_w") or 0,
                     "geracao_media_mensal": data.get("geracao_media_mensal") or 0,
                     "area_necessaria": data.get("area_necessaria") or 0,
+                    "area_estimada": data.get("area_necessaria") or data.get("area_estimada") or 0,
                     "irradiacao_media": data.get("irradiacao_media") or 5.15,
                     "economia_total_25_anos": data.get("economia_total_25_anos") or 0,
                     "tipo_telhado": data.get("tipo_telhado"),
@@ -6255,6 +6268,11 @@ def listar_projetos():
                     "created_by": data.get("created_by"),
                     "created_by_email": data.get("created_by_email"),
                     "vendedor_email": data.get("vendedor_email"),
+                    # Equipamentos - Detalhes
+                    "marca_modulo": data.get("marca_modulo") or data.get("modulo_marca") or "",
+                    "modelo_modulo": data.get("modelo_modulo") or data.get("modulo_modelo") or "",
+                    "marca_inversor": data.get("marca_inversor") or data.get("inversor_marca") or "",
+                    "modelo_inversor": data.get("modelo_inversor") or data.get("inversor_modelo") or "",
                 }
                 projetos.append(projeto)
             except Exception as e:
