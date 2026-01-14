@@ -376,6 +376,9 @@ export default function NovoProjeto() {
     const clienteIdFromUrl = urlParams.get('cliente_id');
     const cloneFromId = urlParams.get('clone_from');
     
+    // Limpar cache de concessionárias para garantir valores atualizados
+    Configuracao.clearConcessionariasCache();
+    
     const [clientesData, configsData, concessionariasData] = await Promise.all([
       Cliente.list(),
       Configuracao.list(),

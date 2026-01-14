@@ -496,6 +496,12 @@ class Configuracao extends BaseEntity {
     return getBackendUrl();
   }
 
+  // Limpa o cache de concessionárias (forçar busca atualizada do servidor)
+  static clearConcessionariasCache() {
+    this._concessionariasCache = null;
+    console.log('🔄 Cache de concessionárias limpo');
+  }
+
   static _getAuthHeaders() {
     try {
       const token = localStorage.getItem('app_jwt_token');
