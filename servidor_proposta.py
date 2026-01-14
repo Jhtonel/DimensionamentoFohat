@@ -4297,15 +4297,9 @@ def salvar_proposta():
         except Exception as e:
             print(f"⚠️ [salvar-proposta] Falha ao pré-calcular Slide 10 (formas de pagamento): {e}")
         
-        # Fallback robusto: se KPIs vierem vazios, calcular pelo núcleo único
-        try:
-            needs_kpis = (
-                float(proposta_data.get('anos_payback', 0) or 0) <= 0
-                or float(proposta_data.get('conta_atual_anual', 0) or 0) <= 0
-                or float(proposta_data.get('economia_mensal_estimada', 0) or 0) <= 0
-            )
-        except Exception:
-            needs_kpis = True
+        # SEMPRE recalcular KPIs para garantir que usamos a tarifa correta da concessionária
+        # Não confiar nos valores já salvos pois a tarifa pode ter mudado
+        needs_kpis = True  # Forçar recálculo sempre
         if needs_kpis:
             print("ℹ️ [salvar-proposta] KPIs ausentes -> calculando via núcleo (Lei 14.300).")
             # Buscar irradiância mensal do CSV pela cidade
@@ -4334,19 +4328,16 @@ def salvar_proposta():
                 core = calcular_dimensionamento(core_payload)
                 kpis = (core or {}).get("metrics") or {}
                 if isinstance(kpis, dict) and kpis:
-                    if float(proposta_data.get('economia_mensal_estimada', 0) or 0) <= 0:
-                        proposta_data['economia_mensal_estimada'] = float(kpis.get('economia_mensal_estimada', 0) or 0)
-                    if float(proposta_data.get('conta_atual_anual', 0) or 0) <= 0:
-                        proposta_data['conta_atual_anual'] = float(kpis.get('conta_atual_anual', 0) or 0)
-                    if float(proposta_data.get('anos_payback', 0) or 0) <= 0:
-                        proposta_data['anos_payback'] = float(kpis.get('anos_payback', 0) or 0)
-                        proposta_data['payback_anos'] = proposta_data['anos_payback']
-                    if float(proposta_data.get('payback_meses', 0) or 0) <= 0:
-                        proposta_data['payback_meses'] = int(kpis.get('payback_meses', 0) or 0)
-                    if float(proposta_data.get('gasto_acumulado_payback', 0) or 0) <= 0:
-                        proposta_data['gasto_acumulado_payback'] = float(kpis.get('gasto_acumulado_payback', 0) or 0)
+                    # SEMPRE sobrescrever com valores recalculados para garantir tarifa correta
+                    proposta_data['economia_mensal_estimada'] = float(kpis.get('economia_mensal_estimada', 0) or 0)
+                    proposta_data['conta_atual_anual'] = float(kpis.get('conta_atual_anual', 0) or 0)
+                    proposta_data['anos_payback'] = float(kpis.get('anos_payback', 0) or 0)
+                    proposta_data['payback_anos'] = proposta_data['anos_payback']
+                    proposta_data['payback_meses'] = int(kpis.get('payback_meses', 0) or 0)
+                    proposta_data['gasto_acumulado_payback'] = float(kpis.get('gasto_acumulado_payback', 0) or 0)
                     # guardar métricas
                     proposta_data['metrics'] = kpis
+                    print(f"✅ [salvar-proposta] KPIs recalculados: conta_atual_anual={proposta_data['conta_atual_anual']}, economia_mensal={proposta_data['economia_mensal_estimada']}")
             except Exception as _e:
                 print(f"⚠️ [salvar-proposta] Falha ao calcular KPIs no núcleo: {_e}")
         
