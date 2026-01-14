@@ -222,9 +222,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       economia_mensal_estimada: economiaMensalEstCalc || projecoes.economia_mensal_estimada || 0,
       payback_meses: projecoes.payback_meses || 0,
       economia_total_25_anos: projecoes.economia_total_25_anos || 0,
-      consumo_mensal_kwh: formData?.consumo_mensal_kwh || 0,
-      irradiacao_media: formData?.irradiancia_media || 5.15, // Fallback para irradiância
-      geracao_media_mensal: projecoes.geracao_media_mensal || 0,
+      consumo_mensal_kwh: formData?.consumo_mensal_kwh || consumoMensalKwhBase || 0,
+      irradiacao_media: formData?.irradiancia_media || formData?.irradiacao_media || 5.15,
+      geracao_media_mensal: prodMensalEst || projecoes.geracao_media_mensal || 0,
       creditos_anuais: projecoes.creditos_anuais || 0,
       area_necessaria: Math.round((quantidade_placas || 0) * 2.5) || kit.area || 0, // Usar área do kit se disponível
       custo_total_projeto: projecoes.custo_total_projeto || kit.precoTotal || 0,
