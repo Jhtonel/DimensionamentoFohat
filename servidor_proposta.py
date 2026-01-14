@@ -734,19 +734,51 @@ def _load_concessionarias() -> dict:
 
 def _get_tarifa_by_concessionaria(nome_concessionaria: str) -> float:
     """Busca a tarifa de uma concessionária pelo nome."""
+    if not nome_concessionaria:
+        return 0
+        
     concessionarias = _load_concessionarias()
     nome_lower = nome_concessionaria.lower().strip()
     
-    # Busca por slug exato
+    # Gerar slug normalizado
     slug = ''.join(ch.lower() if ch.isalnum() else '_' for ch in nome_lower).strip('_')
-    if slug in concessionarias:
-        return concessionarias[slug].get("tarifa_kwh", 0)
+    # Remover underscores duplos
+    while '__' in slug:
+        slug = slug.replace('__', '_')
     
-    # Busca por nome
+    print(f"🔍 [_get_tarifa_by_concessionaria] Buscando: '{nome_concessionaria}' -> slug: '{slug}'")
+    
+    # Busca por slug exato
+    if slug in concessionarias:
+        tarifa = concessionarias[slug].get("tarifa_kwh", 0)
+        print(f"✅ [_get_tarifa_by_concessionaria] Encontrado por slug exato: R$ {tarifa}")
+        return tarifa
+    
+    # Busca por nome exato
     for key, data in concessionarias.items():
         if data.get("nome", "").lower() == nome_lower:
-            return data.get("tarifa_kwh", 0)
+            tarifa = data.get("tarifa_kwh", 0)
+            print(f"✅ [_get_tarifa_by_concessionaria] Encontrado por nome exato '{key}': R$ {tarifa}")
+            return tarifa
     
+    # Busca por substring (fallback)
+    for key, data in concessionarias.items():
+        nome_data = data.get("nome", "").lower()
+        if nome_lower in nome_data or nome_data in nome_lower:
+            tarifa = data.get("tarifa_kwh", 0)
+            print(f"✅ [_get_tarifa_by_concessionaria] Encontrado por substring '{key}': R$ {tarifa}")
+            return tarifa
+    
+    # Busca por palavras-chave
+    palavras = nome_lower.replace('_', ' ').split()
+    for key, data in concessionarias.items():
+        nome_data = data.get("nome", "").lower()
+        if all(p in nome_data for p in palavras if len(p) > 2):
+            tarifa = data.get("tarifa_kwh", 0)
+            print(f"✅ [_get_tarifa_by_concessionaria] Encontrado por palavras '{key}': R$ {tarifa}")
+            return tarifa
+    
+    print(f"⚠️ [_get_tarifa_by_concessionaria] Não encontrado: '{nome_concessionaria}'")
     return 0
 
 def _calcular_disponibilidade(te_rskwh: float, tusd_rskwh: float, tipo: str) -> float:
@@ -4301,7 +4333,35 @@ def salvar_proposta():
         # Não confiar nos valores já salvos pois a tarifa pode ter mudado
         needs_kpis = True  # Forçar recálculo sempre
         if needs_kpis:
-            print("ℹ️ [salvar-proposta] KPIs ausentes -> calculando via núcleo (Lei 14.300).")
+            print("ℹ️ [salvar-proposta] Recalculando KPIs com tarifa atualizada...")
+            
+            # FORÇAR busca da tarifa atualizada do arquivo de concessionárias
+            concessionaria_nome = proposta_data.get('concessionaria', '')
+            tarifa_atualizada = parse_float(proposta_data.get('tarifa_energia', 0), 0)
+            
+            # Buscar tarifa do arquivo (fonte de verdade)
+            if concessionaria_nome:
+                try:
+                    tarifa_do_arquivo = _get_tarifa_by_concessionaria(concessionaria_nome)
+                    if tarifa_do_arquivo and tarifa_do_arquivo > 0:
+                        tarifa_atualizada = tarifa_do_arquivo
+                        print(f"✅ [salvar-proposta] Tarifa da concessionária '{concessionaria_nome}': R$ {tarifa_atualizada:.3f}/kWh")
+                except Exception as e:
+                    print(f"⚠️ [salvar-proposta] Erro ao buscar tarifa: {e}")
+            
+            # Garantir consumo em kWh
+            consumo_kwh = parse_float(proposta_data.get('consumo_mensal_kwh', 0), 0)
+            consumo_reais_informado = parse_float(data.get('consumo_mensal_reais', 0), 0)
+            
+            # Se não tem kWh, converter de R$
+            if consumo_kwh <= 0 and consumo_reais_informado > 0 and tarifa_atualizada > 0:
+                consumo_kwh = consumo_reais_informado / tarifa_atualizada
+            
+            # Recalcular consumo em R$ com tarifa atualizada (SEMPRE)
+            consumo_reais_correto = consumo_kwh * tarifa_atualizada if (consumo_kwh > 0 and tarifa_atualizada > 0) else 0
+            
+            print(f"📊 [salvar-proposta] Consumo: {consumo_kwh:.1f} kWh × R$ {tarifa_atualizada:.3f} = R$ {consumo_reais_correto:.2f}/mês")
+            
             # Buscar irradiância mensal do CSV pela cidade
             _irr_media_kpis = parse_float(proposta_data.get('irradiacao_media', 5.15), 5.15)
             _irr_custom_kpis = proposta_data.get('irradiancia_mensal_kwh_m2_dia')
@@ -4315,9 +4375,9 @@ def salvar_proposta():
                     _irr_vec_kpis = [_irr_media_kpis] * 12
             
             core_payload = {
-                "consumo_mensal_reais": data.get('consumo_mensal_reais', 0),
-                "consumo_mensal_kwh": proposta_data.get('consumo_mensal_kwh', 0),
-                "tarifa_energia": proposta_data.get('tarifa_energia', 0),
+                "consumo_mensal_reais": consumo_reais_correto,  # Usar valor recalculado
+                "consumo_mensal_kwh": consumo_kwh,
+                "tarifa_energia": tarifa_atualizada,  # Usar tarifa do arquivo
                 "potencia_sistema": proposta_data.get('potencia_sistema', 0),
                 "preco_venda": proposta_data.get('preco_venda', proposta_data.get('preco_final', 0)),
                 "irradiacao_media": _irr_media_kpis,
@@ -4335,11 +4395,24 @@ def salvar_proposta():
                     proposta_data['payback_anos'] = proposta_data['anos_payback']
                     proposta_data['payback_meses'] = int(kpis.get('payback_meses', 0) or 0)
                     proposta_data['gasto_acumulado_payback'] = float(kpis.get('gasto_acumulado_payback', 0) or 0)
+                    
+                    # Atualizar tarifa e consumo com valores corretos
+                    proposta_data['tarifa_energia'] = tarifa_atualizada
+                    proposta_data['consumo_mensal_kwh'] = consumo_kwh
+                    proposta_data['consumo_mensal_reais'] = consumo_reais_correto
+                    
                     # guardar métricas
                     proposta_data['metrics'] = kpis
-                    print(f"✅ [salvar-proposta] KPIs recalculados: conta_atual_anual={proposta_data['conta_atual_anual']}, economia_mensal={proposta_data['economia_mensal_estimada']}")
+                    print(f"✅ [salvar-proposta] KPIs recalculados:")
+                    print(f"   - tarifa_energia: R$ {tarifa_atualizada:.3f}/kWh")
+                    print(f"   - consumo_mensal_kwh: {consumo_kwh:.1f} kWh")
+                    print(f"   - consumo_mensal_reais: R$ {consumo_reais_correto:.2f}")
+                    print(f"   - conta_atual_anual: R$ {proposta_data['conta_atual_anual']:.2f}")
+                    print(f"   - economia_mensal_estimada: R$ {proposta_data['economia_mensal_estimada']:.2f}")
             except Exception as _e:
+                import traceback
                 print(f"⚠️ [salvar-proposta] Falha ao calcular KPIs no núcleo: {_e}")
+                traceback.print_exc()
         
         # Persistência:
         # - Em Postgres (USE_DB): DB é fonte de verdade (não gravar em arquivo local).
