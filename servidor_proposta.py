@@ -1813,10 +1813,25 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                 except Exception:
                     _irr_vec = [_irr_media] * 12
             
+            # FORÇAR busca da tarifa atualizada do arquivo de concessionárias para os gráficos
+            _tarifa_grafico = parse_float(proposta_data.get('tarifa_energia', 0), 0.0)
+            _concessionaria_nome = proposta_data.get('concessionaria', '')
+            if _concessionaria_nome:
+                try:
+                    _tarifa_do_arquivo = _get_tarifa_by_concessionaria(_concessionaria_nome)
+                    if _tarifa_do_arquivo and _tarifa_do_arquivo > 0:
+                        _tarifa_grafico = _tarifa_do_arquivo
+                        print(f"📊 [GRAFICOS] Usando tarifa atualizada da concessionária '{_concessionaria_nome}': R$ {_tarifa_grafico:.3f}/kWh")
+                except Exception as _e:
+                    print(f"⚠️ [GRAFICOS] Erro ao buscar tarifa: {_e}")
+            
+            # Recalcular consumo em R$ com tarifa atualizada
+            _consumo_reais_grafico = _consumo_kwh * _tarifa_grafico if (_consumo_kwh > 0 and _tarifa_grafico > 0) else 0.0
+            
             core_payload = {
-                "consumo_mensal_reais": parse_float(proposta_data.get('consumo_mensal_reais', 0), 0.0),
+                "consumo_mensal_reais": _consumo_reais_grafico,  # Usar valor recalculado
                 "consumo_mensal_kwh": _consumo_kwh,
-                "tarifa_energia": parse_float(proposta_data.get('tarifa_energia', 0), 0.0),
+                "tarifa_energia": _tarifa_grafico,  # Usar tarifa do arquivo
                 "potencia_sistema": parse_float(proposta_data.get('potencia_sistema', proposta_data.get('potencia_kwp', 0)), 0.0),
                 "preco_venda": parse_float(
                     proposta_data.get('preco_venda',
