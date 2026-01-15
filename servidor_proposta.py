@@ -4637,6 +4637,51 @@ def gerar_pdf_puppeteer(proposta_id):
         print(f"❌ Erro ao gerar PDF (Puppeteer): {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/proposta/<proposta_id>/ver-pdf', methods=['GET'])
+def ver_pdf_publico(proposta_id):
+    """
+    Visualiza o PDF da proposta diretamente no navegador (sem forçar download).
+    Rota pública - não requer autenticação.
+    Ideal para compartilhar link do PDF com clientes.
+    """
+    try:
+        print(f"📄 [ver_pdf_publico] Gerando PDF para visualização - proposta_id={proposta_id}")
+        cleanup_old_charts()
+
+        # Carregar dados da proposta (SEM autenticação - rota pública)
+        if USE_DB:
+            db = SessionLocal()
+            row = db.get(PropostaDB, proposta_id)
+            db.close()
+            if not row:
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            proposta_data = row.payload or {}
+        else:
+            proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
+            if not proposta_file.exists():
+                return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            with open(proposta_file, "r", encoding="utf-8") as f:
+                proposta_data = json.load(f)
+
+        # Usar template.html para PDF (não o template_online)
+        html = process_template_html(proposta_data, template_filename="template.html")
+        pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=60)
+
+        print(f"✅ [ver_pdf_publico] PDF gerado com sucesso ({len(pdf_bytes)} bytes)")
+
+        # Retornar PDF para visualização no navegador (as_attachment=False)
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=False,  # Abre no navegador em vez de baixar
+            max_age=0,
+        )
+    except Exception as e:
+        print(f"❌ Erro ao gerar PDF para visualização: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/gerar-pdf/<proposta_id>', methods=['GET'])
 def gerar_pdf(proposta_id):
     """

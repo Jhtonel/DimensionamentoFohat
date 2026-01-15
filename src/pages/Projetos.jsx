@@ -425,7 +425,7 @@ export default function Projetos() {
                             <ExternalLink className="w-4 h-4 mr-2" /> Ver Online
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')}>
+                        <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')}>
                           <FileSearch className="w-4 h-4 mr-2" /> Ver PDF
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => {
@@ -543,7 +543,7 @@ export default function Projetos() {
                               <ExternalLink className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Ver PDF">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')} title="Ver PDF">
                             <FileSearch className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => {

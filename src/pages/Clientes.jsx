@@ -548,7 +548,7 @@ export default function Clientes() {
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(projeto.url_proposta || `/proposta/${projeto.proposta_id || projeto.id}`, '_blank')} title="Ver Online">
                                         <ExternalLink className="w-3.5 h-3.5" />
                                       </Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Ver PDF">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')} title="Ver PDF">
                                         <FileSearch className="w-3.5 h-3.5" />
                                       </Button>
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => {
