@@ -24,6 +24,7 @@ import {
   MoreVertical,
   Eye,
   TrendingUp,
+  Terminal,
   Copy,
   Link2,
   DollarSign,

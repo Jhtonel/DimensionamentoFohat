@@ -24,6 +24,7 @@ import {
   Home,
   Sun,
   TrendingUp,
+  Terminal,
   Clock,
   MoreVertical,
   Download,
