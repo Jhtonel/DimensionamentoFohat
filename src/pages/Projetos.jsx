@@ -283,33 +283,68 @@ export default function Projetos() {
       });
       if (response.ok) {
         const result = await response.json();
-        const data = result.projeto || result; // O endpoint retorna { success, projeto: {...} }
+        const data = result.projeto || result;
+        
+        // Calcular valores derivados se não estiverem salvos
+        const custoEquip = data.custo_equipamentos || data.valor_kit || data.kit_preco || 0;
+        const custoTransp = data.custo_transporte || (custoEquip * 0.05) || 0;
+        const custoInst = data.custo_instalacao || 0;
+        const custoCA = data.custo_ca_aterramento || 0;
+        const custoHomol = data.custo_homologacao || 0;
+        const custoSinal = data.custo_sinalizacao || 0;
+        const custoDespGerais = data.custo_despesas_gerais || 0;
+        const custoOp = data.custo_operacional || data.custo_total || (custoEquip + custoTransp + custoInst + custoCA + custoHomol + custoSinal + custoDespGerais) || 0;
+        const precoVenda = data.preco_venda || data.preco_final || 0;
+        const comissao = data.comissao_vendedor || 5;
+        const valorComissao = data.valor_comissao || (precoVenda * comissao / 100) || 0;
+        const kitFotovoltaico = custoEquip;
+        const recebido = precoVenda - kitFotovoltaico - valorComissao;
+        const despesasObra = custoInst + custoCA + custoDespGerais;
+        const despesasDiretoria = data.despesas_diretoria || (precoVenda * 0.01) || 0;
+        const impostos = data.impostos || (precoVenda * 0.033) || 0;
+        const lldi = data.lldi || (recebido - despesasObra - despesasDiretoria - impostos) || 0;
+        
         setCustosData({
           nome_projeto: projeto.nome_projeto || data.nome_projeto,
           cliente_nome: projeto.cliente_nome || data.cliente_nome,
-          // Dados de equipamentos
-          custo_equipamentos: data.custo_equipamentos || data.valor_kit || 0,
-          custo_instalacao: data.custo_instalacao || 0,
-          custo_projeto: data.custo_projeto || 0,
-          custo_frete: data.custo_frete || 0,
-          custo_outros: data.custo_outros || 0,
-          custo_total: data.custo_total || data.custo_total_projeto || 0,
-          // Margem e preço
-          margem_lucro: data.margem_lucro || 0,
-          preco_venda: data.preco_venda || data.preco_final || 0,
-          lucro_bruto: data.lucro_bruto || 0,
           // Dados do sistema
-          potencia_kwp: data.potencia_sistema_kwp || data.potencia_kwp || 0,
-          quantidade_modulos: data.quantidade_modulos || 0,
-          marca_modulo: data.marca_modulo || '-',
-          modelo_modulo: data.modelo_modulo || '-',
-          marca_inversor: data.marca_inversor || '-',
-          modelo_inversor: data.modelo_inversor || '-',
-          // Financiamento
-          parcelas: data.parcelas || [],
-          entrada: data.entrada || 0,
+          potencia_kwp: data.potencia_sistema_kwp || data.potencia_kwp || data.potencia_kw || 0,
+          quantidade_modulos: data.quantidade_modulos || data.qtd_modulos || 0,
+          marca_modulo: data.marca_modulo || data.modulo_marca || '-',
+          modelo_modulo: data.modelo_modulo || data.modulo_modelo || '-',
+          potencia_modulo: data.potencia_modulo || 0,
+          marca_inversor: data.marca_inversor || data.inversor_marca || '-',
+          modelo_inversor: data.modelo_inversor || data.inversor_modelo || '-',
+          kit_nome: data.kit_nome || data.nome_kit || '',
+          // Composição de Custos (tabela detalhada)
+          custo_equipamentos: custoEquip,
+          custo_transporte: custoTransp,
+          custo_instalacao: custoInst,
+          custo_instalacao_por_placa: data.custo_instalacao_por_placa || 0,
+          custo_ca_aterramento: custoCA,
+          custo_homologacao: custoHomol,
+          custo_sinalizacao: custoSinal,
+          custo_despesas_gerais: custoDespGerais,
+          custo_operacional: custoOp,
+          // Configurações de venda
+          comissao_vendedor: comissao,
+          valor_comissao: valorComissao,
+          margem_lucro: data.margem_lucro || 0,
+          preco_venda: precoVenda,
+          // DRE
+          kit_fotovoltaico: kitFotovoltaico,
+          recebido: recebido,
+          despesas_obra: despesasObra,
+          despesas_diretoria: despesasDiretoria,
+          impostos: impostos,
+          lldi: lldi,
+          divisao_lucro: data.divisao_lucro || (lldi * 0.4) || 0,
+          fundo_caixa: data.fundo_caixa || (lldi * 0.2) || 0,
+          // Pagamento
           desconto_avista: data.desconto_avista || data.desconto_a_vista || 0,
           preco_avista: data.preco_avista || data.preco_a_vista || 0,
+          parcelas: data.parcelas || [],
+          entrada: data.entrada || 0,
           // Data
           created_date: data.created_date || data.created_at,
         });
@@ -705,7 +740,7 @@ export default function Projetos() {
       {/* Modal Custos (Somente Leitura) */}
       {showCustosModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCustosModal(false)}>
-          <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+          <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-lg">Custos da Proposta</h3>
@@ -715,76 +750,154 @@ export default function Projetos() {
             </div>
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
               {custosData && !custosData.error ? (
-                <div className="space-y-6">
+                <div className="space-y-5">
+                  
+                  {/* Kit Selecionado */}
+                  {custosData.kit_nome && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-blue-600">✓</span>
+                        <h4 className="font-semibold text-blue-800">Kit Selecionado</h4>
+                      </div>
+                      <p className="text-sm text-blue-700">{custosData.kit_nome}</p>
+                    </div>
+                  )}
+
                   {/* Resumo do Sistema */}
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Sun className="w-4 h-4" /> Sistema</h4>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><span className="text-slate-500">Potência:</span> <span className="font-medium">{custosData.potencia_kwp?.toFixed(2)} kWp</span></div>
-                      <div><span className="text-slate-500">Módulos:</span> <span className="font-medium">{custosData.quantidade_modulos || '-'}</span></div>
-                      <div><span className="text-slate-500">Módulo:</span> <span className="font-medium">{custosData.marca_modulo} {custosData.modelo_modulo}</span></div>
-                      <div><span className="text-slate-500">Inversor:</span> <span className="font-medium">{custosData.marca_inversor} {custosData.modelo_inversor}</span></div>
+                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Sun className="w-4 h-4" /> Sistema Fotovoltaico</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div><span className="text-slate-500">Potência:</span> <span className="font-semibold">{(custosData.potencia_kwp || 0).toFixed(2)} kWp</span></div>
+                      <div><span className="text-slate-500">Módulos:</span> <span className="font-semibold">{custosData.quantidade_modulos || '-'}</span></div>
+                      <div className="col-span-2"><span className="text-slate-500">Módulo:</span> <span className="font-semibold">{custosData.marca_modulo} {custosData.modelo_modulo} {custosData.potencia_modulo ? `(${custosData.potencia_modulo}W)` : ''}</span></div>
+                      <div className="col-span-2"><span className="text-slate-500">Inversor:</span> <span className="font-semibold">{custosData.marca_inversor} {custosData.modelo_inversor}</span></div>
                     </div>
                   </div>
 
-                  {/* Custos */}
+                  {/* Definição de Valores - Tabela Detalhada */}
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Composição de Custos</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between py-1 border-b border-slate-100">
+                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">💰 Definição de Valores</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
                         <span className="text-slate-600">Equipamentos</span>
-                        <span className="font-medium">{Number(custosData.custo_equipamentos || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_equipamentos || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
                       </div>
-                      {custosData.custo_instalacao > 0 && (
-                        <div className="flex justify-between py-1 border-b border-slate-100">
-                          <span className="text-slate-600">Instalação</span>
-                          <span className="font-medium">{Number(custosData.custo_instalacao).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                        </div>
-                      )}
-                      {custosData.custo_projeto > 0 && (
-                        <div className="flex justify-between py-1 border-b border-slate-100">
-                          <span className="text-slate-600">Projeto</span>
-                          <span className="font-medium">{Number(custosData.custo_projeto).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                        </div>
-                      )}
-                      {custosData.custo_frete > 0 && (
-                        <div className="flex justify-between py-1 border-b border-slate-100">
-                          <span className="text-slate-600">Frete</span>
-                          <span className="font-medium">{Number(custosData.custo_frete).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                        </div>
-                      )}
-                      {custosData.custo_outros > 0 && (
-                        <div className="flex justify-between py-1 border-b border-slate-100">
-                          <span className="text-slate-600">Outros</span>
-                          <span className="font-medium">{Number(custosData.custo_outros).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between py-2 font-semibold text-slate-800 bg-slate-100 px-2 rounded">
-                        <span>Custo Total</span>
-                        <span>{Number(custosData.custo_total || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Transporte (5%)</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_transporte || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Instalação</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_instalacao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">CA e Aterramento</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_ca_aterramento || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Homologação</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_homologacao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Placas Sinalização</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_sinalizacao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Despesas Gerais Instalação</span>
+                        <span className="font-medium text-right">{Number(custosData.custo_despesas_gerais || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 py-2 bg-green-50 px-2 rounded font-semibold text-green-700">
+                        <span>Custo Operacional</span>
+                        <span className="text-right">{Number(custosData.custo_operacional || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Preço e Margem */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 text-center">
-                      <p className="text-xs text-blue-600 uppercase font-semibold mb-1">Margem de Lucro</p>
-                      <p className="text-2xl font-bold text-blue-700">{(custosData.margem_lucro || 0).toFixed(1)}%</p>
+                  {/* Configurações de Venda */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-green-50 rounded-xl p-4 border border-green-200 text-center">
+                      <p className="text-xs text-green-600 uppercase font-semibold mb-1">Preço de Venda</p>
+                      <p className="text-xl font-bold text-green-700">{Number(custosData.preco_venda || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
                     </div>
-                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 text-center">
-                      <p className="text-xs text-emerald-600 uppercase font-semibold mb-1">Preço de Venda</p>
-                      <p className="text-2xl font-bold text-emerald-700">{Number(custosData.preco_venda || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 text-center">
+                      <p className="text-xs text-blue-600 uppercase font-semibold mb-1">Comissão ({custosData.comissao_vendedor || 0}%)</p>
+                      <p className="text-xl font-bold text-blue-700">{Number(custosData.valor_comissao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4 border border-purple-200 text-center">
+                      <p className="text-xs text-purple-600 uppercase font-semibold mb-1">Margem</p>
+                      <p className="text-xl font-bold text-purple-700">{(custosData.margem_lucro || 0).toFixed(1)}%</p>
+                    </div>
+                  </div>
+
+                  {/* DRE do Projeto */}
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">📊 Performance - DRE do Projeto</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200 font-semibold">
+                        <span>Descrição</span>
+                        <span className="text-right">Valor</span>
+                        <span className="text-right">%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Preço de Venda</span>
+                        <span className="font-semibold text-green-600 text-right">{Number(custosData.preco_venda || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right font-semibold">100,0%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Kit Fotovoltaico</span>
+                        <span className="text-right">{Number(custosData.kit_fotovoltaico || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.kit_fotovoltaico / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Comissão</span>
+                        <span className="text-right">{Number(custosData.valor_comissao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.comissao_vendedor || 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Recebido</span>
+                        <span className="text-right">{Number(custosData.recebido || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.recebido / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Despesas Obra</span>
+                        <span className="text-right">{Number(custosData.despesas_obra || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.despesas_obra / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Despesas Diretoria</span>
+                        <span className="text-right">{Number(custosData.despesas_diretoria || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.despesas_diretoria / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Impostos</span>
+                        <span className="text-right">{Number(custosData.impostos || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.impostos / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-2 bg-blue-50 px-2 rounded font-semibold text-blue-700">
+                        <span>LLDI</span>
+                        <span className="text-right">{Number(custosData.lldi || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">{custosData.preco_venda ? ((custosData.lldi / custosData.preco_venda) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-slate-200">
+                        <span className="text-slate-600">Divisão de Lucro</span>
+                        <span className="text-right">{Number(custosData.divisao_lucro || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">-</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 py-1.5">
+                        <span className="text-slate-600">Fundo Caixa</span>
+                        <span className="text-right">{Number(custosData.fundo_caixa || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        <span className="text-right">-</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Pagamento à Vista */}
                   {custosData.preco_avista > 0 && (
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                      <h4 className="font-semibold text-amber-700 mb-2">Pagamento à Vista (PIX)</h4>
+                      <h4 className="font-semibold text-amber-700 mb-2">💳 Pagamento à Vista (PIX/TED)</h4>
                       <div className="flex justify-between items-center">
                         <span className="text-amber-600">Desconto: {(custosData.desconto_avista || 0).toFixed(1)}%</span>
-                        <span className="text-xl font-bold text-amber-700">{Number(custosData.preco_avista).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</span>
+                        <span className="text-2xl font-bold text-amber-700">{Number(custosData.preco_avista).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</span>
                       </div>
                     </div>
                   )}
@@ -792,12 +905,12 @@ export default function Projetos() {
                   {/* Parcelas (se houver) */}
                   {Array.isArray(custosData.parcelas) && custosData.parcelas.length > 0 && (
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                      <h4 className="font-semibold text-slate-700 mb-3">Opções de Parcelamento</h4>
-                      <div className="space-y-2 text-sm">
+                      <h4 className="font-semibold text-slate-700 mb-3">💳 Opções de Parcelamento</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                         {custosData.parcelas.map((p, i) => (
-                          <div key={i} className="flex justify-between py-1 border-b border-slate-100">
-                            <span className="text-slate-600">{p.parcelas || p.qtd || '-'}x</span>
-                            <span className="font-medium">{Number(p.valor || p.valor_parcela || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                          <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 text-center">
+                            <span className="text-lg font-bold text-slate-700">{p.parcelas || p.qtd || '-'}x</span>
+                            <span className="block text-emerald-600 font-semibold">{Number(p.valor || p.valor_parcela || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
                           </div>
                         ))}
                       </div>
@@ -806,8 +919,8 @@ export default function Projetos() {
 
                   {/* Data de criação */}
                   {custosData.created_date && (
-                    <p className="text-xs text-slate-400 text-center">
-                      Proposta criada em: {new Date(custosData.created_date).toLocaleDateString('pt-BR')}
+                    <p className="text-xs text-slate-400 text-center pt-2 border-t border-slate-100">
+                      📅 Proposta criada em: {new Date(custosData.created_date).toLocaleDateString('pt-BR')} às {new Date(custosData.created_date).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}
                     </p>
                   )}
                 </div>
