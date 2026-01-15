@@ -2586,6 +2586,16 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             template_html = template_html.replace('{{valor_avista_cartao}}', 'R$ 0,00')
             template_html = template_html.replace('{{menor_parcela_financiamento}}', 'R$ 0,00')
         
+        # Injetar dados brutos para gráficos interativos
+        try:
+            # Serializar core_calc para JSON para ser usado no frontend
+            import json
+            proposal_json = json.dumps(core_calc, default=str)
+            template_html = template_html.replace('{{PROPOSAL_JSON}}', proposal_json)
+        except Exception as e:
+            print(f"⚠️ Erro ao injetar PROPOSAL_JSON: {e}")
+            template_html = template_html.replace('{{PROPOSAL_JSON}}', '{}')
+
         return template_html
         
     except Exception as e:
