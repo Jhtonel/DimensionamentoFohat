@@ -1559,41 +1559,41 @@
         
         <!-- Grid Superior: Opções de Prazo -->
         <div class="grid-2" style="flex:1; min-height:0;">
-          <!-- À Vista / Cartão -->
+        <!-- À Vista / Cartão -->
           <div class="card" style="padding: 16px; gap: 12px;">
             <h3 class="card-title" style="margin-bottom: 0;">Cartão de Crédito</h3>
-            
+          
             <div class="info-group" style="margin-bottom:8px; text-align:center; background:var(--success-bg); border-color:var(--success-border); overflow: hidden; padding: 12px;">
-              <span class="stat-label">À vista no cartão</span>
+            <span class="stat-label">À vista no cartão</span>
               <div style="font-size:26px; font-weight:800; color:var(--success-text); margin-top:4px; word-wrap: break-word; line-height: 1.2;">{{valor_avista_cartao}}</div>
-            </div>
-
-            <div style="overflow-y:auto; flex:1;">
-              <p style="font-size:13px; margin-bottom:8px; font-weight:600; color:var(--n-700);">Parcelamento (Cartão):</p>
-              <div class="payment-table-container">
-                {{parcelas_cartao}}
-              </div>
-            </div>
           </div>
 
-          <!-- Financiamento -->
+          <div style="overflow-y:auto; flex:1;">
+              <p style="font-size:13px; margin-bottom:8px; font-weight:600; color:var(--n-700);">Parcelamento (Cartão):</p>
+            <div class="payment-table-container">
+              {{parcelas_cartao}}
+            </div>
+          </div>
+        </div>
+
+        <!-- Financiamento -->
           <div class="card highlight" style="border:2px solid var(--brand-primary); padding: 16px; gap: 12px;">
             <h3 class="card-title" style="margin-bottom: 0;">Financiamento Solar</h3>
             <p style="font-size:13px; margin-bottom: 0;">Troque sua conta de luz pela parcela do financiamento.</p>
 
             <div class="info-group" style="margin:8px 0; text-align:center; background:var(--brand-primary); color:white; overflow: hidden; padding: 12px;">
-              <span class="stat-label" style="color:rgba(255,255,255,0.8);">Parcela Sugerida</span>
+            <span class="stat-label" style="color:rgba(255,255,255,0.8);">Parcela Sugerida</span>
               <div style="font-size:26px; font-weight:800; color:white; margin-top:4px; word-wrap: break-word; line-height: 1.2;">{{menor_parcela_financiamento}}</div>
-            </div>
-
-            <div style="overflow-y:auto; flex:1;">
-              <p style="font-size:13px; margin-bottom:8px; font-weight:600; color:var(--n-700);">Opções de Financiamento:</p>
-              <div class="payment-table-container">
-                {{parcelas_financiamento}}
-              </div>
-            </div>
-            <p style="font-size:11px; color:var(--n-600); margin-top:4px; text-align:center;">* Sujeito à análise de crédito.</p>
           </div>
+
+          <div style="overflow-y:auto; flex:1;">
+              <p style="font-size:13px; margin-bottom:8px; font-weight:600; color:var(--n-700);">Opções de Financiamento:</p>
+            <div class="payment-table-container">
+              {{parcelas_financiamento}}
+            </div>
+          </div>
+            <p style="font-size:11px; color:var(--n-600); margin-top:4px; text-align:center;">* Sujeito à análise de crédito.</p>
+        </div>
         </div>
 
         <!-- Card Inferior: À Vista com Desconto -->

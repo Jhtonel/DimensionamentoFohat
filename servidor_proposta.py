@@ -4404,12 +4404,12 @@ def salvar_proposta():
                 kpis = (core or {}).get("metrics") or {}
                 if isinstance(kpis, dict) and kpis:
                     # SEMPRE sobrescrever com valores recalculados para garantir tarifa correta
-                    proposta_data['economia_mensal_estimada'] = float(kpis.get('economia_mensal_estimada', 0) or 0)
-                    proposta_data['conta_atual_anual'] = float(kpis.get('conta_atual_anual', 0) or 0)
-                    proposta_data['anos_payback'] = float(kpis.get('anos_payback', 0) or 0)
-                    proposta_data['payback_anos'] = proposta_data['anos_payback']
-                    proposta_data['payback_meses'] = int(kpis.get('payback_meses', 0) or 0)
-                    proposta_data['gasto_acumulado_payback'] = float(kpis.get('gasto_acumulado_payback', 0) or 0)
+                        proposta_data['economia_mensal_estimada'] = float(kpis.get('economia_mensal_estimada', 0) or 0)
+                        proposta_data['conta_atual_anual'] = float(kpis.get('conta_atual_anual', 0) or 0)
+                        proposta_data['anos_payback'] = float(kpis.get('anos_payback', 0) or 0)
+                        proposta_data['payback_anos'] = proposta_data['anos_payback']
+                        proposta_data['payback_meses'] = int(kpis.get('payback_meses', 0) or 0)
+                        proposta_data['gasto_acumulado_payback'] = float(kpis.get('gasto_acumulado_payback', 0) or 0)
                     
                     # Atualizar tarifa e consumo com valores corretos
                     proposta_data['tarifa_energia'] = tarifa_atualizada
@@ -6537,7 +6537,7 @@ def get_projeto(projeto_id):
             payload_email = (row.payload or {}).get("vendedor_email")
             if payload_email:
                 data["vendedor_email"] = payload_email
-                
+
         # Retornar payload completo (mergeando id)
         result = {"id": row.id, **data}
         print(f"📋 [get_projeto] Retornando projeto {row.id} com campos: {list(result.keys())}")
