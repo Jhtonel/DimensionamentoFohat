@@ -4682,16 +4682,24 @@ def ver_pdf_publico(proposta_id):
             pdf_bytes = None
             cache_valid = False
             
-            if not force_regenerate and row.pdf_cache and row.pdf_payload_hash == current_hash:
-                # Cache válido! Usar PDF armazenado
-                try:
-                    pdf_bytes = base64.b64decode(row.pdf_cache)
-                    cache_valid = True
-                    elapsed = time.time() - start_time
-                    print(f"⚡ [ver_pdf_publico] PDF do cache ({len(pdf_bytes)} bytes) em {elapsed:.2f}s")
-                except Exception as e:
-                    print(f"⚠️ Erro ao decodificar cache, regenerando: {e}")
-                    cache_valid = False
+            # Tentar usar cache (pode falhar se colunas não existirem ainda)
+            try:
+                cached_pdf = getattr(row, 'pdf_cache', None)
+                cached_hash = getattr(row, 'pdf_payload_hash', None)
+                
+                if not force_regenerate and cached_pdf and cached_hash == current_hash:
+                    # Cache válido! Usar PDF armazenado
+                    try:
+                        pdf_bytes = base64.b64decode(cached_pdf)
+                        cache_valid = True
+                        elapsed = time.time() - start_time
+                        print(f"⚡ [ver_pdf_publico] PDF do cache ({len(pdf_bytes)} bytes) em {elapsed:.2f}s")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao decodificar cache, regenerando: {e}")
+                        cache_valid = False
+            except Exception as e:
+                print(f"⚠️ Cache não disponível (colunas podem não existir): {e}")
+                cache_valid = False
             
             if not cache_valid:
                 # Gerar novo PDF
@@ -4710,7 +4718,7 @@ def ver_pdf_publico(proposta_id):
                     print(f"✅ [ver_pdf_publico] PDF gerado e salvo no DB ({len(pdf_bytes)} bytes) em {elapsed:.2f}s")
                 except Exception as e:
                     db.rollback()
-                    print(f"⚠️ Erro ao salvar cache no DB: {e}")
+                    print(f"⚠️ Erro ao salvar cache no DB (colunas podem não existir): {e}")
             
             db.close()
         else:

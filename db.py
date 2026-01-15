@@ -305,6 +305,11 @@ def init_db():
                 add_column_if_not_exists('propostas', 'proposta_id', 'VARCHAR(64)')
                 add_column_if_not_exists('propostas', 'url_proposta', 'TEXT')
                 
+                # Cache do PDF
+                add_column_if_not_exists('propostas', 'pdf_cache', 'TEXT')
+                add_column_if_not_exists('propostas', 'pdf_cached_at', 'TIMESTAMP')
+                add_column_if_not_exists('propostas', 'pdf_payload_hash', 'VARCHAR(64)')
+                
                 # Criar índices se não existirem
                 try:
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_propostas_status ON propostas(status)"))
@@ -337,7 +342,8 @@ def init_db():
                     ('margem_adicional_reais', 'REAL'), ('modulo_marca', 'TEXT'), ('modulo_modelo', 'TEXT'),
                     ('inversor_marca', 'TEXT'), ('inversor_modelo', 'TEXT'), ('tipo_inversor', 'TEXT'),
                     ('vendedor_nome', 'TEXT'), ('vendedor_email', 'TEXT'), ('vendedor_telefone', 'TEXT'),
-                    ('vendedor_cargo', 'TEXT'), ('proposta_id', 'TEXT'), ('url_proposta', 'TEXT')
+                    ('vendedor_cargo', 'TEXT'), ('proposta_id', 'TEXT'), ('url_proposta', 'TEXT'),
+                    ('pdf_cache', 'TEXT'), ('pdf_cached_at', 'TIMESTAMP'), ('pdf_payload_hash', 'TEXT')
                 ]:
                     add_sqlite_column('propostas', col, typ)
     except Exception as e:
