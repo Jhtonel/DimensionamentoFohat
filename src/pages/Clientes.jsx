@@ -25,7 +25,8 @@ import {
   Eye,
   TrendingUp,
   Copy,
-  Link2
+  Link2,
+  DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -505,25 +506,50 @@ export default function Clientes() {
                                     {Number(projeto.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}
                                   </td>
                                   <td className="px-4 py-2 text-right">
-                                    <div className="flex justify-end gap-1">
+                                    <div className="flex justify-end items-center gap-0.5">
+                                      {/* Ícones principais */}
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Baixar PDF">
                                         <Download className="w-3.5 h-3.5" />
                                       </Button>
-                                      {projeto.proposta_id && (
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`/proposta/${projeto.proposta_id}`, '_blank')} title="Ver Proposta">
-                                          <Eye className="w-3.5 h-3.5" />
-                                        </Button>
-                                      )}
-                                      {projeto.url_proposta && (
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => { navigator.clipboard.writeText(projeto.url_proposta); }} title="Copiar Link">
-                                          <Link2 className="w-3.5 h-3.5" />
-                                        </Button>
-                                      )}
-                                      <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`}>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-green-600" title="Criar a partir desta">
-                                          <Copy className="w-3.5 h-3.5" />
-                                        </Button>
-                                      </Link>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(projeto.url_proposta || `/proposta/${projeto.proposta_id || projeto.id}`, '_blank')} title="Ver Proposta">
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => { 
+                                        const link = projeto.url_proposta || `${window.location.origin}/proposta/${projeto.proposta_id || projeto.id}`;
+                                        navigator.clipboard.writeText(link); 
+                                      }} title="Copiar Link">
+                                        <Link2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                      
+                                      {/* Dropdown com mais opções */}
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600">
+                                            <MoreVertical className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-48">
+                                          <DropdownMenuItem asChild>
+                                            <Link to={`${createPageUrl("NovoProjeto")}?edit=${projeto.id}&tab=custos`} className="w-full cursor-pointer">
+                                              <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
+                                            </Link>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem asChild>
+                                            <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
+                                              <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta
+                                            </Link>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={async () => {
+                                            if (confirm('Tem certeza que deseja excluir este projeto?')) {
+                                              await Projeto.delete(projeto.id);
+                                              setProjetos(projetos.filter(p => p.id !== projeto.id));
+                                            }
+                                          }}>
+                                            <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </div>
                                   </td>
                                 </tr>
