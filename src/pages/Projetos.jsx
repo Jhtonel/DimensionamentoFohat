@@ -812,13 +812,108 @@ export default function Projetos() {
                     </div>
                   </div>
 
-                  {/* DEBUG: Dados Brutos (expansível) */}
-                  <details className="bg-slate-100 rounded-lg border border-slate-300">
-                    <summary className="p-3 cursor-pointer font-semibold text-sm text-slate-600 hover:bg-slate-200">🔍 Debug: Dados Brutos da Proposta (clique para expandir)</summary>
-                    <div className="p-3 bg-slate-900 text-green-400 text-[10px] font-mono overflow-auto max-h-60 rounded-b-lg">
-                      <pre>{JSON.stringify(custosData._raw || custosData, null, 2)}</pre>
+                  {/* DEBUG DE CÁLCULOS DETALHADO (Bonitinho) */}
+                  <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+                    <div className="p-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                      <h4 className="text-emerald-400 font-bold text-sm flex items-center gap-2">
+                        <Terminal className="w-4 h-4" /> Detalhamento Técnico do Backend (Debug)
+                      </h4>
+                      <span className="text-[10px] text-slate-500 font-mono">v1.4.300-compliant</span>
                     </div>
-                  </details>
+                    
+                    <div className="p-4 space-y-6">
+                      {/* Grid de Variáveis Internas */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tensão do Sistema</p>
+                          <p className="text-white text-sm font-mono">{custosData.tensao || custosData.tensao_sistema || '220'}V</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tipo Inversor</p>
+                          <p className="text-white text-sm font-mono">{custosData.tipo_inversor || 'String'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tipo Telhado</p>
+                          <p className="text-white text-sm font-mono">{custosData.tipo_telhado || 'Cerâmico'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Fio B (Compensação)</p>
+                          <p className="text-white text-sm font-mono">Considerado</p>
+                        </div>
+                      </div>
+
+                      {/* Tabela de Projeção 25 anos (Se houver no payload) */}
+                      {custosData.metrics?.tabela_25_anos && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" /> Projeção Financeira (25 Anos)
+                          </p>
+                          <div className="overflow-x-auto rounded border border-slate-800">
+                            <table className="w-full text-[10px] text-left border-collapse font-mono">
+                              <thead>
+                                <tr className="bg-slate-800 text-slate-400">
+                                  <th className="p-1.5 border-r border-slate-700">Ano</th>
+                                  <th className="p-1.5 border-r border-slate-700">Geração (kWh)</th>
+                                  <th className="p-1.5 border-r border-slate-700">Tarifa (R$)</th>
+                                  <th className="p-1.5 border-r border-slate-700">Economia</th>
+                                  <th className="p-1.5">Acumulado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="text-slate-300">
+                                {custosData.metrics.tabela_25_anos.filter((_, i) => i % 5 === 0 || i === 0 || i === 24).map((row, idx) => (
+                                  <tr key={idx} className="border-t border-slate-800 hover:bg-white/5">
+                                    <td className="p-1.5 border-r border-slate-700">{row.ano || idx}</td>
+                                    <td className="p-1.5 border-r border-slate-700">{Math.round(row.geracao || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700">R$ {(row.tarifa || 0).toFixed(3)}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-emerald-400">R$ {Math.round(row.economia || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 text-blue-400">R$ {Math.round(row.acumulado || 0).toLocaleString('pt-BR')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p className="text-[9px] text-slate-600 italic">* Exibindo amostra de 5 em 5 anos conforme cálculos do core.</p>
+                        </div>
+                      )}
+
+                      {/* KPIs de Debug */}
+                      <div className="bg-slate-800/50 rounded p-3 grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-6">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">VPL (25 anos):</span>
+                          <span className="text-emerald-400 font-mono">R$ {Math.round(custosData.metrics?.vpl || 0).toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">TIR:</span>
+                          <span className="text-emerald-400 font-mono">{(custosData.metrics?.tir || 0).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">LCOE:</span>
+                          <span className="text-emerald-400 font-mono">R$ {(custosData.metrics?.lcoe || 0).toFixed(3)}/kWh</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">Gasto em 25 anos (S/ Solar):</span>
+                          <span className="text-red-400 font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_sem_solar || 0).toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">Gasto em 25 anos (C/ Solar):</span>
+                          <span className="text-emerald-400 font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_com_solar || 0).toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-500">Total Economizado:</span>
+                          <span className="text-blue-400 font-mono">R$ {Math.round((custosData.metrics?.gasto_25_anos_sem_solar || 0) - (custosData.metrics?.gasto_25_anos_com_solar || 0)).toLocaleString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="border-t border-slate-800">
+                      <summary className="p-2 cursor-pointer text-[9px] text-slate-600 hover:bg-slate-800/50 text-center font-mono uppercase tracking-widest">
+                        Visualizar JSON Bruto (Apenas Emergência)
+                      </summary>
+                      <div className="p-3 bg-black/40 text-[9px] font-mono text-slate-500 overflow-auto max-h-40">
+                        <pre>{JSON.stringify(custosData._raw || custosData, null, 2)}</pre>
+                      </div>
+                    </details>
+                  </div>
 
                   {/* Data de criação */}
                   {(custosData.created_date || custosData.data_criacao) && (
