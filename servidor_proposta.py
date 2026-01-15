@@ -4493,12 +4493,21 @@ def gerar_proposta_html(proposta_id):
     """
     Endpoint para gerar HTML da proposta.
     Agora usa a função centralizada process_template_html().
+    
+    Parâmetros opcionais via query string:
+    - for_pdf=true: Usa template.html (para geração de PDF)
+    - for_pdf=false ou não informado: Usa template_online.html (para visualização web)
     """
     try:
         start_ts = time.time()
         print(f"🔄 [gerar_proposta_html] Início - proposta_id={proposta_id}")
         # Limpar gráficos antigos
         cleanup_old_charts()
+        
+        # Determinar qual template usar
+        for_pdf = request.args.get('for_pdf', '').lower() == 'true'
+        template_filename = "template.html" if for_pdf else "template_online.html"
+        print(f"📄 [gerar_proposta_html] Usando template: {template_filename}")
         
         # Carregar dados da proposta
         if USE_DB:
@@ -4516,7 +4525,7 @@ def gerar_proposta_html(proposta_id):
                 proposta_data = json.load(f)
         
         # Processar template usando função centralizada
-        template_html = process_template_html(proposta_data)
+        template_html = process_template_html(proposta_data, template_filename=template_filename)
         dur_ms = int((time.time() - start_ts) * 1000)
         print(f"✅ [gerar_proposta_html] Concluído em {dur_ms} ms - proposta_id={proposta_id}")
         
@@ -4697,9 +4706,10 @@ def visualizar_proposta(proposta_id):
             with open(proposta_file, 'r', encoding='utf-8') as f:
                 proposta_data = json.load(f)
         
-        # Visualização/Preview sempre vem do process_template_html (ECharts + SVG).
+        # Visualização/Preview online usa template_online.html (pode ser editado sem afetar o PDF)
+        # O template de PDF (template.html) permanece inalterado
         try:
-            processed = process_template_html(proposta_data)
+            processed = process_template_html(proposta_data, template_filename="template_online.html")
             return processed, 200, {'Content-Type': 'text/html; charset=utf-8'}
         except Exception as e:
             print(f"❌ Falha no process_template_html em visualizar_proposta: {e}")

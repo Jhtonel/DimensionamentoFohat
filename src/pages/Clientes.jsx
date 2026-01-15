@@ -28,7 +28,9 @@ import {
   Copy,
   Link2,
   DollarSign,
-  Sun
+  Sun,
+  ExternalLink,
+  FileSearch
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -543,11 +545,21 @@ export default function Clientes() {
                                   <td className="px-4 py-2 text-right">
                                     <div className="flex justify-end items-center gap-0.5">
                                       {/* Ícones principais */}
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Baixar PDF">
-                                        <Download className="w-3.5 h-3.5" />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(projeto.url_proposta || `/proposta/${projeto.proposta_id || projeto.id}`, '_blank')} title="Ver Online">
+                                        <ExternalLink className="w-3.5 h-3.5" />
                                       </Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(projeto.url_proposta || `/proposta/${projeto.proposta_id || projeto.id}`, '_blank')} title="Ver Proposta">
-                                        <Eye className="w-3.5 h-3.5" />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Ver PDF">
+                                        <FileSearch className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
+                                        link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }} title="Baixar PDF">
+                                        <Download className="w-3.5 h-3.5" />
                                       </Button>
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => { 
                                         const link = projeto.url_proposta || `${window.location.origin}/proposta/${projeto.proposta_id || projeto.id}`;

@@ -28,7 +28,9 @@ import {
   Clock,
   MoreVertical,
   Download,
-  Edit
+  Edit,
+  ExternalLink,
+  FileSearch
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -420,10 +422,20 @@ export default function Projetos() {
                         </DropdownMenuItem>
                         {projeto.url_proposta && (
                           <DropdownMenuItem onClick={() => window.open(projeto.url_proposta, '_blank')}>
-                            <FileText className="w-4 h-4 mr-2" /> Abrir Proposta
+                            <ExternalLink className="w-4 h-4 mr-2" /> Ver Online
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')}>
+                          <FileSearch className="w-4 h-4 mr-2" /> Ver PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
+                          link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}>
                           <Download className="w-4 h-4 mr-2" /> Baixar PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -526,7 +538,22 @@ export default function Projetos() {
                               <Copy className="w-4 h-4" />
                             </Button>
                           </Link>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Baixar PDF">
+                          {projeto.url_proposta && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(projeto.url_proposta, '_blank')} title="Ver Online">
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/propostas/${projeto.id}/pdf`, '_blank')} title="Ver PDF">
+                            <FileSearch className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
+                            link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }} title="Baixar PDF">
                             <Download className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(projeto.id)}>
