@@ -10,14 +10,12 @@ RUN npm run build
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 
+# Instalar todas as dependências em um único RUN para evitar problemas de cache
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
     fonts-dejavu-core \
-  && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
     # Puppeteer/Chromium (PDF idêntico ao template)
     chromium \
     libnss3 \
@@ -30,7 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     libatk1.0-0 \
     libgtk-3-0 \
-  && rm -rf /var/lib/apt/lists/*
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxshmfence1 \
+  && rm -rf /var/lib/apt/lists/* \
+  && apt-get clean
 
 # Node.js (para rodar Puppeteer)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
