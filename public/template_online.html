@@ -10,18 +10,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 
-<!-- ECharts para gráficos interativos -->
+<!-- ECharts para TODOS os gráficos interativos -->
 <script src="/vendor/echarts.min.js"></script>
 
 <style>
   :root {
-    /* Cores Institucionais */
+    /* Cores Institucionais (Fieis ao PDF) */
     --primary: #005792;
     --primary-dark: #003d66;
-    --primary-light: #e0f2fe;
+    --primary-light: #F0F9FF;
     --accent: #10B981;
     --accent-dark: #059669;
-    
+
     /* Neutros */
     --bg-body: #F8FAFC;
     --bg-card: #FFFFFF;
@@ -30,19 +30,18 @@
     --border: #E2E8F0;
     
     /* Status */
-    --success: #10B981;
-    --warning: #F59E0B;
     --danger: #EF4444;
+    --danger-bg: #FEF2F2;
+    --success-bg: #F0FDF4;
 
-    /* Espaçamento */
-    --container-width: 1200px;
+    /* Layout */
+    --container-width: 1100px;
     --header-height: 70px;
-    --radius: 16px;
+    --radius: 12px;
   }
 
   /* --- Reset & Base --- */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  
   html { scroll-behavior: smooth; }
   
   body {
@@ -53,305 +52,168 @@
     overflow-x: hidden;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1, h2, h3, h4 {
     font-family: 'Poppins', sans-serif;
     color: var(--primary);
     line-height: 1.2;
   }
 
-  /* --- Layout --- */
-  .container {
-    max-width: var(--container-width);
-    margin: 0 auto;
-    padding: 0 20px;
-  }
-
-  section {
-    padding: 80px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* --- Header Fixo --- */
+  /* --- Navbar --- */
   .navbar {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
+    top: 0; left: 0; width: 100%;
     height: var(--header-height);
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
     z-index: 1000;
     display: flex;
     align-items: center;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
   }
-
   .navbar-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+    display: flex; justify-content: space-between; align-items: center; width: 100%;
   }
-
-  .logo img { height: 40px; }
-
-  .nav-links {
-    display: flex;
-    gap: 30px;
-  }
-
+  .logo img { height: 36px; }
+  
+  .nav-links { display: flex; gap: 24px; }
   .nav-link {
-    text-decoration: none;
-    color: var(--text-muted);
-    font-weight: 500;
-    font-size: 14px;
+    text-decoration: none; color: var(--text-muted); font-weight: 500; font-size: 14px;
     transition: color 0.2s;
-    cursor: pointer;
   }
-
-  .nav-link:hover, .nav-link.active {
-    color: var(--primary);
-  }
+  .nav-link:hover { color: var(--primary); }
 
   .btn-cta {
-    background: var(--accent);
-    color: white;
-    padding: 10px 24px;
-    border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
+    background: var(--accent); color: white; padding: 10px 20px;
+    border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 14px;
     transition: all 0.3s;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
   }
+  .btn-cta:hover { transform: translateY(-2px); background: var(--accent-dark); }
 
-  .btn-cta:hover {
-    background: var(--accent-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
-  }
-
-  /* --- Hero Section --- */
-  .hero {
-    min-height: 100vh;
-    background: radial-gradient(circle at top right, #005792 0%, #020617 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
-    padding-top: var(--header-height);
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    opacity: 0.3;
-  }
-
-  .hero-content {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: 1.2fr 0.8fr;
-    gap: 60px;
-    align-items: center;
-  }
-
-  .hero-text h1 {
-    font-size: 3.5rem;
-    color: white;
-    margin-bottom: 20px;
-    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  }
-
-  .hero-text p {
-    font-size: 1.25rem;
-    color: rgba(255,255,255,0.9);
-    margin-bottom: 40px;
-    max-width: 600px;
-  }
-
-  .hero-card {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: var(--radius);
-    padding: 30px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-  }
-
-  .hero-stat {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-  }
-  .hero-stat:last-child { border-bottom: none; }
-
-  /* --- Cards & Grids --- */
+  /* --- Layout Geral --- */
+  .container { max-width: var(--container-width); margin: 0 auto; padding: 0 20px; }
+  section { padding: 80px 0; border-bottom: 1px solid var(--border); }
+  
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
-  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-
+  
   .card {
     background: var(--bg-card);
     border-radius: var(--radius);
     padding: 30px;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     border: 1px solid var(--border);
-    transition: transform 0.3s, box-shadow 0.3s;
-  }
-
-  .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    height: 100%;
+    display: flex; flex-direction: column;
   }
 
   .card.highlight {
-    background: linear-gradient(145deg, #ffffff 0%, #f0f9ff 100%);
-    border-color: var(--primary-light);
+    background: linear-gradient(to bottom right, #ffffff, #f0f9ff);
+    border-color: #bae6fd;
   }
 
-  .card.dark {
-    background: var(--primary-dark);
-    color: white;
-    border: none;
-  }
-  .card.dark h3, .card.dark p { color: white; }
+  .section-header { text-align: center; margin-bottom: 50px; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .section-header h2 { font-size: 2.2rem; margin-bottom: 16px; }
+  .section-header p { color: var(--text-muted); font-size: 1.1rem; }
 
-  /* --- Tipografia & Elementos --- */
-  .section-title {
-    text-align: center;
-    margin-bottom: 60px;
-  }
-  
-  .section-title h2 {
-    font-size: 2.5rem;
-    margin-bottom: 15px;
-  }
-  
-  .section-title p {
-    font-size: 1.1rem;
-    color: var(--text-muted);
-    max-width: 700px;
-    margin: 0 auto;
-  }
-
-  .stat-big {
-    font-size: 3rem;
-    font-weight: 800;
-    color: var(--primary);
-    line-height: 1;
-  }
-
-  .stat-label {
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-muted);
-    font-weight: 600;
-  }
-
-  /* --- Charts --- */
-  .chart-wrapper {
+  /* --- Gráficos (Containers) --- */
+  .chart-box {
     width: 100%;
-    height: 400px;
+    min-height: 350px;
+    position: relative;
     background: white;
     border-radius: var(--radius);
-    padding: 20px;
-    border: 1px solid var(--border);
+    padding: 10px;
+  }
+  /* Importante: IDs devem bater com o script injetado pelo backend */
+  .echart { width: 100%; height: 100%; min-height: 350px; }
+
+  /* --- Hero Section (Capa) --- */
+  .hero {
+    min-height: 90vh;
+    background: radial-gradient(120% 100% at 50% 0%, #005792 0%, #020617 100%);
+    color: white;
+    padding-top: calc(var(--header-height) + 40px);
+    display: flex; align-items: center;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 50px 50px; opacity: 0.4;
   }
   
-  .echart { width: 100%; height: 100%; }
-
-  /* --- Tabelas --- */
-  .table-responsive {
-    overflow-x: auto;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 8px 16px; border-radius: 50px;
+    font-size: 0.9rem; font-weight: 600; color: #34D399;
+    margin-bottom: 24px; backdrop-filter: blur(4px);
   }
 
-  table { width: 100%; border-collapse: collapse; background: white; }
-  
-  th, td {
-    padding: 16px 24px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    background: rgba(255,255,255,0.05); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius);
+    padding: 30px; margin-top: 40px;
   }
-  
-  th {
-    background: var(--bg-body);
-    font-weight: 600;
-    color: var(--text-main);
-    font-size: 0.9rem;
-    text-transform: uppercase;
+  .hero-stat-item { text-align: center; }
+  .hero-stat-val { font-size: 1.8rem; font-weight: 700; color: white; display: block; }
+  .hero-stat-lbl { font-size: 0.85rem; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* --- Por que Fohat --- */
+  .feature-item { display: flex; gap: 20px; margin-bottom: 30px; }
+  .feature-icon {
+    width: 50px; height: 50px; background: var(--primary-light); color: var(--primary);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
 
-  tr:last-child td { border-bottom: none; }
+  /* --- Tabelas de Pagamento --- */
+  .payment-container { 
+    background: white; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  /* Estilização para o HTML injetado pelo Python nas tabelas */
+  .payment-table-container {
+    display: grid !important; grid-template-columns: 1fr 1fr !important;
+  }
+  .payment-table-container .parcela-item {
+    padding: 8px 12px !important; font-size: 13px !important; border-bottom: 1px solid var(--border);
+    display: flex !important; justify-content: space-between !important;
+  }
+  .payment-table-container .parcela-item:nth-child(4n-1), 
+  .payment-table-container .parcela-item:nth-child(4n) {
+    background-color: var(--bg-body) !important;
+  }
 
   /* --- Timeline --- */
-  .timeline {
-    position: relative;
-    max-width: 800px;
-    margin: 0 auto;
+  .timeline-h {
+    display: flex; justify-content: space-between; position: relative; margin-top: 40px;
   }
-
-  .timeline-item {
-    padding: 20px 30px;
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    margin-bottom: 20px;
-    position: relative;
-    margin-left: 50px;
+  .timeline-h::before {
+    content: ''; position: absolute; top: 20px; left: 0; right: 0; height: 3px;
+    background: var(--border); z-index: 0;
   }
-
-  .timeline-item::before {
-    content: '';
-    position: absolute;
-    left: -50px; top: 0; bottom: -20px;
-    width: 2px;
-    background: var(--border);
+  .t-item { position: relative; z-index: 1; text-align: center; flex: 1; padding: 0 10px; }
+  .t-dot {
+    width: 40px; height: 40px; background: white; border: 3px solid var(--primary);
+    border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: var(--primary);
   }
-  
-  .timeline-item::after {
-    content: '';
-    position: absolute;
-    left: -59px; top: 30px;
-    width: 20px; height: 20px;
-    border-radius: 50%;
-    background: var(--primary);
-    border: 4px solid white;
-    box-shadow: 0 0 0 2px var(--primary-light);
-  }
-
-  .timeline-item:last-child::before { display: none; }
-
-  /* --- Footer --- */
-  footer {
-    background: var(--text-main);
-    color: white;
-    padding: 60px 0 30px;
-    text-align: center;
-  }
+  .t-dot.final { background: var(--accent); border-color: var(--accent); color: white; }
 
   /* --- Responsividade --- */
   @media (max-width: 900px) {
-    .hero-content { grid-template-columns: 1fr; text-align: center; }
-    .hero-text { margin-bottom: 40px; }
-    .hero-text p { margin: 0 auto 30px; }
-    .hero-text h1 { font-size: 2.5rem; }
-    
-    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-    
-    .nav-links { display: none; } /* Simplificação para mobile */
-    .btn-cta { font-size: 14px; padding: 8px 16px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .hero-stats { grid-template-columns: 1fr 1fr; gap: 30px; }
+    .hero { text-align: center; }
+    .hero h1 { font-size: 2.5rem; }
+    .timeline-h { flex-direction: column; gap: 30px; }
+    .timeline-h::before { width: 3px; height: 100%; left: 20px; top: 0; }
+    .t-item { display: flex; text-align: left; align-items: center; gap: 20px; }
+    .t-dot { margin: 0; }
+    .nav-links { display: none; }
   }
 </style>
 </head>
@@ -360,379 +222,449 @@
   <!-- Header -->
   <nav class="navbar">
     <div class="container navbar-content">
-      <div class="logo">
-        <img src="/img/logo-bg-blue.svg" alt="Fohat Energia">
-      </div>
+      <a href="#" class="logo">
+        <img src="/img/logo-bg-blue.svg" alt="Fohat">
+      </a>
       <div class="nav-links">
-        <a href="#problema" class="nav-link">O Problema</a>
+        <a href="#problema" class="nav-link">Problema</a>
         <a href="#solucao" class="nav-link">Solução</a>
         <a href="#economia" class="nav-link">Economia</a>
-        <a href="#equipamentos" class="nav-link">Equipamentos</a>
         <a href="#investimento" class="nav-link">Investimento</a>
       </div>
       <a href="#investimento" class="btn-cta">Aceitar Proposta</a>
     </div>
   </nav>
 
-  <!-- Hero Section -->
+  <!-- CAPA (HERO) -->
   <section class="hero">
-    <div class="container hero-content">
-      <div class="hero-text">
-        <p style="color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px;">Proposta Personalizada</p>
-        <h1>Energia Solar para<br>{{cliente_nome_curto}}</h1>
-        <p>Transforme seu telhado em uma usina de energia limpa e economize até 95% na sua conta de luz imediatamente.</p>
-        
-        <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
-          <a href="#investimento" class="btn-cta" style="font-size: 1.1rem; padding: 15px 40px;">Ver Investimento</a>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-              <i data-lucide="check" color="#10B981"></i>
-            </div>
-            <span>Garantia de 25 Anos</span>
-          </div>
-        </div>
+    <div class="container">
+      <div style="max-width: 800px; margin: 0 auto; text-align: center;">
+        <div class="hero-badge">
+          <i data-lucide="sun" size="16"></i> PROPOSTA PERSONALIZADA
       </div>
+      
+        <h1 style="font-size: 3.5rem; margin-bottom: 20px; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          Energia Solar para<br>{{cliente_nome_curto}}
+        </h1>
+        
+        <p style="font-size: 1.25rem; opacity: 0.9; margin-bottom: 40px; font-weight: 300;">
+          {{cidade}} - {{estado}} | Data: {{data_proposta}}
+        </p>
 
-      <div class="hero-card">
-        <div class="hero-stat">
-          <span style="opacity: 0.8;">Potência do Sistema</span>
-          <strong style="font-size: 1.5rem;">{{potencia_sistema_kwp}} kWp</strong>
-        </div>
-        <div class="hero-stat">
-          <span style="opacity: 0.8;">Geração Mensal Est.</span>
-          <strong style="font-size: 1.5rem;">{{geracao_media_mensal}} kWh</strong>
-        </div>
-        <div class="hero-stat">
-          <span style="opacity: 0.8;">Economia Anual</span>
-          <strong style="font-size: 1.5rem; color: var(--accent);">{{economia_ano_1}}</strong>
-        </div>
-        <div class="hero-stat">
-          <span style="opacity: 0.8;">Economia 25 Anos</span>
-          <strong style="font-size: 1.5rem; color: var(--accent);">{{economia_total_25_anos}}</strong>
+        <!-- Destaques (Substituindo botão de investimento) -->
+        <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 40px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 10px 24px; border-radius: 50px;">
+            <i data-lucide="shield-check" color="#34D399"></i>
+            <span style="font-weight: 500;">Garantia de 25 Anos</span>
+                </div>
+          <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 10px 24px; border-radius: 50px;">
+            <i data-lucide="zap" color="#34D399"></i>
+            <span style="font-weight: 500;">Tecnologia Tier 1</span>
+                </div>
+              </div>
+
+        <!-- Resumo Rápido -->
+        <div class="hero-stats">
+          <div class="hero-stat-item">
+            <span class="hero-stat-val">{{potencia_sistema_kwp}} kWp</span>
+            <span class="hero-stat-lbl">Potência</span>
+                </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val">{{geracao_media_mensal}} kWh</span>
+            <span class="hero-stat-lbl">Geração/Mês</span>
+                </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val" style="color: var(--accent);">{{economia_ano_1}}</span>
+            <span class="hero-stat-lbl">Economia Anual</span>
+              </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val" style="color: var(--accent);">{{economia_total_25_anos}}</span>
+            <span class="hero-stat-lbl">Economia Total</span>
+                </div>
+                </div>
+              </div>
+            </div>
+  </section>
+
+  <!-- QUEM SOMOS (Resumo) -->
+  <section id="sobre">
+    <div class="container">
+      <div class="grid-2">
+        <div>
+          <span style="color: var(--primary); font-weight: 700; text-transform: uppercase;">Parceiro de Confiança</span>
+          <h2 style="margin: 10px 0 30px;">Por que a Fohat Energia?</h2>
+          
+          <div class="feature-item">
+            <div class="feature-icon"><i data-lucide="hard-hat"></i></div>
+            <div>
+              <h4>Engenharia Própria</h4>
+              <p style="color: var(--text-muted);">Equipe técnica especializada (NR-10, NR-35). Não terceirizamos sua segurança.</p>
+                  </div>
+                </div>
+
+          <div class="feature-item">
+            <div class="feature-icon"><i data-lucide="file-check"></i></div>
+            <div>
+              <h4>Segurança Jurídica</h4>
+              <p style="color: var(--text-muted);">Contratos transparentes, equipamentos com nota fiscal e homologação garantida.</p>
+                  </div>
+                </div>
+
+          <div class="feature-item">
+            <div class="feature-icon"><i data-lucide="star"></i></div>
+            <div>
+              <h4>Excelência Comprovada</h4>
+              <p style="color: var(--text-muted);">Avaliação 5.0 no Google. Clientes 100% satisfeitos.</p>
+                  </div>
+                  </div>
+                </div>
+
+        <div class="card highlight" style="justify-content: center;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" style="height: 40px; margin-bottom: 10px;">
+            <div style="font-size: 2rem; font-weight: 800; color: #1E3A8A;">5.0 <span style="color: #F59E0B; font-size: 1.5rem;">★★★★★</span></div>
+            <p>Opinião de quem já economiza</p>
+                </div>
+                
+          <!-- Review Simples -->
+          <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px;">
+            <p style="font-size: 0.9rem; font-style: italic;">"Empresa espetacular. Ágil na instalação, equipe de engenharia qualificada."</p>
+            <strong style="font-size: 0.8rem; margin-top: 5px; display: block;">- Luyanne Azevedo</strong>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- O Problema -->
+  <!-- O PROBLEMA (Slide 02 e 03) -->
   <section id="problema">
     <div class="container">
-      <div class="section-title">
-        <h2>Por que investir agora?</h2>
-        <p>A inflação energética corrói seu patrimônio. Veja a projeção dos seus gastos se você não fizer nada.</p>
+      <div class="section-header">
+        <h2>O Custo do "Não Fazer Nada"</h2>
+        <p>A inflação energética é um fato. Veja quanto dinheiro você perderá se continuar pagando conta de luz nos próximos 25 anos.</p>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <h3>Custo do "Não Fazer Nada"</h3>
-          <p style="margin-top: 15px; margin-bottom: 30px;">
-            Hoje você paga <strong>{{conta_mensal_media}}</strong> por mês. Com a inflação média de energia (aprox. 7% a.a.), esse valor vai disparar.
-          </p>
-          
-          <div class="chart-wrapper">
-            <div id="grafico-slide-03" class="echart"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <h3>Projeção de Gastos</h3>
+            <span style="font-size: 0.9rem; color: var(--danger); font-weight: 600;">Sem Energia Solar</span>
           </div>
+          
+          <!-- GRÁFICO 1: Evolução Gasto Acumulado -->
+          <div class="chart-box">
+            <div id="grafico-slide-03" class="echart"></div>
         </div>
 
+          <div style="margin-top: 20px; text-align: center;">
+            <span style="color: var(--text-muted);">Acumulado em 25 Anos:</span>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--danger);">{{gasto_total_25_anos}}</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Dinheiro a fundo perdido.</p>
+            </div>
+          </div>
+
         <div class="card highlight">
-          <h3>Seu Passivo Financeiro</h3>
-          <div style="display: flex; flex-direction: column; gap: 30px; margin-top: 30px;">
-            <div>
-              <span class="stat-label">Gasto nos próximos 25 anos</span>
-              <div class="stat-big" style="color: var(--danger);">{{gasto_total_25_anos}}</div>
-              <p style="font-size: 0.9rem; color: var(--text-muted);">Dinheiro "jogado fora" com contas de luz.</p>
-            </div>
+          <h3>Seu Cenário Atual</h3>
+          <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+              <span>Conta Média Mensal</span>
+              <strong>{{conta_mensal_media}}</strong>
+          </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+              <span>Gasto Anual Hoje</span>
+              <strong>{{conta_atual_anual}}</strong>
+        </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+              <span>Inflação Energética (média)</span>
+              <strong>~7% a.a.</strong>
+      </div>
             
-            <hr style="border: 0; border-top: 1px solid var(--border);">
-            
-            <div>
-              <span class="stat-label">Valor que poderia ser investido</span>
-              <p>Ao instalar energia solar, você transforma esse custo fixo em patrimônio e investimento rentável.</p>
-            </div>
+            <div style="background: var(--danger-bg); padding: 20px; border-radius: 8px; border: 1px solid #FECACA; margin-top: 20px;">
+              <h4 style="color: var(--danger); margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="alert-triangle"></i> Conclusão
+              </h4>
+              <p style="font-size: 0.95rem; color: #7F1D1D;">
+                Ficar na rede da concessionária significa alugar energia por um preço que só aumenta. É um passivo financeiro eterno.
+              </p>
+              </div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Solução -->
+  <!-- A SOLUÇÃO (Slide 04 e 05) -->
   <section id="solucao" style="background: white;">
+    <div class="container">
+      <div class="section-header">
+        <h2>A Solução Definitiva</h2>
+        <p>Gere sua própria energia, livre-se da inflação e valorize seu imóvel.</p>
+      </div>
+
+      <!-- GRÁFICO 2: Consumo x Geração -->
+      <div class="card" style="margin-bottom: 40px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3>Comparativo: Consumo x Geração</h3>
+          <div style="display: flex; gap: 15px;">
+            <span style="font-size: 0.9rem; color: #3B82F6;">■ Consumo</span>
+            <span style="font-size: 0.9rem; color: #10B981;">■ Geração Solar</span>
+              </div>
+              </div>
+        <div class="chart-box" style="height: 400px;">
+          <div id="grafico-slide-05" class="echart"></div>
+          </div>
+        </div>
+
+      <div class="grid-3">
+        <div class="card highlight" style="text-align: center;">
+          <div style="background: var(--primary-light); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--primary);">
+            <i data-lucide="sun" size="30"></i>
+          </div>
+          <h4>1. Geração</h4>
+          <p style="font-size: 0.9rem; margin-top: 10px;">Os módulos captam a luz do sol e geram energia limpa durante o dia.</p>
+        </div>
+        
+        <div class="card highlight" style="text-align: center;">
+          <div style="background: var(--primary-light); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--primary);">
+            <i data-lucide="home" size="30"></i>
+      </div>
+          <h4>2. Consumo</h4>
+          <p style="font-size: 0.9rem; margin-top: 10px;">Você usa essa energia instantaneamente, reduzindo a compra da rede.</p>
+        </div>
+
+        <div class="card highlight" style="text-align: center;">
+          <div style="background: var(--primary-light); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--primary);">
+            <i data-lucide="battery-charging" size="30"></i>
+              </div>
+          <h4>3. Créditos</h4>
+          <p style="font-size: 0.9rem; margin-top: 10px;">O excedente é injetado na rede e vira créditos para usar à noite ou em dias nublados.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ECONOMIA E PAYBACK (Slide 06 e 07) -->
+  <section id="economia">
     <div class="container">
       <div class="grid-2" style="align-items: center;">
         <div>
-          <span style="color: var(--primary); font-weight: 700;">TECNOLOGIA FOTOVOLTAICA</span>
-          <h2 style="margin: 10px 0 30px; font-size: 2.5rem;">Como funciona sua usina</h2>
-          
-          <div style="display: flex; flex-direction: column; gap: 20px;">
-            <div class="card" style="padding: 20px; display: flex; gap: 20px; align-items: start;">
-              <div style="background: var(--primary-light); padding: 10px; border-radius: 10px; color: var(--primary);">
-                <i data-lucide="sun"></i>
-              </div>
-              <div>
-                <h4>1. Captação</h4>
-                <p style="font-size: 0.9rem;">Os painéis solares no seu telhado convertem a luz do sol em energia elétrica contínua.</p>
-              </div>
-            </div>
+          <h2>Seu Novo Patrimônio</h2>
+          <p style="margin: 20px 0 30px; color: var(--text-muted);">
+            Ao invés de gastar {{gasto_total_25_anos}} sem retorno, você faz um investimento único e colhe lucros por décadas.
+          </p>
 
-            <div class="card" style="padding: 20px; display: flex; gap: 20px; align-items: start;">
-              <div style="background: var(--primary-light); padding: 10px; border-radius: 10px; color: var(--primary);">
-                <i data-lucide="zap"></i>
-              </div>
-              <div>
-                <h4>2. Conversão</h4>
-                <p style="font-size: 0.9rem;">O inversor transforma essa energia para o padrão da sua casa (110/220V), pronta para uso.</p>
-              </div>
-            </div>
-
-            <div class="card" style="padding: 20px; display: flex; gap: 20px; align-items: start;">
-              <div style="background: var(--primary-light); padding: 10px; border-radius: 10px; color: var(--primary);">
-                <i data-lucide="refresh-cw"></i>
-              </div>
-              <div>
-                <h4>3. Compensação</h4>
-                <p style="font-size: 0.9rem;">A energia que sobra vai para a rede e vira créditos. À noite, você usa esses créditos automaticamente.</p>
-              </div>
-            </div>
+          <div class="grid-2" style="gap: 20px;">
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+              <span style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted);">Retorno (Payback)</span>
+              <div style="font-size: 2rem; font-weight: 700; color: var(--primary);">{{anos_payback}} Anos</div>
+                </div>
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+              <span style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted);">Rentabilidade</span>
+              <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">{{payback_meses}}% a.m.</div>
           </div>
         </div>
-        
-        <div style="text-align: center;">
-          <img src="/img/como-funciona.png" alt="Como funciona energia solar" style="max-width: 100%; height: auto;">
+
+          <div style="margin-top: 30px;">
+            <div style="font-size: 1.1rem; margin-bottom: 5px;">Economia Total (25 Anos):</div>
+            <div style="font-size: 3rem; font-weight: 800; color: var(--accent); line-height: 1;">{{economia_total_25_anos}}</div>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">Livre de Imposto de Renda.</p>
+              </div>
+              </div>
+
+          <div class="card">
+          <h3>Fluxo de Caixa Acumulado</h3>
+          <p style="font-size: 0.9rem; margin-bottom: 15px; color: var(--text-muted);">O ponto de cruzamento indica quando o investimento se paga.</p>
+          
+          <!-- GRÁFICO 3: Fluxo de Caixa -->
+          <div class="chart-box">
+              <div id="grafico-slide-06" class="echart"></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Economia e Payback -->
-  <section id="economia">
+  <!-- ESPECIFICAÇÕES TÉCNICAS (Slide 08 e 09) -->
+  <section id="tecnica" style="background: white;">
     <div class="container">
-      <div class="section-title">
-        <h2>Retorno do Investimento</h2>
-        <p>Energia solar não é gasto, é um investimento com retorno superior à renda fixa.</p>
-      </div>
-
-      <div class="grid-3">
-        <div class="card">
-          <span class="stat-label">Payback Estimado</span>
-          <div class="stat-big" style="color: var(--accent);">{{anos_payback}} Anos</div>
-          <p style="margin-top: 10px; font-size: 0.9rem;">Tempo para o sistema "se pagar" com a própria economia.</p>
-        </div>
-        
-        <div class="card">
-          <span class="stat-label">Economia Mensal</span>
-          <div class="stat-big">{{economia_mensal}}</div>
-          <p style="margin-top: 10px; font-size: 0.9rem;">Redução média estimada na sua fatura.</p>
-        </div>
-
-        <div class="card">
-          <span class="stat-label">Rentabilidade</span>
-          <div class="stat-big">{{payback_meses}}% a.m.</div>
-          <p style="margin-top: 10px; font-size: 0.9rem;">Retorno médio sobre o capital investido.</p>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top: 40px;">
-        <h3>Fluxo de Caixa Acumulado</h3>
-        <p style="margin-bottom: 20px; color: var(--text-muted);">Veja como seu patrimônio cresce ao deixar de pagar conta de luz.</p>
-        <div class="chart-wrapper">
-          <div id="grafico-slide-06" class="echart"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Equipamentos -->
-  <section id="equipamentos" style="background: white;">
-    <div class="container">
-      <div class="section-title">
-        <h2>Seu Kit Gerador</h2>
-        <p>Equipamentos Tier 1 (Primeira Linha) com as melhores garantias do mercado.</p>
+      <div class="section-header">
+        <h2>Engenharia de Ponta</h2>
+        <p>Dimensionamento preciso e equipamentos das melhores marcas globais.</p>
       </div>
 
       <div class="grid-2">
-        <div class="card highlight">
-          <div style="display: flex; justify-content: space-between; align-items: start;">
-            <h3>Módulos Fotovoltaicos</h3>
-            <span class="stat-label" style="background: var(--primary); color: white; padding: 5px 10px; border-radius: 4px;">{{quantidade_placas}} Unidades</span>
-          </div>
-          
-          <div style="margin-top: 30px; display: grid; gap: 20px;">
-            <div>
-              <span class="stat-label">Marca / Modelo</span>
-              <p style="font-weight: 600; font-size: 1.1rem;">{{modulo_marca}}</p>
-              <p>{{modulo_modelo}}</p>
-            </div>
-            <div>
-              <span class="stat-label">Potência Individual</span>
-              <p style="font-weight: 600;">{{potencia_placa_w}} W</p>
-            </div>
-            <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid var(--border);">
-              <span style="color: var(--accent); font-weight: 700;">Garantia de 25 Anos</span>
-              <p style="font-size: 0.9rem;">Performance linear garantida (80% da eficiência)</p>
-            </div>
-          </div>
+          <div class="card highlight">
+          <h3 style="margin-bottom: 25px;">Resumo do Sistema</h3>
+          <ul style="list-style: none; display: flex; flex-direction: column; gap: 15px;">
+            <li style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+              <span>Potência Instalada</span>
+              <strong>{{potencia_sistema_kwp}} kWp</strong>
+            </li>
+            <li style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+              <span>Qtd. Módulos</span>
+              <strong>{{quantidade_placas}}x {{potencia_placa_w}}W</strong>
+            </li>
+            <li style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+              <span>Área Necessária</span>
+              <strong>{{area_necessaria}} m²</strong>
+            </li>
+            <li style="display: flex; justify-content: space-between; padding-bottom: 10px;">
+              <span>Geração Média</span>
+              <strong>{{geracao_media_mensal}} kWh/mês</strong>
+            </li>
+          </ul>
         </div>
 
-        <div class="card highlight">
-          <div style="display: flex; justify-content: space-between; align-items: start;">
-            <h3>Inversor</h3>
-            <span class="stat-label" style="background: var(--primary); color: white; padding: 5px 10px; border-radius: 4px;">{{tipo_inversor}}</span>
-          </div>
+          <div class="card">
+          <h3 style="margin-bottom: 25px;">Equipamentos e Garantias</h3>
           
-          <div style="margin-top: 30px; display: grid; gap: 20px;">
-            <div>
-              <span class="stat-label">Marca / Modelo</span>
-              <p style="font-weight: 600; font-size: 1.1rem;">{{inversor_marca}}</p>
-              <p>{{inversor_modelo}}</p>
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px;">
+              <i data-lucide="grid" color="#005792"></i>
+              <div>
+                <strong style="display: block;">Módulos Fotovoltaicos</strong>
+                <span style="font-size: 0.9rem; color: var(--text-muted);">{{modulo_marca}} - {{modulo_modelo}}</span>
+                </div>
+                </div>
+            <span style="background: var(--success-bg); color: var(--accent-dark); padding: 4px 10px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">25 Anos de Garantia (Performance)</span>
+              </div>
+
+          <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+              <div>
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px;">
+              <i data-lucide="cpu" color="#005792"></i>
+              <div>
+                <strong style="display: block;">Inversor</strong>
+                <span style="font-size: 0.9rem; color: var(--text-muted);">{{inversor_marca}} - {{tipo_inversor}}</span>
+              </div>
             </div>
-            <div>
-              <span class="stat-label">Potência Total</span>
-              <p style="font-weight: 600;">{{potencia_sistema_kwp}} kWp</p>
-            </div>
-            <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid var(--border);">
-              <span style="color: var(--accent); font-weight: 700;">Garantia de 10 Anos</span>
-              <p style="font-size: 0.9rem;">Contra defeitos de fabricação e problemas técnicos.</p>
-            </div>
+            <span style="background: var(--success-bg); color: var(--accent-dark); padding: 4px 10px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">10 Anos de Garantia</span>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Investimento -->
+  <!-- INVESTIMENTO E PAGAMENTO (Slide 11) -->
   <section id="investimento">
     <div class="container">
-      <div class="section-title">
-        <h2>Investimento</h2>
-        <p>Escolha a melhor forma de começar a economizar.</p>
+      <div class="section-header">
+        <h2>Condições de Investimento</h2>
       </div>
 
       <div class="grid-2">
         <!-- Pagamento à Vista -->
-        <div class="card dark" style="display: flex; flex-direction: column; justify-content: center; text-align: center;">
-          <h3 style="margin-bottom: 10px;">Pagamento à Vista</h3>
-          <p style="opacity: 0.8;">Melhor condição comercial</p>
+        <div class="card" style="background: var(--primary-dark); color: white; border: none;">
+          <h3 style="color: white; margin-bottom: 10px;">Pagamento à Vista</h3>
+          <p style="opacity: 0.8; font-size: 0.95rem;">Melhor condição comercial (PIX/TED)</p>
           
-          <div style="margin: 40px 0;">
-            <span style="font-size: 1.2rem; opacity: 0.8; text-decoration: line-through;">De {{custo_total_projeto}}</span>
-            <div style="font-size: 3.5rem; font-weight: 800; color: var(--accent);">{{preco_final}}</div>
+          <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 30px 0;">
+            <div style="font-size: 1.2rem; opacity: 0.7; text-decoration: line-through;">Total: {{custo_total_projeto}}</div>
+            <div style="font-size: 3.5rem; font-weight: 800; color: #4ADE80; line-height: 1.1;">{{preco_final}}</div>
+            <div style="margin-top: 15px; padding: 5px 15px; background: rgba(255,255,255,0.1); border-radius: 20px; font-size: 0.9rem;">
+              Economia imediata
           </div>
-          
-          <a href="#" class="btn-cta" style="background: white; color: var(--primary); width: 100%;">Fechar Negócio</a>
+        </div>
+
+          <button class="btn-cta" style="background: white; color: var(--primary-dark); width: 100%; border: none; cursor: pointer;">
+            Tenho Interesse
+          </button>
         </div>
 
         <!-- Financiamento -->
         <div class="card">
-          <h3>Financiamento</h3>
-          <p>Troque a conta de luz pela parcela.</p>
+          <h3 style="margin-bottom: 10px;">Financiamento</h3>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Troque a conta de luz pela parcela</p>
           
-          <div style="margin-top: 20px; background: var(--primary-light); padding: 15px; border-radius: 10px; text-align: center;">
-            <span class="stat-label">Parcela Sugerida</span>
+          <div style="background: var(--primary-light); padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">Parcela Sugerida</span>
             <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">{{menor_parcela_financiamento}}</div>
           </div>
 
-          <div style="margin-top: 20px;">
-            <p style="font-weight: 600; margin-bottom: 10px;">Opções Disponíveis:</p>
-            <!-- A tabela de financiamento é injetada aqui pelo backend, vamos estilizar via CSS global -->
+          <div style="overflow-y: auto; max-height: 300px;">
+            <p style="font-weight: 600; margin-bottom: 10px; font-size: 0.9rem;">Simulações:</p>
+            <!-- Tabela injetada pelo Backend -->
             <div class="payment-table-wrapper">
               {{parcelas_financiamento}}
             </div>
           </div>
         </div>
-      </div>
-    </div>
+        </div>
+             </div>
   </section>
 
-  <!-- Próximos Passos -->
-  <section id="steps" style="background: white;">
+  <!-- CRONOGRAMA E CONTATO (Slide 12 e 13) -->
+  <section id="contato" style="background: white;">
     <div class="container">
-      <div class="section-title">
-        <h2>Cronograma de Execução</h2>
-      </div>
+      <div class="section-header">
+        <h2>Próximos Passos</h2>
+        </div>
 
-      <div class="timeline">
-        <div class="timeline-item">
-          <h4>1. Fechamento</h4>
-          <p>Assinatura digital do contrato e validação das condições de pagamento.</p>
-        </div>
-        <div class="timeline-item">
-          <h4>2. Visita Técnica</h4>
-          <p>Nossa engenharia valida as condições do telhado e padrão de entrada.</p>
-        </div>
-        <div class="timeline-item">
-          <h4>3. Projeto e Homologação</h4>
-          <p>Elaboramos o projeto e damos entrada na concessionária de energia.</p>
-        </div>
-        <div class="timeline-item">
-          <h4>4. Instalação</h4>
-          <p>Agendamento e instalação dos equipamentos no seu imóvel.</p>
-        </div>
-        <div class="timeline-item">
-          <h4>5. Ativação</h4>
-          <p>Troca do medidor pela concessionária e início da geração!</p>
-        </div>
+      <div class="timeline-h">
+        <div class="t-item">
+          <div class="t-dot">1</div>
+          <div><strong>Fechamento</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">Assinatura digital</span></div>
       </div>
+        <div class="t-item">
+          <div class="t-dot">2</div>
+          <div><strong>Visita</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">Validação técnica</span></div>
     </div>
-  </section>
+        <div class="t-item">
+          <div class="t-dot">3</div>
+          <div><strong>Projeto</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">Homologação</span></div>
+      </div>
+        <div class="t-item">
+          <div class="t-dot">4</div>
+          <div><strong>Instalação</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">Montagem</span></div>
+        </div>
+        <div class="t-item">
+          <div class="t-dot final"><i data-lucide="check" size="20"></i></div>
+          <div><strong>Ativação</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">Geração Solar!</span></div>
+          </div>
+          </div>
 
-  <!-- Consultor -->
-  <section style="background: var(--bg-body);">
-    <div class="container" style="text-align: center;">
-      <div class="card" style="max-width: 600px; margin: 0 auto; display: flex; align-items: center; gap: 30px; text-align: left;">
-        <div style="width: 100px; height: 100px; background: var(--border); border-radius: 50%; overflow: hidden; flex-shrink: 0;">
-          <img src="/img/logo-bg-blue.svg" alt="Consultor" style="width: 100%; height: 100%; object-fit: cover;">
-        </div>
-        <div>
-          <span class="stat-label">Seu Consultor</span>
-          <h3>{{vendedor_nome}}</h3>
-          <p>{{vendedor_email}}</p>
-          <p>{{vendedor_telefone}}</p>
-        </div>
-      </div>
-    </div>
+      <!-- Consultor -->
+      <div style="margin-top: 80px; text-align: center;">
+        <div class="card highlight" style="max-width: 500px; margin: 0 auto; display: inline-flex; flex-direction: row; align-items: center; text-align: left; gap: 20px;">
+          <div style="width: 80px; height: 80px; background: var(--border); border-radius: 50%; overflow: hidden; flex-shrink: 0;">
+            <img src="/img/logo-bg-blue.svg" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+          <div>
+            <span style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Seu Consultor</span>
+            <h3 style="margin: 0; font-size: 1.3rem;">{{vendedor_nome}}</h3>
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
+              {{vendedor_email}}<br>{{vendedor_telefone}}
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
   </section>
 
   <footer>
-    <div class="container">
-      <img src="/img/logo-green.svg" alt="Fohat" style="height: 40px; margin-bottom: 20px; filter: brightness(0) invert(1);">
-      <p>&copy; {{data_proposta}} Fohat Energia. Todos os direitos reservados.</p>
-    </div>
+    <div class="container" style="text-align: center; padding: 40px 0; color: white; background: var(--text-main); max-width: 100%;">
+      <img src="/img/logo-green.svg" style="height: 30px; filter: brightness(0) invert(1); opacity: 0.8; margin-bottom: 20px;">
+      <p style="font-size: 0.9rem; opacity: 0.6;">&copy; {{data_proposta}} Fohat Energia. Todos os direitos reservados.</p>
+        </div>
   </footer>
 
   <script>
-    // Inicializar ícones Lucide
+    // Inicializar ícones
     lucide.createIcons();
 
-    // Scripts dos gráficos injetados pelo backend serão executados automaticamente
-    // pois o backend substitui os placeholders {{graficos_scripts}} ou similar,
-    // mas na estrutura atual do servidor_proposta.py, ele injeta scripts específicos
-    // procurando por IDs específicos.
-    
-    // O backend Python procura por divs com IDs específicos e injeta o script ECharts logo após.
-    // Como mantivemos os IDs (#grafico-slide-03, #grafico-slide-06), deve funcionar.
-    
-    // Smooth Scroll para links internos
+    // Smooth Scroll
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       anchor.addEventListener('click', function (e) {
         e.preventDefault();
-        document.querySelector(this.getAttribute('href')).scrollIntoView({
-          behavior: 'smooth'
-        });
+        const target = document.querySelector(this.getAttribute('href'));
+        if(target) target.scrollIntoView({ behavior: 'smooth' });
       });
     });
 
-    // Navbar scroll effect
-    window.addEventListener('scroll', () => {
-      const nav = document.querySelector('.navbar');
-      if (window.scrollY > 50) {
-        nav.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1)';
-      } else {
-        nav.style.boxShadow = 'none';
-      }
-    });
+    // Os scripts dos gráficos serão injetados automaticamente pelo backend.
+    // O backend Python procura pelos IDs: #grafico-slide-03, #grafico-slide-05, #grafico-slide-06
+    // E insere o código ECharts necessário.
   </script>
-
-  <!-- Injeção de Scripts de Gráficos e Tabelas do Backend -->
-  <!-- O backend vai procurar strings específicas para substituição -->
 </body>
 </html>
