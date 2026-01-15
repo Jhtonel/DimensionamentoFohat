@@ -277,9 +277,13 @@ export default function Projetos() {
     setCustosData(null);
     setShowCustosModal(true);
     try {
-      const response = await fetch(`${getBackendUrl()}/projetos/${projeto.id}`);
+      const token = localStorage.getItem('app_jwt_token');
+      const response = await fetch(`${getBackendUrl()}/projetos/get/${projeto.id}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.projeto || result; // O endpoint retorna { success, projeto: {...} }
         setCustosData({
           nome_projeto: projeto.nome_projeto || data.nome_projeto,
           cliente_nome: projeto.cliente_nome || data.cliente_nome,
@@ -309,6 +313,8 @@ export default function Projetos() {
           // Data
           created_date: data.created_date || data.created_at,
         });
+      } else {
+        setCustosData({ error: true });
       }
     } catch (error) { 
       console.error('Erro ao carregar custos:', error);
