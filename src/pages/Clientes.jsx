@@ -576,9 +576,11 @@ export default function Clientes() {
                                           </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-48">
-                                          <DropdownMenuItem onClick={() => handleViewCustos(projeto)}>
-                                            <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
-                                          </DropdownMenuItem>
+                                          {user?.role === 'admin' && (
+                                            <DropdownMenuItem onClick={() => handleViewCustos(projeto)}>
+                                              <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
+                                            </DropdownMenuItem>
+                                          )}
                                           <DropdownMenuItem asChild>
                                             <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
                                               <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta

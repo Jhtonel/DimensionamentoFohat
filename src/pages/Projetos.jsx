@@ -417,9 +417,11 @@ export default function Projetos() {
                         <DropdownMenuItem onClick={() => handleViewMetrics(projeto)}>
                           <TrendingUp className="w-4 h-4 mr-2" /> Métricas
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleViewCustos(projeto)}>
-                          <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
-                        </DropdownMenuItem>
+                        {user?.role === 'admin' && (
+                          <DropdownMenuItem onClick={() => handleViewCustos(projeto)}>
+                            <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
+                          </DropdownMenuItem>
+                        )}
                         {projeto.url_proposta && (
                           <DropdownMenuItem onClick={() => window.open(projeto.url_proposta, '_blank')}>
                             <ExternalLink className="w-4 h-4 mr-2" /> Ver Online
