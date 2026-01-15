@@ -76,6 +76,10 @@ export default function Projetos() {
   const [metricsData, setMetricsData] = useState(null);
   const [metricsProjetoId, setMetricsProjetoId] = useState(null);
   
+  // Modal de Custos (visualização somente leitura)
+  const [showCustosModal, setShowCustosModal] = useState(false);
+  const [custosData, setCustosData] = useState(null);
+  
   // Modal States
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [projectToRename, setProjectToRename] = useState(null);
@@ -268,6 +272,50 @@ export default function Projetos() {
     } catch (error) { setMetricsData({ error: true }); }
   };
 
+  // Visualizar custos salvos (somente leitura)
+  const handleViewCustos = async (projeto) => {
+    setCustosData(null);
+    setShowCustosModal(true);
+    try {
+      const response = await fetch(`${getBackendUrl()}/projetos/${projeto.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCustosData({
+          nome_projeto: projeto.nome_projeto || data.nome_projeto,
+          cliente_nome: projeto.cliente_nome || data.cliente_nome,
+          // Dados de equipamentos
+          custo_equipamentos: data.custo_equipamentos || data.valor_kit || 0,
+          custo_instalacao: data.custo_instalacao || 0,
+          custo_projeto: data.custo_projeto || 0,
+          custo_frete: data.custo_frete || 0,
+          custo_outros: data.custo_outros || 0,
+          custo_total: data.custo_total || data.custo_total_projeto || 0,
+          // Margem e preço
+          margem_lucro: data.margem_lucro || 0,
+          preco_venda: data.preco_venda || data.preco_final || 0,
+          lucro_bruto: data.lucro_bruto || 0,
+          // Dados do sistema
+          potencia_kwp: data.potencia_sistema_kwp || data.potencia_kwp || 0,
+          quantidade_modulos: data.quantidade_modulos || 0,
+          marca_modulo: data.marca_modulo || '-',
+          modelo_modulo: data.modelo_modulo || '-',
+          marca_inversor: data.marca_inversor || '-',
+          modelo_inversor: data.modelo_inversor || '-',
+          // Financiamento
+          parcelas: data.parcelas || [],
+          entrada: data.entrada || 0,
+          desconto_avista: data.desconto_avista || data.desconto_a_vista || 0,
+          preco_avista: data.preco_avista || data.preco_a_vista || 0,
+          // Data
+          created_date: data.created_date || data.created_at,
+        });
+      }
+    } catch (error) { 
+      console.error('Erro ao carregar custos:', error);
+      setCustosData({ error: true }); 
+    }
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8 space-y-8 font-sans">
       
@@ -381,10 +429,8 @@ export default function Projetos() {
                         <DropdownMenuItem onClick={() => handleViewMetrics(projeto)}>
                           <TrendingUp className="w-4 h-4 mr-2" /> Métricas
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`${createPageUrl("NovoProjeto")}?edit=${projeto.id}&tab=custos`} className="w-full cursor-pointer">
-                            <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
-                          </Link>
+                        <DropdownMenuItem onClick={() => handleViewCustos(projeto)}>
+                          <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
                         </DropdownMenuItem>
                         {projeto.url_proposta && (
                           <DropdownMenuItem onClick={() => window.open(projeto.url_proposta, '_blank')}>
@@ -648,6 +694,125 @@ export default function Projetos() {
               </div>
             </motion.div>
          </div>
+      )}
+
+      {/* Modal Custos (Somente Leitura) */}
+      {showCustosModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCustosModal(false)}>
+          <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-lg">Custos da Proposta</h3>
+                {custosData?.nome_projeto && <p className="text-emerald-100 text-sm">{custosData.nome_projeto}</p>}
+              </div>
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setShowCustosModal(false)}><X className="w-5 h-5"/></Button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {custosData && !custosData.error ? (
+                <div className="space-y-6">
+                  {/* Resumo do Sistema */}
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Sun className="w-4 h-4" /> Sistema</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><span className="text-slate-500">Potência:</span> <span className="font-medium">{custosData.potencia_kwp?.toFixed(2)} kWp</span></div>
+                      <div><span className="text-slate-500">Módulos:</span> <span className="font-medium">{custosData.quantidade_modulos || '-'}</span></div>
+                      <div><span className="text-slate-500">Módulo:</span> <span className="font-medium">{custosData.marca_modulo} {custosData.modelo_modulo}</span></div>
+                      <div><span className="text-slate-500">Inversor:</span> <span className="font-medium">{custosData.marca_inversor} {custosData.modelo_inversor}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Custos */}
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Composição de Custos</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">Equipamentos</span>
+                        <span className="font-medium">{Number(custosData.custo_equipamentos || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                      {custosData.custo_instalacao > 0 && (
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-600">Instalação</span>
+                          <span className="font-medium">{Number(custosData.custo_instalacao).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        </div>
+                      )}
+                      {custosData.custo_projeto > 0 && (
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-600">Projeto</span>
+                          <span className="font-medium">{Number(custosData.custo_projeto).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        </div>
+                      )}
+                      {custosData.custo_frete > 0 && (
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-600">Frete</span>
+                          <span className="font-medium">{Number(custosData.custo_frete).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        </div>
+                      )}
+                      {custosData.custo_outros > 0 && (
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-600">Outros</span>
+                          <span className="font-medium">{Number(custosData.custo_outros).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between py-2 font-semibold text-slate-800 bg-slate-100 px-2 rounded">
+                        <span>Custo Total</span>
+                        <span>{Number(custosData.custo_total || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preço e Margem */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 text-center">
+                      <p className="text-xs text-blue-600 uppercase font-semibold mb-1">Margem de Lucro</p>
+                      <p className="text-2xl font-bold text-blue-700">{(custosData.margem_lucro || 0).toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 text-center">
+                      <p className="text-xs text-emerald-600 uppercase font-semibold mb-1">Preço de Venda</p>
+                      <p className="text-2xl font-bold text-emerald-700">{Number(custosData.preco_venda || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                    </div>
+                  </div>
+
+                  {/* Pagamento à Vista */}
+                  {custosData.preco_avista > 0 && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                      <h4 className="font-semibold text-amber-700 mb-2">Pagamento à Vista (PIX)</h4>
+                      <div className="flex justify-between items-center">
+                        <span className="text-amber-600">Desconto: {(custosData.desconto_avista || 0).toFixed(1)}%</span>
+                        <span className="text-xl font-bold text-amber-700">{Number(custosData.preco_avista).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Parcelas (se houver) */}
+                  {Array.isArray(custosData.parcelas) && custosData.parcelas.length > 0 && (
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                      <h4 className="font-semibold text-slate-700 mb-3">Opções de Parcelamento</h4>
+                      <div className="space-y-2 text-sm">
+                        {custosData.parcelas.map((p, i) => (
+                          <div key={i} className="flex justify-between py-1 border-b border-slate-100">
+                            <span className="text-slate-600">{p.parcelas || p.qtd || '-'}x</span>
+                            <span className="font-medium">{Number(p.valor || p.valor_parcela || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Data de criação */}
+                  {custosData.created_date && (
+                    <p className="text-xs text-slate-400 text-center">
+                      Proposta criada em: {new Date(custosData.created_date).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              ) : custosData?.error ? (
+                <div className="text-center py-8 text-red-500">Erro ao carregar custos</div>
+              ) : (
+                <div className="py-8 text-center"><div className="animate-spin w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto"></div></div>
+              )}
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* Rename Modal */}
