@@ -832,112 +832,178 @@ export default function Projetos() {
                     </div>
                   </div>
 
-                  {/* DEBUG DE CÁLCULOS DETALHADO (Bonitinho) */}
+                  {/* DEBUG DE CÁLCULOS DETALHADO (Bonitinho e Completo) */}
                   <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
                     <div className="p-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
                       <h4 className="text-emerald-400 font-bold text-sm flex items-center gap-2">
                         <Terminal className="w-4 h-4" /> Detalhamento Técnico do Backend (Debug)
                       </h4>
-                      <span className="text-[10px] text-slate-500 font-mono">v1.4.300-compliant</span>
+                      <span className="text-[10px] text-slate-500 font-mono">v1.4.300-compliant | Lei 14.300</span>
                     </div>
                     
-                    <div className="p-4 space-y-6">
-                      {/* Grid de Variáveis Internas */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tensão do Sistema</p>
-                          <p className="text-white text-sm font-mono">{custosData.tensao || custosData.tensao_sistema || '220'}V</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tipo Inversor</p>
-                          <p className="text-white text-sm font-mono">{custosData.tipo_inversor || 'String'}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Tipo Telhado</p>
-                          <p className="text-white text-sm font-mono">{custosData.tipo_telhado || 'Cerâmico'}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Fio B (Compensação)</p>
-                          <p className="text-white text-sm font-mono">Considerado</p>
+                    <div className="p-4 space-y-8">
+                      {/* 1. VARIÁVEIS DE ENTRADA */}
+                      <div className="space-y-3">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">1. Variáveis Internas de Cálculo</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-slate-500 uppercase">Tensão</p>
+                            <p className="text-white text-sm font-mono">{custosData.tensao || custosData.tensao_sistema || '220'}V</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-slate-500 uppercase">Tipo Inversor</p>
+                            <p className="text-white text-sm font-mono">{custosData.tipo_inversor || 'String'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-slate-500 uppercase">Tipo Telhado</p>
+                            <p className="text-white text-sm font-mono">{custosData.tipo_telhado || 'Cerâmico'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-slate-500 uppercase">Fio B (2026)</p>
+                            <p className="text-white text-sm font-mono">45% Não Comp.</p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Tabela de Geração Mensal (Ano 1) */}
+                      {/* 2. DECOMPOSIÇÃO DA TARIFA E IMPOSTOS (Lei 14.300) */}
+                      <div className="space-y-3">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">2. Decomposição da Tarifa e Resumo da Conta (Lei 14.300)</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="bg-slate-800/50 p-3 rounded border border-emerald-900/30">
+                            <p className="text-[9px] text-emerald-500 font-bold uppercase mb-1">Economia Real (Mês 1)</p>
+                            <p className="text-xl font-bold text-emerald-400 font-mono">R$ {(custosData.economia_mensal_estimada || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                            <p className="text-[9px] text-slate-500 mt-1">Reflete apenas componentes compensáveis</p>
+                          </div>
+                          <div className="bg-slate-800/50 p-3 rounded border border-red-900/30">
+                            <p className="text-[9px] text-red-500 font-bold uppercase mb-1">Custo Residual (Fio B + Taxas)</p>
+                            <p className="text-xl font-bold text-red-400 font-mono">R$ {((custosData.consumo_mensal_reais || 0) - (custosData.economia_mensal_estimada || 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                            <p className="text-[9px] text-slate-500 mt-1">Valor médio que permanece na conta</p>
+                          </div>
+                          <div className="bg-slate-800/50 p-3 rounded border border-blue-900/30 text-center flex flex-col justify-center">
+                            <p className="text-[9px] text-blue-400 font-bold uppercase">Percentual de Economia</p>
+                            <p className="text-2xl font-bold text-blue-400 font-mono">
+                              {custosData.consumo_mensal_reais > 0 
+                                ? ((custosData.economia_mensal_estimada / custosData.consumo_mensal_reais) * 100).toFixed(1)
+                                : 0}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. GERAÇÃO MENSAL ESTIMADA */}
                       {(custosData.tabelas?.producao_mensal_kwh_ano1) && (
                         <div className="space-y-2">
                           <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                            <Sun className="w-3 h-3" /> Geração Mensal Estimada (Ano 1)
+                            <Sun className="w-3 h-3" /> 3. Geração Mensal Estimada (Ano 1)
                           </p>
                           <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
                              {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((mes, i) => (
                                <div key={i} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-center">
                                  <p className="text-[9px] text-slate-500 font-medium uppercase">{mes}</p>
-                                 <p className="text-[10px] font-bold text-emerald-400">{Math.round(custosData.tabelas.producao_mensal_kwh_ano1[i] || 0)} kWh</p>
+                                 <p className="text-[10px] font-bold text-emerald-400 font-mono">{Math.round(custosData.tabelas.producao_mensal_kwh_ano1[i] || 0)} kWh</p>
                                </div>
                              ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Tabela de Projeção 25 anos (Se houver no payload) */}
-                      {(custosData.tabelas?.tabela_25_anos || custosData.metrics?.tabela_25_anos) && (
+                      {/* 4. TABELA FINANCEIRA COMPLETA (Produção e Economia) */}
+                      {(custosData.tabelas?.ano || custosData.metrics?.tabela_25_anos) && (
                         <div className="space-y-2">
                           <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" /> Projeção Financeira (25 Anos)
+                            <TrendingUp className="w-3 h-3" /> 4. Evolução da Produção e Economia (25 Anos)
                           </p>
-                          <div className="overflow-x-auto rounded border border-slate-800">
-                            <table className="w-full text-[10px] text-left border-collapse font-mono">
-                              <thead>
-                                <tr className="bg-slate-800 text-slate-400">
-                                  <th className="p-1.5 border-r border-slate-700 text-center">Ano</th>
-                                  <th className="p-1.5 border-r border-slate-700 text-center">Geração (kWh)</th>
-                                  <th className="p-1.5 border-r border-slate-700 text-center">Tarifa (R$)</th>
-                                  <th className="p-1.5 border-r border-slate-700 text-center">Economia (R$)</th>
-                                  <th className="p-1.5 text-center">Acumulado (R$)</th>
+                          <div className="overflow-x-auto rounded border border-slate-800 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+                            <table className="w-full text-[10px] text-left border-collapse font-mono sticky-header">
+                              <thead className="sticky top-0 bg-slate-800 z-10">
+                                <tr className="text-slate-400">
+                                  <th className="p-2 border-r border-slate-700 text-center">Ano</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Produção (kWh)</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Tarifa (R$)</th>
+                                  <th className="p-2 border-r border-slate-700 text-center text-emerald-400">Economia Anual (R$)</th>
+                                  <th className="p-2 text-center text-blue-400">Acumulado (R$)</th>
                                 </tr>
                               </thead>
                               <tbody className="text-slate-300">
-                                {(custosData.tabelas?.tabela_25_anos || custosData.metrics?.tabela_25_anos).map((row, idx) => (
+                                {(custosData.metrics?.tabela_25_anos || []).map((row, idx) => (
                                   <tr key={idx} className="border-t border-slate-800 hover:bg-white/5">
                                     <td className="p-1.5 border-r border-slate-700 text-center">{row.ano || (idx + 1)}</td>
                                     <td className="p-1.5 border-r border-slate-700 text-right">{Math.round(row.geracao || 0).toLocaleString('pt-BR')}</td>
                                     <td className="p-1.5 border-r border-slate-700 text-right">R$ {(row.tarifa || 0).toFixed(3)}</td>
-                                    <td className="p-1.5 border-r border-slate-700 text-emerald-400 text-right">R$ {Math.round(row.economia || 0).toLocaleString('pt-BR')}</td>
-                                    <td className="p-1.5 text-blue-400 text-right">R$ {Math.round(row.acumulado || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-emerald-400 text-right font-bold">R$ {Math.round(row.economia || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 text-blue-400 text-right font-bold">R$ {Math.round(row.acumulado || 0).toLocaleString('pt-BR')}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
-                          <p className="text-[9px] text-slate-600 italic">* Tabela completa de projeção financeira baseada na Lei 14.300.</p>
                         </div>
                       )}
 
-                      {/* KPIs de Debug */}
-                      <div className="bg-slate-800/50 rounded p-3 grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-6">
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">VPL (25 anos):</span>
-                          <span className="text-emerald-400 font-mono">R$ {Math.round(custosData.metrics?.vpl || 0).toLocaleString('pt-BR')}</span>
+                      {/* 5. TABELA DE IMPOSTOS E COMPONENTES (Lei 14.300 Detalhada) */}
+                      {custosData.tabelas?.economia_te_anual_r && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" /> 5. Decomposição da Economia por Componente (TE + TUSD + Impostos)
+                          </p>
+                          <div className="overflow-x-auto rounded border border-slate-800 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+                            <table className="w-full text-[10px] text-left border-collapse font-mono">
+                              <thead className="sticky top-0 bg-slate-800 z-10">
+                                <tr className="text-slate-400">
+                                  <th className="p-2 border-r border-slate-700 text-center">Ano</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Eco. TE</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Eco. TUSD</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Eco. PIS/COF</th>
+                                  <th className="p-2 border-r border-slate-700 text-center">Eco. ICMS</th>
+                                  <th className="p-2 text-center text-amber-400">Custo Fio B</th>
+                                </tr>
+                              </thead>
+                              <tbody className="text-slate-300">
+                                {custosData.tabelas.ano.map((ano, i) => (
+                                  <tr key={i} className="border-t border-slate-800 hover:bg-white/5">
+                                    <td className="p-1.5 border-r border-slate-700 text-center">{ano}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">R$ {Math.round(custosData.tabelas.economia_te_anual_r[i] || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">R$ {Math.round(custosData.tabelas.economia_tusd_anual_r[i] || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">R$ {Math.round((custosData.tabelas.economia_pis_anual_r[i] || 0) + (custosData.tabelas.economia_cofins_anual_r[i] || 0)).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">R$ {Math.round(custosData.tabelas.economia_icms_anual_r[i] || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 text-amber-400 text-right">R$ {Math.round(custosData.tabelas.custo_tusd_fio_b_anual_r[i] || 0).toLocaleString('pt-BR')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p className="text-[9px] text-slate-600 italic">* Eco. TE/TUSD inclui os impostos incidentes sobre cada componente.</p>
                         </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">TIR:</span>
-                          <span className="text-emerald-400 font-mono">{(custosData.metrics?.tir || 0).toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">LCOE:</span>
-                          <span className="text-emerald-400 font-mono">R$ {(custosData.metrics?.lcoe || 0).toFixed(3)}/kWh</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">Gasto em 25 anos (S/ Solar):</span>
-                          <span className="text-red-400 font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_sem_solar || 0).toLocaleString('pt-BR')}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">Gasto em 25 anos (C/ Solar):</span>
-                          <span className="text-emerald-400 font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_com_solar || 0).toLocaleString('pt-BR')}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">Total Economizado:</span>
-                          <span className="text-blue-400 font-mono">R$ {Math.round((custosData.metrics?.gasto_25_anos_sem_solar || 0) - (custosData.metrics?.gasto_25_anos_com_solar || 0)).toLocaleString('pt-BR')}</span>
+                      )}
+
+                      {/* 6. INDICADORES FINANCEIROS AVANÇADOS */}
+                      <div className="bg-slate-800/50 rounded p-4 border border-slate-700">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold mb-3 tracking-wider">6. Indicadores de Performance (VPL, TIR, LCOE)</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8">
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">VPL (25 anos):</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.vpl || 0).toLocaleString('pt-BR')}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">TIR (Interna):</span>
+                            <span className="text-emerald-400 font-bold font-mono">{(custosData.metrics?.tir || 0).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">LCOE (Custo de Ger.):</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {(custosData.metrics?.lcoe || 0).toFixed(3)}/kWh</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">Gasto 25a (S/ Solar):</span>
+                            <span className="text-red-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_sem_solar || 0).toLocaleString('pt-BR')}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">Gasto 25a (C/ Solar):</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_com_solar || 0).toLocaleString('pt-BR')}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
+                            <span className="text-slate-400 font-medium">Economia Total Líquida:</span>
+                            <span className="text-blue-400 font-bold font-mono">R$ {Math.round((custosData.metrics?.gasto_25_anos_sem_solar || 0) - (custosData.metrics?.gasto_25_anos_com_solar || 0)).toLocaleString('pt-BR')}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
