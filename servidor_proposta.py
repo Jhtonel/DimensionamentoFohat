@@ -4402,6 +4402,8 @@ def salvar_proposta():
             try:
                 core = calcular_dimensionamento(core_payload)
                 kpis = (core or {}).get("metrics") or {}
+                tabelas_calculadas = (core or {}).get("tabelas") or {}
+                
                 if isinstance(kpis, dict) and kpis:
                     # SEMPRE sobrescrever com valores recalculados para garantir tarifa correta
                     proposta_data['economia_mensal_estimada'] = float(kpis.get('economia_mensal_estimada', 0) or 0)
@@ -4416,9 +4418,24 @@ def salvar_proposta():
                     proposta_data['consumo_mensal_kwh'] = consumo_kwh
                     proposta_data['consumo_mensal_reais'] = consumo_reais_correto
                     
-                    # guardar métricas
+                    # guardar métricas e tabelas para consulta futura (Ver Custos)
                     proposta_data['metrics'] = kpis
-                    print(f"✅ [salvar-proposta] KPIs recalculados:")
+                    proposta_data['tabelas'] = tabelas_calculadas
+                    
+                    # Adicionar a tabela 25 anos simplificada dentro de metrics para compatibilidade legado se necessário
+                    if isinstance(tabelas_calculadas, dict) and 'ano' in tabelas_calculadas:
+                        tabela_simplificada = []
+                        for i in range(len(tabelas_calculadas['ano'])):
+                            tabela_simplificada.append({
+                                'ano': tabelas_calculadas['ano'][i],
+                                'geracao': tabelas_calculadas['producao_anual_kwh'][i],
+                                'tarifa': tabelas_calculadas['tarifa_r_kwh'][i],
+                                'economia': tabelas_calculadas['economia_anual_real_r'][i],
+                                'acumulado': tabelas_calculadas['economia_real_acumulada_r'][i]
+                            })
+                        proposta_data['metrics']['tabela_25_anos'] = tabela_simplificada
+
+                    print(f"✅ [salvar-proposta] KPIs e Tabelas recalculados:")
                     print(f"   - tarifa_energia: R$ {tarifa_atualizada:.3f}/kWh")
                     print(f"   - consumo_mensal_kwh: {consumo_kwh:.1f} kWh")
                     print(f"   - consumo_mensal_reais: R$ {consumo_reais_correto:.2f}")
@@ -6525,24 +6542,84 @@ def get_projeto(projeto_id):
             payload_vendedor = (row.payload or {}).get("vendedor_nome")
             if payload_vendedor:
                 data["vendedor_nome"] = payload_vendedor
+            else:
+                data["vendedor_nome"] = row.vendedor_nome or "Representante Comercial"
         if not data.get("vendedor_cargo"):
             payload_cargo = (row.payload or {}).get("vendedor_cargo")
             if payload_cargo:
                 data["vendedor_cargo"] = payload_cargo
+            else:
+                data["vendedor_cargo"] = row.vendedor_cargo or "Especialista em Energia Solar"
         if not data.get("vendedor_telefone"):
             payload_tel = (row.payload or {}).get("vendedor_telefone")
             if payload_tel:
                 data["vendedor_telefone"] = payload_tel
+            else:
+                data["vendedor_telefone"] = row.vendedor_telefone or ""
         if not data.get("vendedor_email"):
             payload_email = (row.payload or {}).get("vendedor_email")
             if payload_email:
                 data["vendedor_email"] = payload_email
+            else:
+                data["vendedor_email"] = row.vendedor_email or ""
+
+        # RECALCULAR TABELAS SE AUSENTES (Para visualização completa em "Ver Custos")
+        if not data.get("tabelas") or not data.get("metrics") or 'tabela_25_anos' not in (data.get('metrics') or {}):
+            try:
+                # Normalizar entradas
+                _tarifa = parse_float(data.get('tarifa_energia'), 0.0)
+                if _tarifa <= 0:
+                    # Tentar buscar do arquivo se não estiver no payload
+                    _tarifa = _get_tarifa_by_concessionaria(data.get('concessionaria'))
+                
+                _consumo_kwh = parse_float(data.get('consumo_mensal_kwh'), 0.0)
+                _potencia = parse_float(data.get('potencia_sistema'), 0.0)
+                _preco = parse_float(data.get('preco_venda'), parse_float(data.get('preco_final'), 0.0))
+                
+                if _tarifa > 0 and _consumo_kwh > 0 and _potencia > 0 and _preco > 0:
+                    # Buscar irradiância
+                    _irr_media = parse_float(data.get('irradiacao_media', 5.15), 5.15)
+                    _irr_custom = data.get('irradiancia_mensal_kwh_m2_dia')
+                    if isinstance(_irr_custom, list) and len(_irr_custom) == 12:
+                        _irr_vec = [parse_float(v, 0.0) for v in _irr_custom]
+                    else:
+                        _irr_vec_csv = _resolve_irr_vec_from_csv(data.get('cidade'), _irr_media)
+                        _irr_vec = _irr_vec_csv if (isinstance(_irr_vec_csv, list) and len(_irr_vec_csv) == 12) else [_irr_media] * 12
+                    
+                    _payload_core = {
+                        "consumo_mensal_kwh": _consumo_kwh,
+                        "tarifa_energia": _tarifa,
+                        "potencia_sistema": _potencia,
+                        "preco_venda": _preco,
+                        "irradiacao_media": _irr_media,
+                        "irradiancia_mensal_kwh_m2_dia": _irr_vec,
+                        "ano_instalacao": 2026
+                    }
+                    
+                    _core = calcular_dimensionamento(_payload_core)
+                    if _core:
+                        data['metrics'] = {**(data.get('metrics') or {}), **(_core.get('metrics') or {})}
+                        data['tabelas'] = _core.get('tabelas') or {}
+                        
+                        # Inserir tabela 25 anos em metrics para compatibilidade do modal
+                        if 'ano' in data['tabelas']:
+                            _t25 = []
+                            for i in range(len(data['tabelas']['ano'])):
+                                _t25.append({
+                                    'ano': data['tabelas']['ano'][i],
+                                    'geracao': data['tabelas']['producao_anual_kwh'][i],
+                                    'tarifa': data['tabelas']['tarifa_r_kwh'][i],
+                                    'economia': data['tabelas']['economia_anual_real_r'][i],
+                                    'acumulado': data['tabelas']['economia_real_acumulada_r'][i]
+                                })
+                            data['metrics']['tabela_25_anos'] = _t25
+                        print(f"📊 [get_projeto] Tabelas calculadas dinamicamente para exibição do projeto {row.id}")
+            except Exception as _ex:
+                print(f"⚠️ Erro ao calcular tabelas dinâmicas em get_projeto: {_ex}")
 
         # Retornar payload completo (mergeando id)
         result = {"id": row.id, **data}
         print(f"📋 [get_projeto] Retornando projeto {row.id} com campos: {list(result.keys())}")
-        print(f"📋 [get_projeto] cliente_id={result.get('cliente_id')}, cep={result.get('cep')}, concessionaria={result.get('concessionaria')}")
-        print(f"📋 [get_projeto] vendedor_nome={result.get('vendedor_nome')}, vendedor_cargo={result.get('vendedor_cargo')}")
         return jsonify({
             "success": True,
             "projeto": result,
