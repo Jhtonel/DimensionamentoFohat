@@ -735,8 +735,8 @@ export default function Clientes() {
                       {/* Parâmetros de Cálculo */}
                       <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                         <h4 className="font-semibold text-purple-700 text-sm mb-2">⚙️ Parâmetros</h4>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div><span className="text-purple-600">Consumo kWh:</span> <span className="font-semibold">{custosData.consumo_mensal_kwh || custosData.consumo_kwh || '-'} kWh/mês</span></div>
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                          <div><span className="text-purple-600">Média Consumo:</span> <span className="font-semibold">{custosData.consumo_mensal_kwh || custosData.consumo_kwh || '-'} kWh/mês</span></div>
                           <div><span className="text-purple-600">Consumo R$:</span> <span className="font-semibold">{Number(custosData.consumo_mensal_reais || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span></div>
                           <div><span className="text-purple-600">Tarifa:</span> <span className="font-semibold">R$ {(custosData.tarifa_energia || custosData.tarifa_kwh || 0).toFixed(3)}/kWh</span></div>
                           <div><span className="text-purple-600">Concessionária:</span> <span className="font-semibold">{custosData.concessionaria || '-'}</span></div>
@@ -745,6 +745,25 @@ export default function Clientes() {
                           <div><span className="text-purple-600">Economia Est.:</span> <span className="font-semibold">{Number(custosData.economia_mensal_estimada || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span></div>
                           <div><span className="text-purple-600">Payback:</span> <span className="font-semibold">{custosData.payback_anos || custosData.anos_payback || '-'} anos</span></div>
                         </div>
+
+                        {/* Detalhamento Mensal de Consumo */}
+                        {(Array.isArray(custosData.consumo_mes_a_mes) && custosData.consumo_mes_a_mes.length > 0) ? (
+                          <div className="mt-3 pt-3 border-t border-purple-200">
+                            <p className="text-[10px] text-purple-600 font-bold uppercase mb-2">Consumo Mês a Mês (kWh)</p>
+                            <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+                              {custosData.consumo_mes_a_mes.map((c, i) => (
+                                <div key={i} className="bg-white/50 border border-purple-100 rounded p-1 text-center">
+                                  <p className="text-[9px] text-purple-500 font-medium uppercase">{c.mes || c.label}</p>
+                                  <p className="text-[10px] font-bold text-purple-700">{c.kwh || c.valor || 0}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-3 border-t border-purple-200">
+                             <p className="text-[10px] text-slate-400 italic">Consumo detalhado mes a mes não disponível para este projeto.</p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Pagamentos */}
@@ -802,8 +821,25 @@ export default function Clientes() {
                         </div>
                       </div>
 
+                      {/* Tabela de Geração Mensal (Ano 1) */}
+                      {(custosData.tabelas?.producao_mensal_kwh_ano1) && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
+                            <Sun className="w-3 h-3" /> Geração Mensal Estimada (Ano 1)
+                          </p>
+                          <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                             {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((mes, i) => (
+                               <div key={i} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-center">
+                                 <p className="text-[9px] text-slate-500 font-medium uppercase">{mes}</p>
+                                 <p className="text-[10px] font-bold text-emerald-400">{Math.round(custosData.tabelas.producao_mensal_kwh_ano1[i] || 0)} kWh</p>
+                               </div>
+                             ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Tabela de Projeção 25 anos (Se houver no payload) */}
-                      {custosData.metrics?.tabela_25_anos && (
+                      {(custosData.tabelas?.tabela_25_anos || custosData.metrics?.tabela_25_anos) && (
                         <div className="space-y-2">
                           <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                             <TrendingUp className="w-3 h-3" /> Projeção Financeira (25 Anos)
@@ -812,27 +848,27 @@ export default function Clientes() {
                             <table className="w-full text-[10px] text-left border-collapse font-mono">
                               <thead>
                                 <tr className="bg-slate-800 text-slate-400">
-                                  <th className="p-1.5 border-r border-slate-700">Ano</th>
-                                  <th className="p-1.5 border-r border-slate-700">Geração (kWh)</th>
-                                  <th className="p-1.5 border-r border-slate-700">Tarifa (R$)</th>
-                                  <th className="p-1.5 border-r border-slate-700">Economia</th>
-                                  <th className="p-1.5">Acumulado</th>
+                                  <th className="p-1.5 border-r border-slate-700 text-center">Ano</th>
+                                  <th className="p-1.5 border-r border-slate-700 text-center">Geração (kWh)</th>
+                                  <th className="p-1.5 border-r border-slate-700 text-center">Tarifa (R$)</th>
+                                  <th className="p-1.5 border-r border-slate-700 text-center">Economia (R$)</th>
+                                  <th className="p-1.5 text-center">Acumulado (R$)</th>
                                 </tr>
                               </thead>
                               <tbody className="text-slate-300">
-                                {custosData.metrics.tabela_25_anos.filter((_, i) => i % 5 === 0 || i === 0 || i === 24).map((row, idx) => (
+                                {(custosData.tabelas?.tabela_25_anos || custosData.metrics?.tabela_25_anos).map((row, idx) => (
                                   <tr key={idx} className="border-t border-slate-800 hover:bg-white/5">
-                                    <td className="p-1.5 border-r border-slate-700">{row.ano || idx}</td>
-                                    <td className="p-1.5 border-r border-slate-700">{Math.round(row.geracao || 0).toLocaleString('pt-BR')}</td>
-                                    <td className="p-1.5 border-r border-slate-700">R$ {(row.tarifa || 0).toFixed(3)}</td>
-                                    <td className="p-1.5 border-r border-slate-700 text-emerald-400">R$ {Math.round(row.economia || 0).toLocaleString('pt-BR')}</td>
-                                    <td className="p-1.5 text-blue-400">R$ {Math.round(row.acumulado || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-center">{row.ano || (idx + 1)}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">{Math.round(row.geracao || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-right">R$ {(row.tarifa || 0).toFixed(3)}</td>
+                                    <td className="p-1.5 border-r border-slate-700 text-emerald-400 text-right">R$ {Math.round(row.economia || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="p-1.5 text-blue-400 text-right">R$ {Math.round(row.acumulado || 0).toLocaleString('pt-BR')}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
-                          <p className="text-[9px] text-slate-600 italic">* Exibindo amostra de 5 em 5 anos conforme cálculos do core.</p>
+                          <p className="text-[9px] text-slate-600 italic">* Tabela completa de projeção financeira baseada na Lei 14.300.</p>
                         </div>
                       )}
 
