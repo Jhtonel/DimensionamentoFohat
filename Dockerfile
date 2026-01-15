@@ -10,38 +10,27 @@ RUN npm run build
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 
-# Instalar todas as dependências em um único RUN para evitar problemas de cache
+# Instalar dependências básicas primeiro
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
     fonts-dejavu-core \
-    # Puppeteer/Chromium (PDF idêntico ao template)
-    chromium \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libatk1.0-0 \
-    libgtk-3-0 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxshmfence1 \
-  && rm -rf /var/lib/apt/lists/* \
-  && apt-get clean
+    fonts-liberation \
+    wget \
+  && rm -rf /var/lib/apt/lists/*
 
-# Node.js (para rodar Puppeteer)
+# Instalar Node.js (para rodar Puppeteer)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get update \
   && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
+
+# Instalar Chromium e suas dependências
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+  && rm -rf /var/lib/apt/lists/* \
+  && apt-get clean
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
