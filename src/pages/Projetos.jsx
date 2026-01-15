@@ -430,14 +430,7 @@ export default function Projetos() {
                         <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')}>
                           <FileSearch className="w-4 h-4 mr-2" /> Ver PDF
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
-                          link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}>
+                        <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf?download=true`, '_blank')}>
                           <Download className="w-4 h-4 mr-2" /> Baixar PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -548,14 +541,7 @@ export default function Projetos() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')} title="Ver PDF">
                             <FileSearch className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => {
-                            const link = document.createElement('a');
-                            link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
-                            link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          }} title="Baixar PDF">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf?download=true`, '_blank')} title="Baixar PDF">
                             <Download className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(projeto.id)}>

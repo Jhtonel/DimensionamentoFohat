@@ -4640,12 +4640,17 @@ def gerar_pdf_puppeteer(proposta_id):
 @app.route('/proposta/<proposta_id>/ver-pdf', methods=['GET'])
 def ver_pdf_publico(proposta_id):
     """
-    Visualiza o PDF da proposta diretamente no navegador (sem forçar download).
+    Visualiza ou baixa o PDF da proposta.
     Rota pública - não requer autenticação.
-    Ideal para compartilhar link do PDF com clientes.
+    
+    Parâmetros:
+    - download=true: Força download do arquivo com nome personalizado
+    - Sem parâmetro: Abre PDF no navegador
     """
     try:
-        print(f"📄 [ver_pdf_publico] Gerando PDF para visualização - proposta_id={proposta_id}")
+        download_mode = request.args.get('download', '').lower() == 'true'
+        action = "download" if download_mode else "visualização"
+        print(f"📄 [ver_pdf_publico] Gerando PDF para {action} - proposta_id={proposta_id}")
         cleanup_old_charts()
 
         # Carregar dados da proposta (SEM autenticação - rota pública)
@@ -4669,15 +4674,31 @@ def ver_pdf_publico(proposta_id):
 
         print(f"✅ [ver_pdf_publico] PDF gerado com sucesso ({len(pdf_bytes)} bytes)")
 
-        # Retornar PDF para visualização no navegador (as_attachment=False)
-        return send_file(
-            io.BytesIO(pdf_bytes),
-            mimetype="application/pdf",
-            as_attachment=False,  # Abre no navegador em vez de baixar
-            max_age=0,
-        )
+        # Gerar nome do arquivo para download
+        if download_mode:
+            nome = (proposta_data or {}).get("cliente_nome") or "CLIENTE"
+            safe_nome = re.sub(r"[\\/:*?\"<>|]+", " ", str(nome)).strip()
+            safe_nome = re.sub(r"\s+", " ", safe_nome).strip()[:80] or "CLIENTE"
+            dt = datetime.now().strftime("%d-%m-%y")
+            filename = f"{safe_nome} - {dt} - FOHAT ENERGIA SOLAR.pdf"
+            
+            return send_file(
+                io.BytesIO(pdf_bytes),
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=filename,
+                max_age=0,
+            )
+        else:
+            # Retornar PDF para visualização no navegador
+            return send_file(
+                io.BytesIO(pdf_bytes),
+                mimetype="application/pdf",
+                as_attachment=False,
+                max_age=0,
+            )
     except Exception as e:
-        print(f"❌ Erro ao gerar PDF para visualização: {e}")
+        print(f"❌ Erro ao gerar PDF para {action}: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500

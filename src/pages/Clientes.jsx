@@ -551,14 +551,7 @@ export default function Clientes() {
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')} title="Ver PDF">
                                         <FileSearch className="w-3.5 h-3.5" />
                                       </Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => {
-                                        const link = document.createElement('a');
-                                        link.href = `${getBackendUrl()}/propostas/${projeto.id}/pdf`;
-                                        link.download = `Proposta_${projeto.cliente_nome || 'Cliente'}.pdf`;
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-                                      }} title="Baixar PDF">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-primary" onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf?download=true`, '_blank')} title="Baixar PDF">
                                         <Download className="w-3.5 h-3.5" />
                                       </Button>
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => { 
