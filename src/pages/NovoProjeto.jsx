@@ -1540,8 +1540,7 @@ export default function NovoProjeto() {
       // Processa todos os kits encontrados
       const kitsDisponiveis = [];
       
-      // FILTRO: potência mínima do painel = 585W
-      const POTENCIA_MINIMA_PAINEL_W = 585;
+      // POTENCIA_MINIMA_PAINEL_W já declarada acima (585W)
       
       if (todosOsKits.length > 0) {
         console.log('🔧 Processando todos os kits encontrados...');
