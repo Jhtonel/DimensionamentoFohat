@@ -372,9 +372,16 @@ export default function NovoProjeto() {
 
   const loadData = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    let projetoId = urlParams.get('projeto_id');
+    let projetoId = urlParams.get('projeto_id') || urlParams.get('edit'); // Suporte a ?edit=ID
     const clienteIdFromUrl = urlParams.get('cliente_id');
     const cloneFromId = urlParams.get('clone_from');
+    const tabFromUrl = urlParams.get('tab'); // Suporte a ?tab=custos
+    
+    // Se veio uma aba específica na URL, definir como aba inicial
+    if (tabFromUrl && ['basico', 'equipamentos', 'custos', 'resultados'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+      console.log('📑 [TAB] Abrindo na aba:', tabFromUrl);
+    }
     
     // Limpar cache de concessionárias para garantir valores atualizados
     Configuracao.clearConcessionariasCache();
