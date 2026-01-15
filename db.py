@@ -170,6 +170,12 @@ class PropostaDB(Base):
     # ====== Payload JSON completo (para dados adicionais e auditoria) ======
     # Inclui: consumo_mes_a_mes, graficos_base64, metrics, kit_selecionado, etc.
     payload = Column(JSON)
+    
+    # ====== Cache do PDF ======
+    # Armazena o PDF gerado para evitar regeneração a cada requisição
+    pdf_cache = Column(Text, nullable=True)  # PDF em base64 para compatibilidade
+    pdf_cached_at = Column(DateTime, nullable=True)  # Quando foi gerado
+    pdf_payload_hash = Column(String(64), nullable=True)  # Hash do payload para invalidação
 
 
 class UserDB(Base):

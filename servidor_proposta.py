@@ -13,6 +13,7 @@ import subprocess
 import uuid
 import math
 import logging
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, send_from_directory, redirect
@@ -4637,42 +4638,93 @@ def gerar_pdf_puppeteer(proposta_id):
         print(f"❌ Erro ao gerar PDF (Puppeteer): {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+def _calcular_hash_payload(payload: dict) -> str:
+    """Calcula hash MD5 do payload para detectar mudanças."""
+    payload_str = json.dumps(payload, sort_keys=True, default=str)
+    return hashlib.md5(payload_str.encode()).hexdigest()
+
 @app.route('/proposta/<proposta_id>/ver-pdf', methods=['GET'])
 def ver_pdf_publico(proposta_id):
     """
     Visualiza ou baixa o PDF da proposta.
     Rota pública - não requer autenticação.
     
+    O PDF é armazenado no PostgreSQL para evitar regeneração.
+    Se a proposta for alterada, o PDF é regenerado automaticamente.
+    
     Parâmetros:
     - download=true: Força download do arquivo com nome personalizado
+    - force=true: Força regeneração do PDF ignorando cache
     - Sem parâmetro: Abre PDF no navegador
     """
     try:
         download_mode = request.args.get('download', '').lower() == 'true'
+        force_regenerate = request.args.get('force', '').lower() == 'true'
         action = "download" if download_mode else "visualização"
-        print(f"📄 [ver_pdf_publico] Gerando PDF para {action} - proposta_id={proposta_id}")
-        cleanup_old_charts()
+        
+        print(f"📄 [ver_pdf_publico] Iniciando {action} - proposta_id={proposta_id}")
+        start_time = time.time()
 
-        # Carregar dados da proposta (SEM autenticação - rota pública)
+        # Carregar dados da proposta
         if USE_DB:
             db = SessionLocal()
             row = db.get(PropostaDB, proposta_id)
-            db.close()
             if not row:
+                db.close()
                 return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
+            
             proposta_data = row.payload or {}
+            
+            # Calcular hash do payload atual
+            current_hash = _calcular_hash_payload(proposta_data)
+            
+            # Verificar se tem PDF em cache válido
+            pdf_bytes = None
+            cache_valid = False
+            
+            if not force_regenerate and row.pdf_cache and row.pdf_payload_hash == current_hash:
+                # Cache válido! Usar PDF armazenado
+                try:
+                    pdf_bytes = base64.b64decode(row.pdf_cache)
+                    cache_valid = True
+                    elapsed = time.time() - start_time
+                    print(f"⚡ [ver_pdf_publico] PDF do cache ({len(pdf_bytes)} bytes) em {elapsed:.2f}s")
+                except Exception as e:
+                    print(f"⚠️ Erro ao decodificar cache, regenerando: {e}")
+                    cache_valid = False
+            
+            if not cache_valid:
+                # Gerar novo PDF
+                print(f"🔄 [ver_pdf_publico] Gerando novo PDF...")
+                cleanup_old_charts()
+                html = process_template_html(proposta_data, template_filename="template.html")
+                pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=60)
+                
+                # Salvar PDF no banco de dados
+                try:
+                    row.pdf_cache = base64.b64encode(pdf_bytes).decode('utf-8')
+                    row.pdf_cached_at = datetime.now()
+                    row.pdf_payload_hash = current_hash
+                    db.commit()
+                    elapsed = time.time() - start_time
+                    print(f"✅ [ver_pdf_publico] PDF gerado e salvo no DB ({len(pdf_bytes)} bytes) em {elapsed:.2f}s")
+                except Exception as e:
+                    db.rollback()
+                    print(f"⚠️ Erro ao salvar cache no DB: {e}")
+            
+            db.close()
         else:
+            # Modo arquivo local (sem cache)
             proposta_file = PROPOSTAS_DIR / f"{proposta_id}.json"
             if not proposta_file.exists():
                 return jsonify({"success": False, "message": "Proposta não encontrada"}), 404
             with open(proposta_file, "r", encoding="utf-8") as f:
                 proposta_data = json.load(f)
-
-        # Usar template.html para PDF (não o template_online)
-        html = process_template_html(proposta_data, template_filename="template.html")
-        pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=60)
-
-        print(f"✅ [ver_pdf_publico] PDF gerado com sucesso ({len(pdf_bytes)} bytes)")
+            
+            cleanup_old_charts()
+            html = process_template_html(proposta_data, template_filename="template.html")
+            pdf_bytes = _render_pdf_with_puppeteer(html, timeout_s=60)
+            print(f"✅ [ver_pdf_publico] PDF gerado (modo arquivo) ({len(pdf_bytes)} bytes)")
 
         # Gerar nome do arquivo para download
         if download_mode:
@@ -4698,7 +4750,7 @@ def ver_pdf_publico(proposta_id):
                 max_age=0,
             )
     except Exception as e:
-        print(f"❌ Erro ao gerar PDF para {action}: {e}")
+        print(f"❌ Erro ao gerar PDF: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
