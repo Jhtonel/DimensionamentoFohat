@@ -104,40 +104,63 @@ export default function Clientes() {
     }
   };
 
-  const handleTransfer = (newUserId) => {
+  const handleTransfer = async (newUserId) => {
     if (!selectedCliente || !newUserId) return;
     
+    // Encontrar nome do novo responsável para exibir na confirmação
+    const novoResponsavel = usuarios.find(u => u.uid === newUserId);
+    const novoNome = novoResponsavel?.nome || novoResponsavel?.email || newUserId;
+    
+    // Guardar referências antes de abrir o modal (evitar closure issues)
+    const clienteId = selectedCliente.id;
+    const clienteNome = selectedCliente.nome;
+    
     setConfirmTitle("Transferir Cliente");
-    setConfirmMessage("Confirma a transferência deste cliente para outro usuário?");
+    setConfirmMessage(`Transferir "${clienteNome}" para ${novoNome}?`);
     setConfirmAction(() => async () => {
       try {
         const serverUrl = getBackendUrl();
         const token = localStorage.getItem('app_jwt_token');
-        const res = await fetch(`${serverUrl}/clientes/transfer/${selectedCliente.id}`, {
+        const res = await fetch(`${serverUrl}/clientes/transfer/${clienteId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ new_owner_uid: newUserId })
         });
         
-        if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        
+        if (res.ok && data.success) {
+          // Fechar modais e recarregar dados
           setSelectedCliente(null);
           setTransferMode(false);
-          loadData();
-        } else {
-           setTimeout(() => {
-              setConfirmTitle("Erro");
-              setConfirmMessage("Erro ao transferir cliente.");
-              setConfirmAction(null);
-              setConfirmModalOpen(true);
-           }, 300);
-        }
-      } catch (e) {
-         setTimeout(() => {
-            setConfirmTitle("Erro");
-            setConfirmMessage("Erro de conexão.");
+          setConfirmModalOpen(false);
+          await loadData();
+          // Mostrar mensagem de sucesso
+          setTimeout(() => {
+            setConfirmTitle("Sucesso");
+            setConfirmMessage(`Cliente transferido com sucesso! ${data.propostas_transferidas || 0} proposta(s) também foram transferidas.`);
             setConfirmAction(null);
             setConfirmModalOpen(true);
-         }, 300);
+          }, 100);
+        } else {
+          const errorMsg = data.message || "Erro ao transferir cliente.";
+          setConfirmModalOpen(false);
+          setTimeout(() => {
+            setConfirmTitle("Erro");
+            setConfirmMessage(errorMsg);
+            setConfirmAction(null);
+            setConfirmModalOpen(true);
+          }, 100);
+        }
+      } catch (e) {
+        console.error("Erro na transferência:", e);
+        setConfirmModalOpen(false);
+        setTimeout(() => {
+          setConfirmTitle("Erro");
+          setConfirmMessage("Erro de conexão: " + (e.message || "Tente novamente."));
+          setConfirmAction(null);
+          setConfirmModalOpen(true);
+        }, 100);
       }
     });
     setConfirmModalOpen(true);
@@ -1011,11 +1034,15 @@ export default function Clientes() {
                <div className="flex justify-center gap-3 pt-4">
                   {confirmAction ? (
                     <>
-                      <Button variant="outline" onClick={() => setConfirmModalOpen(false)}>Cancelar</Button>
+                      <Button variant="outline" onClick={() => { setConfirmModalOpen(false); setTransferMode(false); }}>Cancelar</Button>
                       <Button onClick={async () => {
-                         await confirmAction();
-                         setConfirmModalOpen(false);
-                      }} className="bg-red-600 hover:bg-red-700 text-white">Confirmar</Button>
+                         try {
+                           await confirmAction();
+                         } catch (e) {
+                           console.error("Erro ao executar ação:", e);
+                         }
+                         // Não fechar aqui - a action controla o fechamento
+                      }} className="bg-primary hover:bg-primary/90 text-white">Confirmar</Button>
                     </>
                   ) : (
                     <Button onClick={() => setConfirmModalOpen(false)} className="bg-slate-900 text-white">OK</Button>

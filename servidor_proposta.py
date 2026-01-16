@@ -5845,6 +5845,17 @@ def transferir_cliente(cliente_id):
         if not new_owner_uid and not new_owner_email:
             return jsonify({"success": False, "message": "Informe new_owner_uid ou new_owner_email"}), 400
         
+        # Se apenas uid foi fornecido, buscar o email correspondente
+        if new_owner_uid and not new_owner_email and USE_DB:
+            try:
+                db_temp = SessionLocal()
+                new_user = db_temp.query(UserDB).filter(UserDB.uid == new_owner_uid).first()
+                if new_user and new_user.email:
+                    new_owner_email = new_user.email
+                db_temp.close()
+            except Exception as _e:
+                print(f"⚠️ [transferir_cliente] Não foi possível buscar email do novo owner: {_e}")
+        
         if USE_DB:
             db = SessionLocal()
             # Buscar cliente
