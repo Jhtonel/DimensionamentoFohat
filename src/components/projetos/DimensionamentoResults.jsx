@@ -382,15 +382,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         economia_total_25_anos: dadosSeguros.economia_total_25_anos,
         // Custos gerais
         custo_total_projeto: dadosSeguros.custo_total_projeto,
-        custo_equipamentos: dadosSeguros.custo_equipamentos || costs?.equipamentos?.total || 0,
+        custo_equipamentos: dadosSeguros.custo_equipamentos || costs?.equipamentos || 0,
         custo_instalacao: dadosSeguros.custo_instalacao || costs?.instalacao || 0,
         custo_homologacao: dadosSeguros.custo_homologacao || costs?.homologacao || 0,
         custo_outros: dadosSeguros.custo_outros,
         margem_lucro: dadosSeguros.margem_lucro,
         
         // Custos DETALHADOS (persistir todos os valores da aba de custos)
+        // costs agora é o custoOp do NovoProjeto com estrutura: equipamentos, transporte, instalacao, caAterramento, homologacao, placasSinalizacao, despesasGerais, total
         custos_detalhados: {
-          kit_fotovoltaico: costs?.equipamentos?.total || 0,
+          kit_fotovoltaico: costs?.equipamentos || 0,
           transporte: costs?.transporte || 0,
           instalacao: costs?.instalacao || 0,
           ca_aterramento: costs?.caAterramento || 0,

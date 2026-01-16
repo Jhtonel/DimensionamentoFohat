@@ -5002,7 +5002,7 @@ export default function NovoProjeto() {
                   onAutoGenerateComplete={() => setAutoGenerateProposta(false)}
                   user={user}
                   usuarios={usuarios}
-                  costs={costs}
+                  costs={resumoCalculos?.custoOp}
                 />
               </TabsContent>
             </Tabs>

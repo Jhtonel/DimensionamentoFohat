@@ -4223,7 +4223,7 @@ def salvar_proposta():
             'creditos_anuais': _pick('creditos_anuais', 0) or 0,
             'economia_total_25_anos': _pick('economia_total_25_anos', 0) or 0,
             'payback_meses': _pick('payback_meses', 0) or 0,
-            # Custos
+            # Custos básicos
             'custo_total_projeto': _to_money(_pick('custo_total_projeto', 0) or 0, 0.0) or 0.0,
             'custo_equipamentos': _to_money(_pick('custo_equipamentos', 0) or 0, 0.0) or 0.0,
             'custo_instalacao': _to_money(_pick('custo_instalacao', 0) or 0, 0.0) or 0.0,
@@ -4231,6 +4231,14 @@ def salvar_proposta():
             'custo_outros': _to_money(_pick('custo_outros', 0) or 0, 0.0) or 0.0,
             'margem_lucro': _to_money(_pick('margem_lucro', 0) or 0, 0.0) or 0.0,
             'comissao_vendedor': _pick('comissao_vendedor', 5) or 5,
+            # Custos DETALHADOS (persistir todos os valores da aba de custos)
+            'custo_transporte': _to_money(_pick('custo_transporte', 0) or 0, 0.0) or 0.0,
+            'custo_ca_aterramento': _to_money(_pick('custo_ca_aterramento', 0) or 0, 0.0) or 0.0,
+            'custo_placas_sinalizacao': _to_money(_pick('custo_placas_sinalizacao', 0) or 0, 0.0) or 0.0,
+            'custo_despesas_gerais': _to_money(_pick('custo_despesas_gerais', 0) or 0, 0.0) or 0.0,
+            'custo_operacional': _to_money(_pick('custo_operacional', 0) or 0, 0.0) or 0.0,
+            # Objeto completo de custos detalhados (para recuperação futura)
+            'custos_detalhados': _pick('custos_detalhados') or {},
             # Preservar gráficos e métricas gerados na etapa de análise (se enviados pelo frontend)
             'graficos_base64': _pick('graficos_base64') or {},
             'metrics': _pick('metrics') or {}
