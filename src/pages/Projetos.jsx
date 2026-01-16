@@ -476,7 +476,12 @@ export default function Projetos() {
                   <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {projeto.created_date ? format(new Date(projeto.created_date), "dd/MM/yyyy") : '-'}
+                      {projeto.created_date ? (
+                        <>
+                          {format(new Date(projeto.created_date), "dd/MM/yyyy")}
+                          <span className="ml-1">{format(new Date(projeto.created_date), "HH:mm")}</span>
+                        </>
+                      ) : '-'}
                     </span>
                     <span>ID: {projeto.id.slice(0, 6)}</span>
                   </div>
@@ -518,7 +523,12 @@ export default function Projetos() {
                       {Number(projeto.preco_final || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
                     <td className="px-6 py-4 text-slate-500">
-                      {projeto.created_date ? format(new Date(projeto.created_date), "dd/MM/yyyy") : '-'}
+                      {projeto.created_date ? (
+                        <>
+                          {format(new Date(projeto.created_date), "dd/MM/yyyy")}
+                          <span className="text-slate-400 ml-1">{format(new Date(projeto.created_date), "HH:mm")}</span>
+                        </>
+                      ) : '-'}
                     </td>
                     <td className="px-6 py-4 text-right">
                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

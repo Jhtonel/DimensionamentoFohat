@@ -268,7 +268,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       creditos_anuais: projecoes.creditos_anuais || 0,
       area_necessaria: Math.round((quantidade_placas || 0) * 2.5) || kit.area || 0, // Usar área do kit se disponível
       custo_total_projeto: projecoes.custo_total_projeto || kit.precoTotal || 0,
-      custo_equipamentos: projecoes.custo_equipamentos || 0,
+      custo_equipamentos: projecoes.custo_equipamentos || kit.precoTotal || 0,  // Fallback para preço do kit
       custo_instalacao: projecoes.custo_instalacao || 0,
       custo_homologacao: projecoes.custo_homologacao || 0,
       custo_outros: projecoes.custo_outros || 0,

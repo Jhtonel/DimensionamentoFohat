@@ -6696,6 +6696,18 @@ def get_projeto(projeto_id):
         if not data.get("area_necessaria") and row.area_necessaria:
             data["area_necessaria"] = row.area_necessaria
         
+        # Fallback de equipamentos (marca/modelo)
+        if not data.get("modulo_marca") and row.modulo_marca:
+            data["modulo_marca"] = row.modulo_marca
+        if not data.get("modulo_modelo") and row.modulo_modelo:
+            data["modulo_modelo"] = row.modulo_modelo
+        if not data.get("inversor_marca") and row.inversor_marca:
+            data["inversor_marca"] = row.inversor_marca
+        if not data.get("inversor_modelo") and row.inversor_modelo:
+            data["inversor_modelo"] = row.inversor_modelo
+        if not data.get("tipo_inversor") and row.tipo_inversor:
+            data["tipo_inversor"] = row.tipo_inversor
+        
         # Fallback de custos detalhados (colunas do banco)
         if not data.get("custo_equipamentos") and row.custo_equipamentos:
             data["custo_equipamentos"] = row.custo_equipamentos
