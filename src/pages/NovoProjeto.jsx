@@ -216,27 +216,36 @@ export default function NovoProjeto() {
   }, []);
 
   // Calcula custos em tempo real quando os dados do formulário mudam
+  // IMPORTANTE: Não recalcular se os custos já existem (projeto carregado do banco)
   useEffect(() => {
     const calculateCosts = async () => {
-      console.log('🔄 useEffect calculateCosts executado');
-      console.log('  - formData.potencia_kw:', formData.potencia_kw, typeof formData.potencia_kw);
-      console.log('  - formData completo:', formData);
+      // Se já tem custos detalhados salvos no projeto, NÃO recalcular
+      // Isso preserva os valores originais da proposta
+      if (formData.custos_detalhados && Object.keys(formData.custos_detalhados).length > 0) {
+        console.log('⏭️ [CUSTOS] Custos já existem no projeto, não recalculando');
+        return;
+      }
+      
+      // Se já tem custo_operacional ou preco_venda significativo, também não recalcular
+      if ((formData.custo_operacional && formData.custo_operacional > 0) || 
+          (formData.preco_venda && formData.preco_venda > 1000)) {
+        console.log('⏭️ [CUSTOS] Projeto com custos já definidos, não recalculando');
+        return;
+      }
       
       if (formData.potencia_kw && formData.potencia_kw > 0) {
-        console.log('✅ Potência válida, chamando calculateRealTimeCosts...');
+        console.log('🔄 [CUSTOS] Calculando custos em tempo real...');
         try {
           const resultado = await calculateRealTimeCosts(formData);
-          console.log('📊 Resultado do calculateRealTimeCosts:', resultado);
+          console.log('📊 [CUSTOS] Resultado:', resultado);
         } catch (error) {
-          console.error('❌ Erro no calculateRealTimeCosts:', error);
+          console.error('❌ [CUSTOS] Erro:', error);
         }
-      } else {
-        console.log('❌ Potência inválida ou não definida');
       }
     };
 
     calculateCosts();
-  }, [formData.potencia_kw, formData.tipo_instalacao, formData.regiao, formData.tipo_telhado, calculateRealTimeCosts]);
+  }, [formData.potencia_kw, formData.tipo_instalacao, formData.regiao, formData.tipo_telhado, formData.custos_detalhados, formData.custo_operacional, formData.preco_venda, calculateRealTimeCosts]);
 
   // Buscar métricas financeiras no backend para alimentar a aba de Custos
   useEffect(() => {
@@ -4993,6 +5002,7 @@ export default function NovoProjeto() {
                   onAutoGenerateComplete={() => setAutoGenerateProposta(false)}
                   user={user}
                   usuarios={usuarios}
+                  costs={costs}
                 />
               </TabsContent>
             </Tabs>

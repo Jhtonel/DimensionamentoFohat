@@ -9,7 +9,7 @@ import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucid
 import { Projeto, Configuracao } from '../../entities';
 import { useToast } from "@/hooks/useToast";
 
-export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [] }) {
+export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [], costs = null }) {
   const { toast } = useToast();
   // Dados do vendedor: usar o RESPONSÁVEL pelo cliente (created_by), não o usuário logado
   const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
@@ -380,13 +380,35 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         geracao_media_mensal: dadosSeguros.geracao_media_mensal,
         creditos_anuais: dadosSeguros.creditos_anuais,
         economia_total_25_anos: dadosSeguros.economia_total_25_anos,
-        // Custos
+        // Custos gerais
         custo_total_projeto: dadosSeguros.custo_total_projeto,
-        custo_equipamentos: dadosSeguros.custo_equipamentos,
-        custo_instalacao: dadosSeguros.custo_instalacao,
-        custo_homologacao: dadosSeguros.custo_homologacao,
+        custo_equipamentos: dadosSeguros.custo_equipamentos || costs?.equipamentos?.total || 0,
+        custo_instalacao: dadosSeguros.custo_instalacao || costs?.instalacao || 0,
+        custo_homologacao: dadosSeguros.custo_homologacao || costs?.homologacao || 0,
         custo_outros: dadosSeguros.custo_outros,
         margem_lucro: dadosSeguros.margem_lucro,
+        
+        // Custos DETALHADOS (persistir todos os valores da aba de custos)
+        custos_detalhados: {
+          kit_fotovoltaico: costs?.equipamentos?.total || 0,
+          transporte: costs?.transporte || 0,
+          instalacao: costs?.instalacao || 0,
+          ca_aterramento: costs?.caAterramento || 0,
+          homologacao: costs?.homologacao || 0,
+          placas_sinalizacao: costs?.placasSinalizacao || 0,
+          despesas_gerais: costs?.despesasGerais || 0,
+          custo_operacional: costs?.total || 0,
+          // DRE
+          preco_venda: formData?.preco_venda || dadosSeguros?.preco_final || 0,
+          comissao_percentual: formData?.comissao_vendedor || 6,
+          comissao_valor: (formData?.preco_venda || 0) * ((formData?.comissao_vendedor || 6) / 100),
+          despesas_diretoria_percentual: 1,
+          impostos_percentual: 3.3,
+          lldi_percentual: formData?.lldi_percentual || 0,
+          divisao_lucro_percentual: 40,
+          fundo_caixa_percentual: 20,
+        },
+        
         // Comissão do vendedor (vem da aba de custos)
         comissao_vendedor: formData?.comissao_vendedor,
         // Margem/produção adicional (%, R$ ou kWh)
@@ -546,7 +568,19 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             margem_adicional_kwh: formData?.margem_adicional_kwh || '',
             margem_adicional_reais: formData?.margem_adicional_reais || '',
             proposta_id: propostaId,
-            url_proposta: propostaService.getPropostaURL(propostaId)
+            url_proposta: propostaService.getPropostaURL(propostaId),
+            // Custos detalhados (persistir todos os valores calculados)
+            custo_equipamentos: propostaData.custo_equipamentos || propostaData.custos_detalhados?.kit_fotovoltaico || 0,
+            custo_transporte: propostaData.custos_detalhados?.transporte || 0,
+            custo_instalacao: propostaData.custo_instalacao || propostaData.custos_detalhados?.instalacao || 0,
+            custo_ca_aterramento: propostaData.custos_detalhados?.ca_aterramento || 0,
+            custo_homologacao: propostaData.custo_homologacao || propostaData.custos_detalhados?.homologacao || 0,
+            custo_placas_sinalizacao: propostaData.custos_detalhados?.placas_sinalizacao || 0,
+            custo_despesas_gerais: propostaData.custos_detalhados?.despesas_gerais || 0,
+            custo_operacional: propostaData.custos_detalhados?.custo_operacional || 0,
+            custos_detalhados: propostaData.custos_detalhados,
+            comissao_vendedor: propostaData.comissao_vendedor || formData?.comissao_vendedor || 6,
+            margem_lucro: dadosSeguros?.margem_lucro || 0,
             }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao atualizar projeto')), 3500)),
           ]).catch(() => {});
