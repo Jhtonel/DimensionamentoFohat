@@ -428,16 +428,21 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         geracao_media_mensal: dadosSeguros.geracao_media_mensal,
         creditos_anuais: dadosSeguros.creditos_anuais,
         economia_total_25_anos: dadosSeguros.economia_total_25_anos,
-        // Custos gerais
+        // Custos gerais (campos individuais para colunas do banco)
         custo_total_projeto: dadosSeguros.custo_total_projeto,
         custo_equipamentos: dadosSeguros.custo_equipamentos || custosEfetivos?.equipamentos || 0,
         custo_instalacao: dadosSeguros.custo_instalacao || custosEfetivos?.instalacao || 0,
         custo_homologacao: dadosSeguros.custo_homologacao || custosEfetivos?.homologacao || 0,
         custo_outros: dadosSeguros.custo_outros,
         margem_lucro: dadosSeguros.margem_lucro,
+        // Custos detalhados como campos individuais (para colunas do banco)
+        custo_transporte: custosEfetivos?.transporte || 0,
+        custo_ca_aterramento: custosEfetivos?.caAterramento || 0,
+        custo_placas_sinalizacao: custosEfetivos?.placasSinalizacao || 0,
+        custo_despesas_gerais: custosEfetivos?.despesasGerais || 0,
+        custo_operacional: custosEfetivos?.total || 0,
         
-        // Custos DETALHADOS (persistir todos os valores da aba de custos)
-        // custosEfetivos é o custoOp do NovoProjeto ou calculado localmente
+        // Custos DETALHADOS (objeto para compatibilidade)
         custos_detalhados: {
           kit_fotovoltaico: custosEfetivos?.equipamentos || 0,
           transporte: custosEfetivos?.transporte || 0,
@@ -447,16 +452,69 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           placas_sinalizacao: custosEfetivos?.placasSinalizacao || 0,
           despesas_gerais: custosEfetivos?.despesasGerais || 0,
           custo_operacional: custosEfetivos?.total || 0,
-          // DRE
-          preco_venda: formData?.preco_venda || dadosSeguros?.preco_final || 0,
-          comissao_percentual: formData?.comissao_vendedor || 6,
-          comissao_valor: (formData?.preco_venda || 0) * ((formData?.comissao_vendedor || 6) / 100),
-          despesas_diretoria_percentual: 1,
-          impostos_percentual: 3.3,
-          lldi_percentual: formData?.lldi_percentual || 0,
-          divisao_lucro_percentual: 40,
-          fundo_caixa_percentual: 20,
         },
+        
+        // DRE do Projeto (valores calculados e salvos permanentemente)
+        valor_comissao: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const pct = Number(formData?.comissao_vendedor || 6);
+          return pv * (pct / 100);
+        })(),
+        despesas_obra: (custosEfetivos?.instalacao || 0) + (custosEfetivos?.caAterramento || 0),
+        despesas_diretoria: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          return pv * 0.01; // 1%
+        })(),
+        impostos: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          return pv * 0.033; // 3.3%
+        })(),
+        lldi: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const custoOp = custosEfetivos?.total || 0;
+          const pct = Number(formData?.comissao_vendedor || 6);
+          const comissao = pv * (pct / 100);
+          const despDir = pv * 0.01;
+          const imp = pv * 0.033;
+          return pv - custoOp - comissao - despDir - imp;
+        })(),
+        divisao_lucro: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const custoOp = custosEfetivos?.total || 0;
+          const pct = Number(formData?.comissao_vendedor || 6);
+          const comissao = pv * (pct / 100);
+          const despDir = pv * 0.01;
+          const imp = pv * 0.033;
+          const lldi = pv - custoOp - comissao - despDir - imp;
+          return lldi * 0.4; // 40%
+        })(),
+        fundo_caixa: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const custoOp = custosEfetivos?.total || 0;
+          const pct = Number(formData?.comissao_vendedor || 6);
+          const comissao = pv * (pct / 100);
+          const despDir = pv * 0.01;
+          const imp = pv * 0.033;
+          const lldi = pv - custoOp - comissao - despDir - imp;
+          return lldi * 0.2; // 20%
+        })(),
+        
+        // Formas de Pagamento (valores calculados e salvos permanentemente)
+        preco_avista: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          return pv * 0.95; // 5% de desconto
+        })(),
+        desconto_avista: 5,
+        parcelas_json: (() => {
+          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const taxaFin = 0.0149; // 1.49% a.m.
+          const cartao = [3, 6, 10, 12].map(n => ({ qtd: n, valor: pv / n, tipo: 'cartao' }));
+          const financiamento = [36, 48, 60, 72].map(n => {
+            const pmt = pv * (taxaFin * Math.pow(1 + taxaFin, n)) / (Math.pow(1 + taxaFin, n) - 1);
+            return { qtd: n, valor: pmt, tipo: 'financiamento' };
+          });
+          return [...cartao, ...financiamento];
+        })(),
         
         // Comissão do vendedor (vem da aba de custos)
         comissao_vendedor: formData?.comissao_vendedor,

@@ -317,6 +317,18 @@ def _proposta_fields_from_data(data: dict, proposta_id: str = None) -> dict:
         'custo_placas_sinalizacao': _to_float_or_none(data.get('custo_placas_sinalizacao')) or 0,
         'custo_despesas_gerais': _to_float_or_none(data.get('custo_despesas_gerais')) or 0,
         'custo_operacional': _to_float_or_none(data.get('custo_operacional')) or 0,
+        # DRE do Projeto (persistidos individualmente no banco)
+        'valor_comissao': _to_float_or_none(data.get('valor_comissao')) or 0,
+        'despesas_obra': _to_float_or_none(data.get('despesas_obra')) or 0,
+        'despesas_diretoria': _to_float_or_none(data.get('despesas_diretoria')) or 0,
+        'impostos': _to_float_or_none(data.get('impostos')) or 0,
+        'lldi': _to_float_or_none(data.get('lldi')) or 0,
+        'divisao_lucro': _to_float_or_none(data.get('divisao_lucro')) or 0,
+        'fundo_caixa': _to_float_or_none(data.get('fundo_caixa')) or 0,
+        # Formas de Pagamento (persistidas no banco)
+        'preco_avista': _to_float_or_none(data.get('preco_avista')) or 0,
+        'desconto_avista': _to_float_or_none(data.get('desconto_avista')) or 0,
+        'parcelas_json': data.get('parcelas_json'),
         # Vendedor
         'vendedor_nome': data.get('vendedor_nome'),
         'vendedor_email': data.get('vendedor_email'),
@@ -6705,6 +6717,30 @@ def get_projeto(projeto_id):
             data["comissao_vendedor"] = row.comissao_vendedor
         if not data.get("margem_lucro") and row.margem_lucro:
             data["margem_lucro"] = row.margem_lucro
+        
+        # Fallback de DRE do Projeto (colunas do banco)
+        if not data.get("valor_comissao") and row.valor_comissao:
+            data["valor_comissao"] = row.valor_comissao
+        if not data.get("despesas_obra") and row.despesas_obra:
+            data["despesas_obra"] = row.despesas_obra
+        if not data.get("despesas_diretoria") and row.despesas_diretoria:
+            data["despesas_diretoria"] = row.despesas_diretoria
+        if not data.get("impostos") and row.impostos:
+            data["impostos"] = row.impostos
+        if not data.get("lldi") and row.lldi:
+            data["lldi"] = row.lldi
+        if not data.get("divisao_lucro") and row.divisao_lucro:
+            data["divisao_lucro"] = row.divisao_lucro
+        if not data.get("fundo_caixa") and row.fundo_caixa:
+            data["fundo_caixa"] = row.fundo_caixa
+        
+        # Fallback de Formas de Pagamento (colunas do banco)
+        if not data.get("preco_avista") and row.preco_avista:
+            data["preco_avista"] = row.preco_avista
+        if not data.get("desconto_avista") and row.desconto_avista:
+            data["desconto_avista"] = row.desconto_avista
+        if not data.get("parcelas_json") and row.parcelas_json:
+            data["parcelas_json"] = row.parcelas_json
 
         # Fallback de dados do cliente (para propostas antigas sem esses campos)
         if cliente_data:

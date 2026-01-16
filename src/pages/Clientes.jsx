@@ -710,11 +710,11 @@ export default function Clientes() {
                         <h4 className="font-semibold text-slate-700 text-sm mb-2 flex items-center gap-1"><Sun className="w-3.5 h-3.5" /> Sistema</h4>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div><span className="text-slate-500">Potência:</span> <span className="font-semibold">{(custosData.potencia_kw || custosData.potencia_sistema || custosData.potencia_kwp || 0).toFixed(2)} kWp</span></div>
-                          <div><span className="text-slate-500">Módulos:</span> <span className="font-semibold">{custosData.quantidade_modulos || custosData.qtd_modulos || '-'}</span></div>
-                          <div><span className="text-slate-500">Módulo:</span> <span className="font-semibold">{custosData.marca_modulo || '-'} {custosData.modelo_modulo || ''}</span></div>
-                          <div><span className="text-slate-500">Pot. Módulo:</span> <span className="font-semibold">{custosData.potencia_modulo || custosData.potencia_painel || '-'}W</span></div>
-                          <div><span className="text-slate-500">Inversor:</span> <span className="font-semibold">{custosData.marca_inversor || '-'} {custosData.modelo_inversor || ''}</span></div>
-                          <div><span className="text-slate-500">Área:</span> <span className="font-semibold">{custosData.area_estimada || '-'} m²</span></div>
+                          <div><span className="text-slate-500">Módulos:</span> <span className="font-semibold">{custosData.quantidade_placas || custosData.quantidade_modulos || custosData.qtd_modulos || '-'}</span></div>
+                          <div><span className="text-slate-500">Módulo:</span> <span className="font-semibold">{custosData.modulo_marca || custosData.marca_modulo || '-'} {custosData.modulo_modelo || custosData.modelo_modulo || ''}</span></div>
+                          <div><span className="text-slate-500">Pot. Módulo:</span> <span className="font-semibold">{custosData.potencia_placa_w || custosData.potencia_modulo || custosData.potencia_painel || '-'}W</span></div>
+                          <div><span className="text-slate-500">Inversor:</span> <span className="font-semibold">{custosData.inversor_marca || custosData.marca_inversor || '-'} {custosData.inversor_modelo || custosData.modelo_inversor || ''}</span></div>
+                          <div><span className="text-slate-500">Área:</span> <span className="font-semibold">{custosData.area_necessaria || custosData.area_estimada || '-'} m²</span></div>
                         </div>
                       </div>
 
@@ -733,41 +733,69 @@ export default function Clientes() {
                         </div>
                       </div>
 
-                      {/* Venda e Margem */}
+                      {/* Venda e Margem - Usar valores SALVOS do banco */}
+                      {(() => {
+                        const precoVenda = Number(custosData.preco_venda || custosData.preco_final || 0);
+                        const comissaoPct = Number(custosData.comissao_vendedor || 6);
+                        // Usar valores SALVOS do banco
+                        const comissaoValor = Number(custosData.valor_comissao || 0);
+                        const lldi = Number(custosData.lldi || 0);
+                        const margemPct = precoVenda > 0 ? ((lldi / precoVenda) * 100) : (custosData.margem_lucro || 0);
+                        
+                        return (
                       <div className="grid grid-cols-3 gap-2">
                         <div className="bg-green-50 rounded-lg p-2.5 border border-green-200 text-center">
                           <p className="text-[10px] text-green-600 uppercase font-semibold">Preço Venda</p>
-                          <p className="text-lg font-bold text-green-700">{Number(custosData.preco_venda || custosData.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                          <p className="text-lg font-bold text-green-700">{precoVenda.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-2.5 border border-blue-200 text-center">
-                          <p className="text-[10px] text-blue-600 uppercase font-semibold">Comissão ({custosData.comissao_vendedor || 5}%)</p>
-                          <p className="text-lg font-bold text-blue-700">{Number(custosData.valor_comissao || ((custosData.preco_venda || 0) * (custosData.comissao_vendedor || 5) / 100)).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                          <p className="text-[10px] text-blue-600 uppercase font-semibold">Comissão ({comissaoPct}%)</p>
+                          <p className="text-lg font-bold text-blue-700">{comissaoValor.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
                         </div>
                         <div className="bg-purple-50 rounded-lg p-2.5 border border-purple-200 text-center">
                           <p className="text-[10px] text-purple-600 uppercase font-semibold">Margem</p>
-                          <p className="text-lg font-bold text-purple-700">{(custosData.margem_lucro || 0).toFixed(1)}%</p>
+                          <p className="text-lg font-bold text-purple-700">{margemPct.toFixed(1)}%</p>
                         </div>
                       </div>
+                        );
+                      })()}
                     </div>
 
                     {/* COLUNA 2: DRE e Parâmetros */}
                     <div className="space-y-4">
-                      {/* DRE do Projeto */}
+                      {/* DRE do Projeto - Usar valores SALVOS do banco */}
+                      {(() => {
+                        const precoVenda = Number(custosData.preco_venda || custosData.preco_final || 0);
+                        const custoEquip = Number(custosData.custo_equipamentos || custosData.custos_detalhados?.kit_fotovoltaico || 0);
+                        const comissaoPct = Number(custosData.comissao_vendedor || 6);
+                        // Usar valores SALVOS do banco (não recalcular)
+                        const comissaoValor = Number(custosData.valor_comissao || 0);
+                        const despesasObra = Number(custosData.despesas_obra || 0);
+                        const despDiretoria = Number(custosData.despesas_diretoria || 0);
+                        const impostos = Number(custosData.impostos || 0);
+                        const lldi = Number(custosData.lldi || 0);
+                        const divisaoLucro = Number(custosData.divisao_lucro || 0);
+                        const fundoCaixa = Number(custosData.fundo_caixa || 0);
+                        const margemPct = precoVenda > 0 ? ((lldi / precoVenda) * 100) : 0;
+                        
+                        return (
                       <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                         <h4 className="font-semibold text-slate-700 text-sm mb-2">📊 DRE do Projeto</h4>
                         <div className="space-y-1 text-xs">
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-200 font-semibold text-slate-600"><span>Descrição</span><span className="text-right">Valor</span><span className="text-right">%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Preço Venda</span><span className="text-right text-green-600 font-semibold">{Number(custosData.preco_venda || custosData.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right font-semibold">100%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Kit Fotovoltaico</span><span className="text-right">{Number(custosData.custo_equipamentos || custosData.valor_kit || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{((custosData.custo_equipamentos || 0) / (custosData.preco_venda || 1) * 100).toFixed(1)}%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Comissão</span><span className="text-right">{Number(custosData.valor_comissao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{custosData.comissao_vendedor || 5}%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Despesas Obra</span><span className="text-right">{Number(custosData.despesas_obra || (custosData.custo_instalacao || 0) + (custosData.custo_ca_aterramento || 0)).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Desp. Diretoria (1%)</span><span className="text-right">{Number(custosData.despesas_diretoria || (custosData.preco_venda || 0) * 0.01).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">1.0%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Impostos (3.3%)</span><span className="text-right">{Number(custosData.impostos || (custosData.preco_venda || 0) * 0.033).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">3.3%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1.5 bg-blue-50 px-1 rounded font-semibold text-blue-700"><span>LLDI</span><span className="text-right">{Number(custosData.lldi || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{((custosData.lldi || 0) / (custosData.preco_venda || 1) * 100).toFixed(1)}%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{Number(custosData.divisao_lucro || (custosData.lldi || 0) * 0.4).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{Number(custosData.fundo_caixa || (custosData.lldi || 0) * 0.2).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Preço Venda</span><span className="text-right text-green-600 font-semibold">{precoVenda.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right font-semibold">100%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Kit Fotovoltaico</span><span className="text-right">{custoEquip.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{precoVenda > 0 ? (custoEquip / precoVenda * 100).toFixed(1) : 0}%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Comissão</span><span className="text-right">{comissaoValor.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{comissaoPct}%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Despesas Obra</span><span className="text-right">{despesasObra.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Desp. Diretoria (1%)</span><span className="text-right">{despDiretoria.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">1.0%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Impostos (3.3%)</span><span className="text-right">{impostos.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">3.3%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1.5 bg-blue-50 px-1 rounded font-semibold text-blue-700"><span>LLDI</span><span className="text-right">{lldi.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{margemPct.toFixed(1)}%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{divisaoLucro.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{fundoCaixa.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
                         </div>
                       </div>
+                        );
+                      })()}
 
                       {/* Parâmetros de Cálculo */}
                       <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
@@ -803,28 +831,59 @@ export default function Clientes() {
                         )}
                       </div>
 
-                      {/* Pagamentos */}
+                      {/* Pagamentos - Usar valores SALVOS do banco */}
+                      {(() => {
+                        const precoVenda = Number(custosData.preco_venda || custosData.preco_final || 0);
+                        // Usar valores SALVOS do banco
+                        const descontoAvista = Number(custosData.desconto_avista || 5);
+                        const precoAvista = Number(custosData.preco_avista || (precoVenda * (1 - descontoAvista / 100)));
+                        // Usar parcelas salvas ou gerar fallback
+                        const parcelasSalvas = Array.isArray(custosData.parcelas_json) ? custosData.parcelas_json : [];
+                        const parcelasCartao = parcelasSalvas.filter(p => p.tipo === 'cartao');
+                        const parcelasFinanciamento = parcelasSalvas.filter(p => p.tipo === 'financiamento');
+                        
+                        // Fallback se não tiver parcelas salvas
+                        const fallbackCartao = parcelasCartao.length > 0 ? parcelasCartao : [3, 6, 10, 12].map(n => ({ qtd: n, valor: precoVenda / n }));
+                        const taxaFin = 0.0149;
+                        const fallbackFinanciamento = parcelasFinanciamento.length > 0 ? parcelasFinanciamento : [36, 48, 60, 72].map(n => ({
+                          qtd: n,
+                          valor: precoVenda * (taxaFin * Math.pow(1 + taxaFin, n)) / (Math.pow(1 + taxaFin, n) - 1)
+                        }));
+                        
+                        return (
                       <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
                         <h4 className="font-semibold text-amber-700 text-sm mb-2">💳 Formas de Pagamento</h4>
                         <div className="space-y-2 text-xs">
-                          {(custosData.preco_avista || custosData.preco_a_vista) > 0 && (
-                            <div className="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
-                              <span className="text-amber-600">À Vista (PIX) - {(custosData.desconto_avista || custosData.desconto_a_vista || 0).toFixed(0)}% desc.</span>
-                              <span className="font-bold text-amber-700">{Number(custosData.preco_avista || custosData.preco_a_vista).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</span>
-                            </div>
-                          )}
-                          {Array.isArray(custosData.parcelas) && custosData.parcelas.length > 0 && (
-                            <div className="grid grid-cols-3 gap-1">
-                              {custosData.parcelas.slice(0, 6).map((p, i) => (
-                                <div key={i} className="bg-white p-1.5 rounded border border-amber-100 text-center">
-                                  <span className="font-bold text-slate-700">{p.parcelas || p.qtd}x</span>
-                                  <span className="block text-emerald-600 font-semibold text-[10px]">{Number(p.valor || p.valor_parcela || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                                </div>
-                              ))}
-                            </div>
+                          {precoVenda > 0 && (
+                            <>
+                              <div className="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
+                                <span className="text-amber-600">À Vista (PIX) - {descontoAvista}% desc.</span>
+                                <span className="font-bold text-amber-700">{precoAvista.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</span>
+                              </div>
+                              <p className="text-[10px] text-amber-600 font-semibold mt-2">Cartão (s/ juros):</p>
+                              <div className="grid grid-cols-4 gap-1">
+                                {fallbackCartao.map((p, i) => (
+                                  <div key={i} className="bg-white p-1.5 rounded border border-amber-100 text-center">
+                                    <span className="font-bold text-slate-700">{p.qtd}x</span>
+                                    <span className="block text-emerald-600 font-semibold text-[10px]">{Number(p.valor).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-amber-600 font-semibold mt-2">Financiamento (1.49% a.m.):</p>
+                              <div className="grid grid-cols-4 gap-1">
+                                {fallbackFinanciamento.map((p, i) => (
+                                  <div key={i} className="bg-white p-1.5 rounded border border-amber-100 text-center">
+                                    <span className="font-bold text-slate-700">{p.qtd}x</span>
+                                    <span className="block text-blue-600 font-semibold text-[10px]">{Number(p.valor).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
                           )}
                         </div>
                       </div>
+                        );
+                      })()}
                     </div>
                   </div>
 

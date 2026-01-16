@@ -164,6 +164,20 @@ class PropostaDB(Base):
     custo_despesas_gerais = Column(Float, nullable=True)
     custo_operacional = Column(Float, nullable=True)
     
+    # ====== DRE do Projeto (valores calculados e salvos) ======
+    valor_comissao = Column(Float, nullable=True)
+    despesas_obra = Column(Float, nullable=True)
+    despesas_diretoria = Column(Float, nullable=True)
+    impostos = Column(Float, nullable=True)
+    lldi = Column(Float, nullable=True)
+    divisao_lucro = Column(Float, nullable=True)
+    fundo_caixa = Column(Float, nullable=True)
+    
+    # ====== Formas de Pagamento (valores calculados e salvos) ======
+    preco_avista = Column(Float, nullable=True)
+    desconto_avista = Column(Float, nullable=True)
+    parcelas_json = Column(JSON, nullable=True)  # Array de parcelas [{qtd, valor, tipo}]
+    
     # ====== Vendedor ======
     vendedor_nome = Column(String(255), nullable=True)
     vendedor_email = Column(String(255), nullable=True)
@@ -324,6 +338,20 @@ def init_db():
                 add_column_if_not_exists('propostas', 'custo_despesas_gerais', 'FLOAT')
                 add_column_if_not_exists('propostas', 'custo_operacional', 'FLOAT')
                 
+                # DRE do Projeto
+                add_column_if_not_exists('propostas', 'valor_comissao', 'FLOAT')
+                add_column_if_not_exists('propostas', 'despesas_obra', 'FLOAT')
+                add_column_if_not_exists('propostas', 'despesas_diretoria', 'FLOAT')
+                add_column_if_not_exists('propostas', 'impostos', 'FLOAT')
+                add_column_if_not_exists('propostas', 'lldi', 'FLOAT')
+                add_column_if_not_exists('propostas', 'divisao_lucro', 'FLOAT')
+                add_column_if_not_exists('propostas', 'fundo_caixa', 'FLOAT')
+                
+                # Formas de Pagamento
+                add_column_if_not_exists('propostas', 'preco_avista', 'FLOAT')
+                add_column_if_not_exists('propostas', 'desconto_avista', 'FLOAT')
+                add_column_if_not_exists('propostas', 'parcelas_json', 'JSON')
+                
                 # Criar índices se não existirem
                 try:
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_propostas_status ON propostas(status)"))
@@ -361,7 +389,12 @@ def init_db():
                     # Custos Detalhados
                     ('custo_transporte', 'REAL'), ('custo_ca_aterramento', 'REAL'),
                     ('custo_placas_sinalizacao', 'REAL'), ('custo_despesas_gerais', 'REAL'),
-                    ('custo_operacional', 'REAL')
+                    ('custo_operacional', 'REAL'),
+                    # DRE do Projeto
+                    ('valor_comissao', 'REAL'), ('despesas_obra', 'REAL'), ('despesas_diretoria', 'REAL'),
+                    ('impostos', 'REAL'), ('lldi', 'REAL'), ('divisao_lucro', 'REAL'), ('fundo_caixa', 'REAL'),
+                    # Formas de Pagamento
+                    ('preco_avista', 'REAL'), ('desconto_avista', 'REAL'), ('parcelas_json', 'TEXT')
                 ]:
                     add_sqlite_column('propostas', col, typ)
     except Exception as e:
