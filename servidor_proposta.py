@@ -4842,10 +4842,10 @@ def visualizar_proposta(proposta_id):
             with open(proposta_file, 'r', encoding='utf-8') as f:
                 proposta_data = json.load(f)
         
-        # Visualização/Preview online usa template_online.html (pode ser editado sem afetar o PDF)
-        # O template de PDF (template.html) permanece inalterado
+        # Visualização/Preview online agora usa template.html (formato de slides horizontal)
+        # Isso garante consistência entre preview e PDF
         try:
-            processed = process_template_html(proposta_data, template_filename="template_online.html")
+            processed = process_template_html(proposta_data, template_filename="template.html")
             return processed, 200, {'Content-Type': 'text/html; charset=utf-8'}
         except Exception as e:
             print(f"❌ Falha no process_template_html em visualizar_proposta: {e}")
