@@ -311,6 +311,12 @@ def _proposta_fields_from_data(data: dict, proposta_id: str = None) -> dict:
         'custo_outros': _to_float_or_none(data.get('custo_outros')) or 0,
         'margem_lucro': _to_float_or_none(data.get('margem_lucro')) or 0,
         'comissao_vendedor': _to_float_or_none(data.get('comissao_vendedor')) or 0,
+        # Custos Detalhados (persistidos individualmente no banco)
+        'custo_transporte': _to_float_or_none(data.get('custo_transporte')) or 0,
+        'custo_ca_aterramento': _to_float_or_none(data.get('custo_ca_aterramento')) or 0,
+        'custo_placas_sinalizacao': _to_float_or_none(data.get('custo_placas_sinalizacao')) or 0,
+        'custo_despesas_gerais': _to_float_or_none(data.get('custo_despesas_gerais')) or 0,
+        'custo_operacional': _to_float_or_none(data.get('custo_operacional')) or 0,
         # Vendedor
         'vendedor_nome': data.get('vendedor_nome'),
         'vendedor_email': data.get('vendedor_email'),
@@ -6677,6 +6683,28 @@ def get_projeto(projeto_id):
             data["potencia_placa_w"] = row.potencia_placa_w
         if not data.get("area_necessaria") and row.area_necessaria:
             data["area_necessaria"] = row.area_necessaria
+        
+        # Fallback de custos detalhados (colunas do banco)
+        if not data.get("custo_equipamentos") and row.custo_equipamentos:
+            data["custo_equipamentos"] = row.custo_equipamentos
+        if not data.get("custo_instalacao") and row.custo_instalacao:
+            data["custo_instalacao"] = row.custo_instalacao
+        if not data.get("custo_homologacao") and row.custo_homologacao:
+            data["custo_homologacao"] = row.custo_homologacao
+        if not data.get("custo_transporte") and row.custo_transporte:
+            data["custo_transporte"] = row.custo_transporte
+        if not data.get("custo_ca_aterramento") and row.custo_ca_aterramento:
+            data["custo_ca_aterramento"] = row.custo_ca_aterramento
+        if not data.get("custo_placas_sinalizacao") and row.custo_placas_sinalizacao:
+            data["custo_placas_sinalizacao"] = row.custo_placas_sinalizacao
+        if not data.get("custo_despesas_gerais") and row.custo_despesas_gerais:
+            data["custo_despesas_gerais"] = row.custo_despesas_gerais
+        if not data.get("custo_operacional") and row.custo_operacional:
+            data["custo_operacional"] = row.custo_operacional
+        if not data.get("comissao_vendedor") and row.comissao_vendedor:
+            data["comissao_vendedor"] = row.comissao_vendedor
+        if not data.get("margem_lucro") and row.margem_lucro:
+            data["margem_lucro"] = row.margem_lucro
 
         # Fallback de dados do cliente (para propostas antigas sem esses campos)
         if cliente_data:

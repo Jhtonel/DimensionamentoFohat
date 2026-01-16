@@ -11,6 +11,54 @@ import { useToast } from "@/hooks/useToast";
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [], costs = null }) {
   const { toast } = useToast();
+  
+  // Calcular custos localmente se não foram passados
+  // Isso garante que sempre temos valores para salvar na proposta
+  const calcularCustosLocais = () => {
+    const propostaCfg = configs?.proposta_configs || {};
+    const quantidadePlacas = Number(resultados?.quantidade_placas || kitSelecionado?.quantidade_placas || 0);
+    const potenciaKwp = Number(formData?.potencia_kw || resultados?.potencia_sistema_kwp || 0);
+    const custoEquipamentos = Number(kitSelecionado?.precoTotal || 0);
+    
+    // Cálculo de instalação por placa
+    const baseInstalacao = Number(propostaCfg?.instalacao_base_por_placa ?? 40) || 40;
+    const percentualSeguranca = Number(propostaCfg?.instalacao_percentual_seguranca ?? 10) || 10;
+    const instalacaoPorPlaca = baseInstalacao * (1 + percentualSeguranca / 100);
+    const instalacao = quantidadePlacas * instalacaoPorPlaca;
+    
+    // Outros custos
+    const caAterramento = quantidadePlacas * (Number(propostaCfg?.custo_ca_aterramento_por_placa ?? 100) || 100);
+    
+    // Homologação baseada na potência
+    let homologacao = 800; // base
+    if (potenciaKwp > 75) homologacao = 1800;
+    else if (potenciaKwp > 25) homologacao = 1200;
+    else if (potenciaKwp > 10) homologacao = 1000;
+    
+    const placasSinalizacao = Number(propostaCfg?.custo_placas_sinalizacao ?? 60) || 60;
+    const despesasGeraisPct = Number(propostaCfg?.percentual_despesas_gerais ?? 10) || 10;
+    const despesasGerais = instalacao * (despesasGeraisPct / 100);
+    const transportePct = Number(propostaCfg?.percentual_transporte ?? 5) || 5;
+    const transporte = custoEquipamentos * (transportePct / 100);
+    
+    const total = custoEquipamentos + transporte + instalacao + caAterramento + homologacao + placasSinalizacao + despesasGerais;
+    
+    return {
+      equipamentos: custoEquipamentos,
+      transporte,
+      instalacao,
+      caAterramento,
+      homologacao,
+      placasSinalizacao,
+      despesasGerais,
+      total
+    };
+  };
+  
+  // Usar costs passado ou calcular localmente
+  const custosEfetivos = costs && costs.total > 0 ? costs : calcularCustosLocais();
+  
+  
   // Dados do vendedor: usar o RESPONSÁVEL pelo cliente (created_by), não o usuário logado
   const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
   
@@ -382,23 +430,23 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         economia_total_25_anos: dadosSeguros.economia_total_25_anos,
         // Custos gerais
         custo_total_projeto: dadosSeguros.custo_total_projeto,
-        custo_equipamentos: dadosSeguros.custo_equipamentos || costs?.equipamentos || 0,
-        custo_instalacao: dadosSeguros.custo_instalacao || costs?.instalacao || 0,
-        custo_homologacao: dadosSeguros.custo_homologacao || costs?.homologacao || 0,
+        custo_equipamentos: dadosSeguros.custo_equipamentos || custosEfetivos?.equipamentos || 0,
+        custo_instalacao: dadosSeguros.custo_instalacao || custosEfetivos?.instalacao || 0,
+        custo_homologacao: dadosSeguros.custo_homologacao || custosEfetivos?.homologacao || 0,
         custo_outros: dadosSeguros.custo_outros,
         margem_lucro: dadosSeguros.margem_lucro,
         
         // Custos DETALHADOS (persistir todos os valores da aba de custos)
-        // costs agora é o custoOp do NovoProjeto com estrutura: equipamentos, transporte, instalacao, caAterramento, homologacao, placasSinalizacao, despesasGerais, total
+        // custosEfetivos é o custoOp do NovoProjeto ou calculado localmente
         custos_detalhados: {
-          kit_fotovoltaico: costs?.equipamentos || 0,
-          transporte: costs?.transporte || 0,
-          instalacao: costs?.instalacao || 0,
-          ca_aterramento: costs?.caAterramento || 0,
-          homologacao: costs?.homologacao || 0,
-          placas_sinalizacao: costs?.placasSinalizacao || 0,
-          despesas_gerais: costs?.despesasGerais || 0,
-          custo_operacional: costs?.total || 0,
+          kit_fotovoltaico: custosEfetivos?.equipamentos || 0,
+          transporte: custosEfetivos?.transporte || 0,
+          instalacao: custosEfetivos?.instalacao || 0,
+          ca_aterramento: custosEfetivos?.caAterramento || 0,
+          homologacao: custosEfetivos?.homologacao || 0,
+          placas_sinalizacao: custosEfetivos?.placasSinalizacao || 0,
+          despesas_gerais: custosEfetivos?.despesasGerais || 0,
+          custo_operacional: custosEfetivos?.total || 0,
           // DRE
           preco_venda: formData?.preco_venda || dadosSeguros?.preco_final || 0,
           comissao_percentual: formData?.comissao_vendedor || 6,

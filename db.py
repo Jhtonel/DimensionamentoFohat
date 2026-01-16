@@ -157,6 +157,13 @@ class PropostaDB(Base):
     margem_lucro = Column(Float)
     comissao_vendedor = Column(Float)
     
+    # ====== Custos Detalhados ======
+    custo_transporte = Column(Float, nullable=True)
+    custo_ca_aterramento = Column(Float, nullable=True)
+    custo_placas_sinalizacao = Column(Float, nullable=True)
+    custo_despesas_gerais = Column(Float, nullable=True)
+    custo_operacional = Column(Float, nullable=True)
+    
     # ====== Vendedor ======
     vendedor_nome = Column(String(255), nullable=True)
     vendedor_email = Column(String(255), nullable=True)
@@ -310,6 +317,13 @@ def init_db():
                 add_column_if_not_exists('propostas', 'pdf_cached_at', 'TIMESTAMP')
                 add_column_if_not_exists('propostas', 'pdf_payload_hash', 'VARCHAR(64)')
                 
+                # Custos Detalhados
+                add_column_if_not_exists('propostas', 'custo_transporte', 'FLOAT')
+                add_column_if_not_exists('propostas', 'custo_ca_aterramento', 'FLOAT')
+                add_column_if_not_exists('propostas', 'custo_placas_sinalizacao', 'FLOAT')
+                add_column_if_not_exists('propostas', 'custo_despesas_gerais', 'FLOAT')
+                add_column_if_not_exists('propostas', 'custo_operacional', 'FLOAT')
+                
                 # Criar índices se não existirem
                 try:
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_propostas_status ON propostas(status)"))
@@ -343,7 +357,11 @@ def init_db():
                     ('inversor_marca', 'TEXT'), ('inversor_modelo', 'TEXT'), ('tipo_inversor', 'TEXT'),
                     ('vendedor_nome', 'TEXT'), ('vendedor_email', 'TEXT'), ('vendedor_telefone', 'TEXT'),
                     ('vendedor_cargo', 'TEXT'), ('proposta_id', 'TEXT'), ('url_proposta', 'TEXT'),
-                    ('pdf_cache', 'TEXT'), ('pdf_cached_at', 'TIMESTAMP'), ('pdf_payload_hash', 'TEXT')
+                    ('pdf_cache', 'TEXT'), ('pdf_cached_at', 'TIMESTAMP'), ('pdf_payload_hash', 'TEXT'),
+                    # Custos Detalhados
+                    ('custo_transporte', 'REAL'), ('custo_ca_aterramento', 'REAL'),
+                    ('custo_placas_sinalizacao', 'REAL'), ('custo_despesas_gerais', 'REAL'),
+                    ('custo_operacional', 'REAL')
                 ]:
                     add_sqlite_column('propostas', col, typ)
     except Exception as e:
