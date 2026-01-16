@@ -552,7 +552,14 @@ export default function Clientes() {
                               {projetos.filter(p => p.cliente_id === selectedCliente.id).map(projeto => (
                                 <tr key={projeto.id} className="hover:bg-white transition-colors">
                                   <td className="px-4 py-2 text-slate-600 text-xs">
-                                    {projeto.created_date ? new Date(projeto.created_date).toLocaleDateString() : '-'}
+                                    {projeto.created_date ? (
+                                      <>
+                                        {new Date(projeto.created_date).toLocaleDateString('pt-BR')}
+                                        <span className="text-slate-400 ml-1">
+                                          {new Date(projeto.created_date).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}
+                                        </span>
+                                      </>
+                                    ) : '-'}
                                   </td>
                                   <td className="px-4 py-2 text-slate-900 font-medium text-xs truncate max-w-[100px]" title={projeto.cidade}>
                                     {projeto.cidade || 'N/A'}
