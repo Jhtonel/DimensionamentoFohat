@@ -15,69 +15,50 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
   
   // Buscar dados do vendedor responsável pelo cliente
+  // PRIORIDADE: Responsável ATUAL do cliente (created_by_email após transferência)
   const getVendedorResponsavel = () => {
-    // 0. PRIORIDADE MÁXIMA: Se o formData já tem dados do vendedor salvos (projeto existente)
-    // Usar esses dados diretamente - eles foram salvos corretamente na criação
-    if (formData?.vendedor_nome && formData.vendedor_nome !== 'Representante Comercial') {
-      return {
-        nome: formData.vendedor_nome,
-        cargo: formData.vendedor_cargo || 'Consultor de Energia Solar',
-        email: formData.vendedor_email || '',
-        telefone: formData.vendedor_telefone || ''
-      };
-    }
-    
-    // 1. Sem cliente vinculado? Usa o usuário logado (fallback imediato)
-    if (!clienteInfo) {
-      return {
-        nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
-        cargo: user?.cargo || 'Consultor de Energia Solar',
-        email: user?.email || '',
-        telefone: user?.phone || user?.telefone || ''
-      };
-    }
-    
-    const responsavelEmail = (clienteInfo.created_by_email || clienteInfo.created_by || '').toLowerCase();
-    const responsavelUid = clienteInfo.created_by || '';
-    
-    // 2. PRIORIDADE: Verifica se o responsável é o PRÓPRIO usuário logado
-    // Isso evita depender da lista de usuários (que requer permissão admin)
-    if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
-       return {
-        nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
-        cargo: user.cargo || 'Consultor de Energia Solar',
-        email: user.email || '',
-        telefone: user.telefone || user.phone || ''
-      };
-    }
+    // 1. Se há cliente vinculado, usar o responsável atual do cliente (pode ter sido transferido)
+    if (clienteInfo) {
+      const responsavelEmail = (clienteInfo.created_by_email || clienteInfo.created_by || '').toLowerCase();
+      const responsavelUid = clienteInfo.created_by || '';
+      
+      // 1a. Se o responsável é o usuário logado, usar dados completos do usuário logado
+      if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
+        return {
+          nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
+          cargo: user.cargo || 'Consultor de Energia Solar',
+          email: user.email || '',
+          telefone: user.telefone || user.phone || ''
+        };
+      }
 
-    // 3. Tentar encontrar na lista de usuários (admin/gestor vendo todos)
-    const responsavel = usuarios.find(u => 
-      (u.email && u.email.toLowerCase() === responsavelEmail) || 
-      (u.uid && u.uid === responsavelUid)
-    );
-    
-    if (responsavel) {
-      return {
-        nome: responsavel.nome || responsavel.full_name || responsavel.email?.split('@')[0] || 'Consultor',
-        cargo: responsavel.cargo || 'Consultor de Energia Solar',
-        email: responsavel.email || '',
-        telefone: responsavel.telefone || responsavel.phone || ''
-      };
+      // 1b. Tentar encontrar o responsável na lista de usuários
+      const responsavel = usuarios.find(u => 
+        (u.email && u.email.toLowerCase() === responsavelEmail) || 
+        (u.uid && u.uid === responsavelUid)
+      );
+      
+      if (responsavel) {
+        return {
+          nome: responsavel.nome || responsavel.full_name || responsavel.email?.split('@')[0] || 'Consultor',
+          cargo: responsavel.cargo || 'Consultor de Energia Solar',
+          email: responsavel.email || '',
+          telefone: responsavel.telefone || responsavel.phone || ''
+        };
+      }
+      
+      // 1c. Se não encontrou o usuário na lista, usar o email como nome
+      if (responsavelEmail && responsavelEmail.includes('@')) {
+        return {
+          nome: responsavelEmail.split('@')[0],
+          cargo: 'Consultor de Energia Solar',
+          email: responsavelEmail,
+          telefone: ''
+        };
+      }
     }
     
-    // 4. Se não encontrou o usuário, usar o email como nome (Fallback final)
-    if (responsavelEmail && responsavelEmail.includes('@')) {
-      return {
-        nome: responsavelEmail.split('@')[0],
-        cargo: 'Consultor de Energia Solar',
-        email: responsavelEmail,
-        // Tenta usar o telefone do logado como último recurso se não tiver outro
-        telefone: user?.telefone || user?.phone || '' 
-      };
-    }
-    
-    // 5. Último fallback: usuário logado
+    // 2. Sem cliente vinculado ou responsável não encontrado: usar usuário logado
     return {
       nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
       cargo: user?.cargo || 'Consultor de Energia Solar',
