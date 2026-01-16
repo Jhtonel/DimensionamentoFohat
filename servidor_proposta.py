@@ -15,6 +15,14 @@ import math
 import logging
 import hashlib
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+# Fuso horário de Brasília
+TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
+
+def now_brasilia():
+    """Retorna datetime atual no fuso horário de Brasília"""
+    return datetime.now(TZ_BRASILIA)
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, send_from_directory, redirect
 from flask_cors import CORS
@@ -132,7 +140,7 @@ def _registrar_visualizacao(proposta_id: str, request_obj) -> dict:
             "views_history": []
         }
     
-    now = datetime.now().isoformat()
+    now = now_brasilia().isoformat()
     ip = request_obj.remote_addr or "unknown"
     user_agent = request_obj.headers.get('User-Agent', 'unknown')
     referrer = request_obj.headers.get('Referer', '')
@@ -1613,7 +1621,7 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo', 'Especialista em Energia Solar'))
         template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone', '(11) 99999-9999'))
         template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email', 'contato@empresa.com'))
-        template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta', datetime.now().strftime('%d/%m/%Y')))
+        template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta', now_brasilia().strftime('%d/%m/%Y')))
         
         # Substituir variáveis financeiras
         conta_anual_val = float(proposta_data.get('conta_atual_anual', 0) or 0)
@@ -3726,7 +3734,7 @@ def build_relatorio_calculos_proposta(proposta_data: dict, include_render: bool 
 
     report = {
         "meta": {
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": now_brasilia().isoformat(),
             "has_consumo_mes_a_mes": isinstance(proposta_data.get("consumo_mes_a_mes"), list) and len(proposta_data.get("consumo_mes_a_mes")) > 0,
         },
         "payload_raw": payload_raw,
@@ -4182,7 +4190,7 @@ def salvar_proposta():
 
         proposta_data = {
             'id': proposta_id,
-            'data_criacao': datetime.now().isoformat(),
+            'data_criacao': now_brasilia().isoformat(),
             # Rastreamento do criador (para filtros por usuário)
             'created_by': (me.uid if USE_DB and me else data.get('created_by')),
             'created_by_email': (me.email if USE_DB and me else data.get('created_by_email')),
@@ -4218,7 +4226,7 @@ def salvar_proposta():
             'vendedor_cargo': _pick('vendedor_cargo', 'Especialista em Energia Solar'),
             'vendedor_telefone': _pick('vendedor_telefone', '(11) 99999-9999'),
             'vendedor_email': _pick('vendedor_email', 'contato@empresa.com'),
-            'data_proposta': datetime.now().strftime('%d/%m/%Y'),
+            'data_proposta': now_brasilia().strftime('%d/%m/%Y'),
             # Dados financeiros
             'conta_atual_anual': _pick('conta_atual_anual', 0) or 0,
             'anos_payback': _pick('anos_payback', 0) or 0,
@@ -4338,7 +4346,7 @@ def salvar_proposta():
                         proposta_data['cliente_id'] = found
                     elif allow_create and (nome_c or tel_norm or email_c):
                         new_cid = str(uuid.uuid4())
-                        now_iso = datetime.now().isoformat()
+                        now_iso = now_brasilia().isoformat()
                         clientes_map[new_cid] = {
                             "id": new_cid,
                             "nome": nome_c or "Cliente",
@@ -4660,7 +4668,7 @@ def gerar_pdf_puppeteer(proposta_id):
         safe_nome = re.sub(r"[\\/:*?\"<>|]+", " ", str(nome)).strip()
         safe_nome = re.sub(r"\s+", " ", safe_nome).strip()[:80] or "CLIENTE"
         # Obs: "/" não é permitido em nome de arquivo -> usamos DD-MM-YY
-        dt = datetime.now().strftime("%d-%m-%y")
+        dt = now_brasilia().strftime("%d-%m-%y")
         filename = f"{safe_nome} - {dt} - FOHAT ENERGIA SOLAR.pdf"
 
         return send_file(
@@ -4747,7 +4755,7 @@ def ver_pdf_publico(proposta_id):
                 # Salvar PDF no banco de dados
                 try:
                     row.pdf_cache = base64.b64encode(pdf_bytes).decode('utf-8')
-                    row.pdf_cached_at = datetime.now()
+                    row.pdf_cached_at = now_brasilia()
                     row.pdf_payload_hash = current_hash
                     db.commit()
                     elapsed = time.time() - start_time
@@ -4775,7 +4783,7 @@ def ver_pdf_publico(proposta_id):
             nome = (proposta_data or {}).get("cliente_nome") or "CLIENTE"
             safe_nome = re.sub(r"[\\/:*?\"<>|]+", " ", str(nome)).strip()
             safe_nome = re.sub(r"\s+", " ", safe_nome).strip()[:80] or "CLIENTE"
-            dt = datetime.now().strftime("%d-%m-%y")
+            dt = now_brasilia().strftime("%d-%m-%y")
             filename = f"{safe_nome} - {dt} - FOHAT ENERGIA SOLAR.pdf"
             
             return send_file(
@@ -5638,7 +5646,7 @@ def criar_cliente():
                 return jsonify({"success": False, "message": "Não autenticado"}), 401
         data = request.get_json() or {}
         cliente_id = str(uuid.uuid4())
-        now = datetime.now().isoformat()
+        now = now_brasilia().isoformat()
 
         owner_uid = me.uid if USE_DB and me else data.get("created_by")
         owner_email = me.email if USE_DB and me else data.get("created_by_email")
@@ -5755,7 +5763,7 @@ def atualizar_cliente(cliente_id):
             "cep": data.get("cep", cliente.get("cep")),
             "tipo": data.get("tipo", cliente.get("tipo")),
             "observacoes": data.get("observacoes", cliente.get("observacoes")),
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now_brasilia().isoformat()
         })
 
         clientes[cliente_id] = cliente
@@ -5896,7 +5904,7 @@ def transferir_cliente(cliente_id):
             telefone_cliente = row.telefone
             row.created_by = new_owner_uid or row.created_by
             row.created_by_email = new_owner_email or row.created_by_email
-            row.updated_at = datetime.now(timezone.utc)
+            row.updated_at = now_brasilia()
             new_owner = new_owner_email or new_owner_uid
 
             # Transferir também TODAS as propostas vinculadas a este cliente
@@ -6030,7 +6038,7 @@ def transferir_cliente(cliente_id):
         old_owner = cliente.get("created_by_email") or cliente.get("created_by")
         cliente["created_by"] = new_owner_uid or cliente.get("created_by")
         cliente["created_by_email"] = new_owner_email or cliente.get("created_by_email")
-        cliente["updated_at"] = datetime.now(timezone.utc).isoformat()
+        cliente["updated_at"] = now_brasilia().isoformat()
         
         _save_clientes(clientes)
 
@@ -6061,7 +6069,7 @@ def transferir_cliente(cliente_id):
                         proposta["created_by"] = new_owner_uid
                     if new_owner_email:
                         proposta["created_by_email"] = new_owner_email
-                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    proposta["updated_at"] = now_brasilia().isoformat()
                     with open(file, "w", encoding="utf-8") as f:
                         json.dump(proposta, f, ensure_ascii=False, indent=2)
                     propostas_transferidas += 1
@@ -6198,7 +6206,7 @@ def backfill_propostas_cliente(cliente_id):
 
                 if proposta.get("cliente_id") != cliente_id:
                     proposta["cliente_id"] = cliente_id
-                    proposta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    proposta["updated_at"] = now_brasilia().isoformat()
                     with open(file, "w", encoding="utf-8") as f:
                         json.dump(proposta, f, ensure_ascii=False, indent=2)
                     updated.append(file.stem)
@@ -6516,8 +6524,8 @@ def listar_projetos():
                     # Requisito: recem gerados devem cair em "dimensionamento"
                     "status": data.get("status") or "dimensionamento",
                     "prioridade": data.get("prioridade") or "Normal",
-                    "created_date": data.get("data_criacao") or datetime.now().isoformat(),
-                    "data_criacao": data.get("data_criacao") or datetime.now().isoformat(),
+                    "created_date": data.get("data_criacao") or now_brasilia().isoformat(),
+                    "data_criacao": data.get("data_criacao") or now_brasilia().isoformat(),
                     "url_proposta": f"/proposta/{file.stem}",
                     # Dados técnicos
                     "potencia_sistema": data.get("potencia_sistema") or 0,
