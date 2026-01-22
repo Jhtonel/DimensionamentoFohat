@@ -837,7 +837,12 @@
 
     <div class="slide-01-client-box">
       <div style="font-size: 14px; text-transform: uppercase; color: #10B981; font-weight: 700; margin-bottom: 15px; letter-spacing: 2px;">Preparado especialmente para</div>
-      <h1 class="slide-01-client-name">{{cliente_nome_curto}}</h1>
+      <h1 class="slide-01-client-name" style="
+        {% if cliente_nome|length > 40 %} font-size: 28px;
+        {% elif cliente_nome|length > 30 %} font-size: 36px;
+        {% elif cliente_nome|length > 20 %} font-size: 44px;
+        {% endif %}
+      ">{{cliente_nome}}</h1>
       <p class="slide-01-client-info">{{cliente_endereco}}</p>
       <p class="slide-01-client-info">{{cliente_telefone}}</p>
     </div>

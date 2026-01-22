@@ -168,35 +168,44 @@ export default function Clientes() {
 
   useEffect(() => { loadData(); loadUsers(); }, []);
 
-  // Lógica de filtragem simplificada para UI - mantendo funcionalidade original
+  // Lógica de filtragem corrigida
   useEffect(() => {
-    if (!searchTerm && (!selectedUserEmail || selectedUserEmail === 'todos') && user?.role !== 'admin') {
-       // Filtro básico para não-admin
-       if (user?.uid) {
-         const filtered = clientes.filter(c => c.created_by === user.uid || (c.created_by_email && c.created_by_email === user.email));
-         // + lógica de projetos (simplificada)
-         setFilteredClientes(filtered.length > 0 ? filtered : clientes); // Fallback temporário
-      } else {
-        setFilteredClientes(clientes);
-      }
-      return;
-    }
-    
-    // Filtro completo seria aplicado aqui, mantendo a lógica original
-    // Para simplificar o rewrite, vou assumir que a lógica complexa de filtragem 
-    // está funcionando e apenas focar no UI. Na prática, deveria copiar o bloco useEffect inteiro.
-    // Como estou reescrevendo o arquivo, vou copiar a lógica de filtragem original para garantir.
-    
-    // ... (Lógica de filtragem original omitida para brevidade do diff, mas essencialmente a mesma do arquivo original)
-    // Vou usar uma filtragem simples por texto para demonstrar o UI
-    const base = clientes; 
-    const filtered = base.filter(c => 
-      c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredClientes(filtered);
+    // Se ainda não carregou ou não tem usuário, não faz nada
+    if (loading) return;
 
-  }, [searchTerm, clientes, projetos, selectedUserEmail, user]);
+    let result = [...clientes];
+
+    // 1. Filtro de Permissão e Seleção de Usuário
+    if (user?.role !== 'admin') {
+      // Usuário comum vê apenas seus clientes
+      if (user?.uid) {
+        result = result.filter(c => 
+          c.created_by === user.uid || 
+          (c.created_by_email && c.created_by_email === user.email)
+        );
+      }
+    } else {
+      // Admin pode filtrar por usuário específico
+      if (selectedUserEmail && selectedUserEmail !== 'todos') {
+        // Filtra pelo email de criação
+        result = result.filter(c => c.created_by_email === selectedUserEmail);
+      }
+    }
+
+    // 2. Filtro de Busca (Texto)
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      result = result.filter(c => 
+        c.nome?.toLowerCase().includes(lowerTerm) ||
+        c.email?.toLowerCase().includes(lowerTerm) ||
+        (c.telefone && c.telefone.includes(searchTerm)) ||
+        (c.endereco_completo && c.endereco_completo.toLowerCase().includes(lowerTerm))
+      );
+    }
+
+    setFilteredClientes(result);
+
+  }, [searchTerm, clientes, selectedUserEmail, user, loading]);
 
   const loadData = async () => {
     setLoading(true);
@@ -733,13 +742,24 @@ export default function Clientes() {
                         </div>
                       </div>
 
-                      {/* Venda e Margem - Usar valores SALVOS do banco */}
+                      {/* Venda e Margem - Usar valores SALVOS do banco, com fallback para cálculo */}
                       {(() => {
                         const precoVenda = Number(custosData.preco_venda || custosData.preco_final || 0);
+                        const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
                         const comissaoPct = Number(custosData.comissao_vendedor || 6);
-                        // Usar valores SALVOS do banco
-                        const comissaoValor = Number(custosData.valor_comissao || 0);
-                        const lldi = Number(custosData.lldi || 0);
+                        // Usar valores SALVOS do banco, com fallback para cálculo
+                        const comissaoValor = Number(custosData.valor_comissao) > 0 
+                          ? Number(custosData.valor_comissao) 
+                          : (precoVenda * (comissaoPct / 100));
+                        const despDir = Number(custosData.despesas_diretoria) > 0 
+                          ? Number(custosData.despesas_diretoria) 
+                          : (precoVenda * 0.01);
+                        const imp = Number(custosData.impostos) > 0 
+                          ? Number(custosData.impostos) 
+                          : (precoVenda * 0.033);
+                        const lldi = Number(custosData.lldi) > 0 || Number(custosData.lldi) < 0
+                          ? Number(custosData.lldi)
+                          : (precoVenda - custoOp - comissaoValor - despDir - imp);
                         const margemPct = precoVenda > 0 ? ((lldi / precoVenda) * 100) : (custosData.margem_lucro || 0);
                         
                         return (
@@ -763,19 +783,34 @@ export default function Clientes() {
 
                     {/* COLUNA 2: DRE e Parâmetros */}
                     <div className="space-y-4">
-                      {/* DRE do Projeto - Usar valores SALVOS do banco */}
+                      {/* DRE do Projeto - Usar valores SALVOS do banco, com fallback para cálculo */}
                       {(() => {
                         const precoVenda = Number(custosData.preco_venda || custosData.preco_final || 0);
                         const custoEquip = Number(custosData.custo_equipamentos || custosData.custos_detalhados?.kit_fotovoltaico || 0);
+                        const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
                         const comissaoPct = Number(custosData.comissao_vendedor || 6);
-                        // Usar valores SALVOS do banco (não recalcular)
-                        const comissaoValor = Number(custosData.valor_comissao || 0);
-                        const despesasObra = Number(custosData.despesas_obra || 0);
-                        const despDiretoria = Number(custosData.despesas_diretoria || 0);
-                        const impostos = Number(custosData.impostos || 0);
-                        const lldi = Number(custosData.lldi || 0);
-                        const divisaoLucro = Number(custosData.divisao_lucro || 0);
-                        const fundoCaixa = Number(custosData.fundo_caixa || 0);
+                        // Usar valores SALVOS do banco, com fallback para cálculo quando zerado
+                        const comissaoValor = Number(custosData.valor_comissao) > 0 
+                          ? Number(custosData.valor_comissao) 
+                          : (precoVenda * (comissaoPct / 100));
+                        const despesasObra = Number(custosData.despesas_obra) > 0
+                          ? Number(custosData.despesas_obra)
+                          : (Number(custosData.custo_instalacao || 0) + Number(custosData.custo_ca_aterramento || 0));
+                        const despDiretoria = Number(custosData.despesas_diretoria) > 0
+                          ? Number(custosData.despesas_diretoria)
+                          : (precoVenda * 0.01);
+                        const impostos = Number(custosData.impostos) > 0
+                          ? Number(custosData.impostos)
+                          : (precoVenda * 0.033);
+                        const lldi = Number(custosData.lldi) > 0 || Number(custosData.lldi) < 0
+                          ? Number(custosData.lldi)
+                          : (precoVenda - custoOp - comissaoValor - despDiretoria - impostos);
+                        const divisaoLucro = Number(custosData.divisao_lucro) > 0
+                          ? Number(custosData.divisao_lucro)
+                          : (lldi * 0.4);
+                        const fundoCaixa = Number(custosData.fundo_caixa) > 0
+                          ? Number(custosData.fundo_caixa)
+                          : (lldi * 0.2);
                         const margemPct = precoVenda > 0 ? ((lldi / precoVenda) * 100) : 0;
                         
                         return (

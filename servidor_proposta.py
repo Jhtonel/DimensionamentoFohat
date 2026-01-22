@@ -1085,7 +1085,8 @@ def apply_analise_financeira_graphs(template_html: str, proposta_data: dict) -> 
                 return [parse_float(x, 0.0) for x in consumo_tbl]
 
             # 4) Fallback: média mensal replicada
-            base = float(consumo_mes or 0.0)
+            # Usar consumo_kwh (normalizado no início da função) como fallback mais confiável
+            base = float(consumo_mes or consumo_kwh or 0.0)
             return [base] * 12 if base > 0 else [0.0] * 12
 
         consumo_vec = _extract_consumo_vec()
@@ -1972,7 +1973,8 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         # Atualizar produção média e créditos com base nas tabelas (após cálculos)
         try:
             prod_anual_kwh_ano1 = float((tabelas.get("producao_anual_kwh") or [0])[0] or 0)
-            consumo_mensal_kwh_ano1 = float((tabelas.get("consumo_mensal_kwh") or [0])[0] or 0)
+            # Usar _consumo_kwh como fallback quando tabelas não têm o valor
+            consumo_mensal_kwh_ano1 = float((tabelas.get("consumo_mensal_kwh") or [_consumo_kwh])[0] or _consumo_kwh)
             tarifa_r_kwh_ano1 = float((tabelas.get("tarifa_r_kwh") or [0])[0] or float(proposta_data.get('tarifa_energia', 0) or 0))
             geracao_media_mensal_calc = prod_anual_kwh_ano1 / 12.0 if prod_anual_kwh_ano1 > 0 else 0.0
             excedente_mensal_kwh = max(0.0, geracao_media_mensal_calc - consumo_mensal_kwh_ano1)
@@ -3675,7 +3677,8 @@ def build_relatorio_calculos_proposta(proposta_data: dict, include_render: bool 
             if isinstance(consumo_tbl, list) and len(consumo_tbl) == 12:
                 return [parse_float(x, 0.0) for x in consumo_tbl]
 
-            base = float(consumo_mes or 0.0)
+            # Usar consumo_kwh_c (calculado no início do bloco) como fallback
+            base = float(consumo_mes or consumo_kwh_c or 0.0)
             return [base] * 12 if base > 0 else [0.0] * 12
 
         consumo_vec = _extract_consumo_vec_local()
@@ -3946,7 +3949,9 @@ def analise_gerar_graficos():
                 },
                 "s05": {
                     "labels": ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-                    "consumo": [float((tabelas.get("consumo_mensal_kwh") or [0])[0] or 0)] * 12,
+                    # Usar consumo_kwh (já normalizado no início da função) como fallback
+                    # tabelas.consumo_mensal_kwh é array de 25 valores (1 por ano), então pegamos o primeiro [0]
+                    "consumo": [float((tabelas.get("consumo_mensal_kwh") or [consumo_kwh])[0] or consumo_kwh)] * 12,
                     "producao": [float(v) for v in (tabelas.get("producao_mensal_kwh_ano1") or [])[:12]],
                 },
                 "s06": {

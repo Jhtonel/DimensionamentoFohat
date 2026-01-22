@@ -4285,43 +4285,43 @@ export default function NovoProjeto() {
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Kit Fotovoltaico</div>
                                   <div className="text-right">{formatCurrency(kitFotovoltaico)}</div>
-                                  <div className="text-right">{((kitFotovoltaico / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{precoVenda > 0 ? ((kitFotovoltaico / precoVenda) * 100).toFixed(1) : '0.0'}%</div>
                     </div>
 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Comissão</div>
                                   <div className="text-right">{formatCurrency(comissao)}</div>
-                                  <div className="text-right">{((comissao / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{comissaoVendedor}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Recebido</div>
                                   <div className="text-right">{formatCurrency(recebido)}</div>
-                                  <div className="text-right">{((recebido / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{precoVenda > 0 ? ((recebido / precoVenda) * 100).toFixed(1) : '0.0'}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Despesas Obra</div>
                                   <div className="text-right">{formatCurrency(despesasObra)}</div>
-                                  <div className="text-right">{((despesasObra / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{precoVenda > 0 ? ((despesasObra / precoVenda) * 100).toFixed(1) : '0.0'}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Despesas Diretoria</div>
                                   <div className="text-right">{formatCurrency(despesasDiretoria)}</div>
-                                  <div className="text-right">{((despesasDiretoria / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{Number(propostaCfg?.percentual_despesas_diretoria ?? 1)}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">
                                   <div>Impostos</div>
                                   <div className="text-right">{formatCurrency(impostos)}</div>
-                                  <div className="text-right">{((impostos / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{Number(propostaCfg?.percentual_impostos ?? 3.3)}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm font-bold text-blue-600 border-t pt-2">
                                   <div>LLDI</div>
                                   <div className="text-right">{formatCurrency(lldi)}</div>
-                                  <div className="text-right">{((lldi / precoVenda) * 100).toFixed(1)}%</div>
+                                  <div className="text-right">{precoVenda > 0 ? ((lldi / precoVenda) * 100).toFixed(1) : '0.0'}%</div>
                                 </div>
                                 
                                 <div className="grid grid-cols-3 gap-4 text-sm py-1">

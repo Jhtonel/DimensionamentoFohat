@@ -455,22 +455,56 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         },
         
         // DRE do Projeto (valores calculados e salvos permanentemente)
+        // Normalizar preço de venda para evitar problemas com strings mal formatadas
         valor_comissao: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          // Função auxiliar para normalizar o preço (mesma lógica de preco_venda acima)
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           const pct = Number(formData?.comissao_vendedor || 6);
           return pv * (pct / 100);
         })(),
         despesas_obra: (custosEfetivos?.instalacao || 0) + (custosEfetivos?.caAterramento || 0),
         despesas_diretoria: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           return pv * 0.01; // 1%
         })(),
         impostos: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           return pv * 0.033; // 3.3%
         })(),
         lldi: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           const custoOp = custosEfetivos?.total || 0;
           const pct = Number(formData?.comissao_vendedor || 6);
           const comissao = pv * (pct / 100);
@@ -479,7 +513,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           return pv - custoOp - comissao - despDir - imp;
         })(),
         divisao_lucro: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           const custoOp = custosEfetivos?.total || 0;
           const pct = Number(formData?.comissao_vendedor || 6);
           const comissao = pv * (pct / 100);
@@ -489,7 +531,15 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           return lldi * 0.4; // 40%
         })(),
         fundo_caixa: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           const custoOp = custosEfetivos?.total || 0;
           const pct = Number(formData?.comissao_vendedor || 6);
           const comissao = pv * (pct / 100);
@@ -501,12 +551,28 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         
         // Formas de Pagamento (valores calculados e salvos permanentemente)
         preco_avista: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           return pv * 0.95; // 5% de desconto
         })(),
         desconto_avista: 5,
         parcelas_json: (() => {
-          const pv = Number(formData?.preco_venda || dadosSeguros?.preco_final || 0);
+          const normalizarPreco = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/\s+/g, '').replace('R$', '');
+            const normalized = (s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\./g, ''));
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : 0;
+          };
+          const pv = normalizarPreco(formData?.preco_venda) || normalizarPreco(dadosSeguros?.preco_final) || 0;
           const taxaFin = 0.0149; // 1.49% a.m.
           const cartao = [3, 6, 10, 12].map(n => ({ qtd: n, valor: pv / n, tipo: 'cartao' }));
           const financiamento = [36, 48, 60, 72].map(n => {

@@ -762,21 +762,41 @@ export default function Projetos() {
                         </div>
                       </div>
 
-                      {/* Venda e Margem */}
+                      {/* Venda e Margem - Com fallback para cálculo quando valores zerados */}
+                      {(() => {
+                        const pv = Number(custosData.preco_venda || custosData.preco_final || 0);
+                        const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
+                        const comissaoPct = Number(custosData.comissao_vendedor || 6);
+                        const comissaoValor = Number(custosData.valor_comissao) > 0 
+                          ? Number(custosData.valor_comissao) 
+                          : (pv * (comissaoPct / 100));
+                        const despDir = Number(custosData.despesas_diretoria) > 0 
+                          ? Number(custosData.despesas_diretoria) 
+                          : (pv * 0.01);
+                        const imp = Number(custosData.impostos) > 0 
+                          ? Number(custosData.impostos) 
+                          : (pv * 0.033);
+                        const lldi = Number(custosData.lldi) > 0 || Number(custosData.lldi) < 0
+                          ? Number(custosData.lldi)
+                          : (pv - custoOp - comissaoValor - despDir - imp);
+                        const margemPct = pv > 0 ? ((lldi / pv) * 100) : 0;
+                        return (
                       <div className="grid grid-cols-3 gap-2">
                         <div className="bg-green-50 rounded-lg p-2.5 border border-green-200 text-center">
                           <p className="text-[10px] text-green-600 uppercase font-semibold">Preço Venda</p>
-                          <p className="text-lg font-bold text-green-700">{Number(custosData.preco_venda || custosData.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                          <p className="text-lg font-bold text-green-700">{pv.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-2.5 border border-blue-200 text-center">
-                          <p className="text-[10px] text-blue-600 uppercase font-semibold">Comissão ({custosData.comissao_vendedor || 5}%)</p>
-                          <p className="text-lg font-bold text-blue-700">{Number(custosData.valor_comissao || ((custosData.preco_venda || 0) * (custosData.comissao_vendedor || 5) / 100)).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
+                          <p className="text-[10px] text-blue-600 uppercase font-semibold">Comissão ({comissaoPct}%)</p>
+                          <p className="text-lg font-bold text-blue-700">{comissaoValor.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits: 0})}</p>
                         </div>
                         <div className="bg-purple-50 rounded-lg p-2.5 border border-purple-200 text-center">
                           <p className="text-[10px] text-purple-600 uppercase font-semibold">Margem</p>
-                          <p className="text-lg font-bold text-purple-700">{(custosData.margem_lucro || 0).toFixed(1)}%</p>
+                          <p className="text-lg font-bold text-purple-700">{margemPct.toFixed(1)}%</p>
                         </div>
                       </div>
+                        );
+                      })()}
                     </div>
 
                     {/* COLUNA 2: DRE e Parâmetros */}
@@ -788,11 +808,27 @@ export default function Projetos() {
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-200 font-semibold text-slate-600"><span>Descrição</span><span className="text-right">Valor</span><span className="text-right">%</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Preço Venda</span><span className="text-right text-green-600 font-semibold">{Number(custosData.preco_venda || custosData.preco_final || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right font-semibold">100%</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Kit Fotovoltaico</span><span className="text-right">{Number(custosData.custo_equipamentos || custosData.valor_kit || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{((custosData.custo_equipamentos || 0) / (custosData.preco_venda || 1) * 100).toFixed(1)}%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Comissão</span><span className="text-right">{Number(custosData.valor_comissao || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{custosData.comissao_vendedor || 5}%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Comissão</span><span className="text-right">{Number(custosData.valor_comissao || ((custosData.preco_venda || custosData.preco_final || 0) * ((custosData.comissao_vendedor || 6) / 100))).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{custosData.comissao_vendedor || 6}%</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Despesas Obra</span><span className="text-right">{Number(custosData.despesas_obra || (custosData.custo_instalacao || 0) + (custosData.custo_ca_aterramento || 0)).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Desp. Diretoria (1%)</span><span className="text-right">{Number(custosData.despesas_diretoria || (custosData.preco_venda || 0) * 0.01).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">1.0%</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Impostos (3.3%)</span><span className="text-right">{Number(custosData.impostos || (custosData.preco_venda || 0) * 0.033).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">3.3%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1.5 bg-blue-50 px-1 rounded font-semibold text-blue-700"><span>LLDI</span><span className="text-right">{Number(custosData.lldi || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">{((custosData.lldi || 0) / (custosData.preco_venda || 1) * 100).toFixed(1)}%</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1.5 bg-blue-50 px-1 rounded font-semibold text-blue-700"><span>LLDI</span><span className="text-right">{(() => {
+                            const pv = Number(custosData.preco_venda || custosData.preco_final || 0);
+                            const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
+                            const comissao = pv * ((custosData.comissao_vendedor || 6) / 100);
+                            const despDir = pv * 0.01;
+                            const imp = pv * 0.033;
+                            const lldi = custosData.lldi || (pv - custoOp - comissao - despDir - imp);
+                            return Number(lldi).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+                          })()}</span><span className="text-right">{(() => {
+                            const pv = Number(custosData.preco_venda || custosData.preco_final || 0);
+                            const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
+                            const comissao = pv * ((custosData.comissao_vendedor || 6) / 100);
+                            const despDir = pv * 0.01;
+                            const imp = pv * 0.033;
+                            const lldi = custosData.lldi || (pv - custoOp - comissao - despDir - imp);
+                            return pv > 0 ? ((lldi / pv) * 100).toFixed(1) : '0.0';
+                          })()}%</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{Number(custosData.divisao_lucro || (custosData.lldi || 0) * 0.4).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{Number(custosData.fundo_caixa || (custosData.lldi || 0) * 0.2).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
                         </div>
