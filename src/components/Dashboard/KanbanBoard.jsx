@@ -256,7 +256,7 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
           ref={kanbanScrollRef}
           {...bindKanbanDragScroll()}
           style={{ touchAction: "pan-y" }}
-          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 max-h-[100vh] overflow-y-auto w-full max-w-[90vw] mx-auto cursor-grab active:cursor-grabbing" 
+          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 overflow-x-auto overflow-y-hidden w-full cursor-grab active:cursor-grabbing scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500" 
         >
         {statusOrder.map((status) => {
           const config = statusConfig[status];
@@ -268,7 +268,8 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
               key={status}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex-shrink-0 w-80 ${config.bgColor} rounded-xl p-3 sm:p-4 border border-gray-200 max-h-full flex flex-col`}
+              className={`flex-shrink-0 w-72 sm:w-80 ${config.bgColor} rounded-xl p-3 sm:p-4 border border-gray-200 flex flex-col`}
+              style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '400px' }}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, status)}
             >
