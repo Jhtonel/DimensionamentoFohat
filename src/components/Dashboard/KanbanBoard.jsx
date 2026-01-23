@@ -386,8 +386,13 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, us
                   className={`flex-1 p-2 rounded-xl ${config.bgColor} border-2 transition-colors duration-200 ${draggedProject ? 'border-dashed border-gray-400 bg-gray-100/50' : 'border-transparent'} overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-1`}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, status)}
+                  onDragEnter={(e) => e.preventDefault()}
                 >
-                  <div className="space-y-3 min-h-full">
+                  <div 
+                    className="space-y-3 min-h-[300px] h-full"
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, status)}
+                  >
                     <AnimatePresence mode="popLayout">
                       {projetosStatus.map((projeto) => (
                         <motion.div
@@ -495,13 +500,34 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, us
                       ))}
                     </AnimatePresence>
                     
+                    {/* Área vazia quando não há cards */}
                     {projetosStatus.length === 0 && (
-                      <div className={`flex flex-col items-center justify-center min-h-[200px] h-full text-gray-400 border-2 border-dashed rounded-lg transition-colors ${draggedProject ? 'border-gray-400 bg-gray-100/80' : 'border-gray-200 bg-gray-50/50'}`}>
+                      <div 
+                        className={`flex flex-col items-center justify-center min-h-[200px] h-full text-gray-400 border-2 border-dashed rounded-lg transition-colors ${draggedProject ? 'border-gray-400 bg-gray-100/80' : 'border-gray-200 bg-gray-50/50'}`}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, status)}
+                      >
                         <Icon className="w-8 h-8 mb-2 opacity-20" />
                         <p className="text-xs font-medium opacity-60">
                           {draggedProject ? 'Solte aqui' : 'Vazio'}
                         </p>
                       </div>
+                    )}
+                    
+                    {/* Área de drop abaixo dos cards - sempre visível quando arrastando */}
+                    {projetosStatus.length > 0 && draggedProject && (
+                      <div 
+                        className="min-h-[80px] mt-2 border-2 border-dashed border-gray-400 rounded-lg bg-gray-100/50 flex items-center justify-center text-gray-400 text-xs"
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, status)}
+                      >
+                        Solte aqui
+                      </div>
+                    )}
+                    
+                    {/* Espaçador invisível para garantir área de drop */}
+                    {projetosStatus.length > 0 && !draggedProject && (
+                      <div className="min-h-[40px]" />
                     )}
                   </div>
                 </div>
