@@ -99,34 +99,6 @@
     @apply bg-gray-300 rounded-full hover:bg-gray-400 transition-colors;
   }
 
-  /* Kanban Scroll - Barra de rolagem horizontal sempre visível */
-  .kanban-scroll {
-    scrollbar-width: auto;
-    scrollbar-color: #9ca3af #f3f4f6;
-    padding-bottom: 16px;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar {
-    height: 12px;
-    display: block !important;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-track {
-    background: #f3f4f6;
-    border-radius: 6px;
-    margin: 0 8px;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-thumb {
-    background: #9ca3af;
-    border-radius: 6px;
-    border: 2px solid #f3f4f6;
-  }
-  
-  .kanban-scroll::-webkit-scrollbar-thumb:hover {
-    background: #6b7280;
-  }
-  
   /* Glassmorphism Utilities */
   .glass {
     @apply bg-white/80 backdrop-blur-md border border-white/20;

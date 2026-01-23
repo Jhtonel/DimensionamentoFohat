@@ -1573,10 +1573,10 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         print(f"💰 [PRECO] Valor final para proposta: {preco_final_formatado}")
 
         # Substituir todas as variáveis {{}} no template (agora com valores normalizados)
-        template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome', 'Cliente'))
+        template_html = template_html.replace('{{cliente_nome}}', proposta_data.get('cliente_nome') or 'Cliente')
         
         # Nome curto (Primeiro e Segundo) para a capa
-        c_nome_full = proposta_data.get('cliente_nome', 'Cliente')
+        c_nome_full = proposta_data.get('cliente_nome') or 'Cliente'
         c_parts = c_nome_full.split()
         c_nome_curto = f"{c_parts[0]} {c_parts[1]}" if len(c_parts) >= 2 else c_nome_full
         template_html = template_html.replace('{{cliente_nome_curto}}', c_nome_curto)
@@ -1612,17 +1612,17 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         endereco_para_template = endereco_proposta or proposta_data.get('cliente_endereco', '')
         endereco_resumido = format_endereco_resumido(endereco_para_template, proposta_data.get('cidade'))
         template_html = template_html.replace('{{cliente_endereco}}', endereco_resumido)
-        template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone', 'Telefone não informado'))
+        template_html = template_html.replace('{{cliente_telefone}}', proposta_data.get('cliente_telefone') or 'Telefone não informado')
         template_html = template_html.replace('{{potencia_sistema}}', str(proposta_data.get('potencia_sistema', 0)))
         template_html = template_html.replace('{{potencia_sistema_kwp}}', f"{proposta_data.get('potencia_sistema', 0):.2f}")
         # Usar o preço calculado de forma robusta
         template_html = template_html.replace('{{preco_final}}', preco_final_formatado)
-        template_html = template_html.replace('{{cidade}}', proposta_data.get('cidade', 'Projeto'))
-        template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome', 'Representante Comercial'))
-        template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo', 'Especialista em Energia Solar'))
-        template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone', '(11) 99999-9999'))
-        template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email', 'contato@empresa.com'))
-        template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta', now_brasilia().strftime('%d/%m/%Y')))
+        template_html = template_html.replace('{{cidade}}', proposta_data.get('cidade') or 'Projeto')
+        template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome') or 'Representante Comercial')
+        template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo') or 'Especialista em Energia Solar')
+        template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone') or '(11) 99999-9999')
+        template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email') or 'contato@empresa.com')
+        template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta') or now_brasilia().strftime('%d/%m/%Y'))
         
         # Substituir variáveis financeiras
         conta_anual_val = float(proposta_data.get('conta_atual_anual', 0) or 0)
@@ -1985,12 +1985,12 @@ def process_template_html(proposta_data, template_filename: str = "template.html
             pass
         
         # Substituir variáveis de cronograma
-        template_html = template_html.replace('{{data_aprovacao}}', proposta_data.get('data_aprovacao', '15 dias'))
-        template_html = template_html.replace('{{data_validacao}}', proposta_data.get('data_validacao', '30 dias'))
-        template_html = template_html.replace('{{data_contrato}}', proposta_data.get('data_contrato', '45 dias'))
-        template_html = template_html.replace('{{data_equipamentos}}', proposta_data.get('data_equipamentos', '60 dias'))
-        template_html = template_html.replace('{{data_montagem}}', proposta_data.get('data_montagem', '75 dias'))
-        template_html = template_html.replace('{{data_conclusao}}', proposta_data.get('data_conclusao', '90 dias'))
+        template_html = template_html.replace('{{data_aprovacao}}', proposta_data.get('data_aprovacao') or '15 dias')
+        template_html = template_html.replace('{{data_validacao}}', proposta_data.get('data_validacao') or '30 dias')
+        template_html = template_html.replace('{{data_contrato}}', proposta_data.get('data_contrato') or '45 dias')
+        template_html = template_html.replace('{{data_equipamentos}}', proposta_data.get('data_equipamentos') or '60 dias')
+        template_html = template_html.replace('{{data_montagem}}', proposta_data.get('data_montagem') or '75 dias')
+        template_html = template_html.replace('{{data_conclusao}}', proposta_data.get('data_conclusao') or '90 dias')
         
         # Substituir variáveis de comparação financeira
         conta_anual = proposta_data.get('conta_atual_anual', 0)

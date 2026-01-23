@@ -20,7 +20,9 @@ import {
   LayoutGrid,
   List,
   Copy,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -97,12 +99,48 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
   const [draggedProject, setDraggedProject] = useState(null);
   const [projetosState, setProjetosState] = useState(projetos);
   const [viewMode, setViewMode] = useState("kanban");
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
   const kanbanScrollRef = useRef(null);
 
   // Sincroniza quando o pai trouxer novos dados
   React.useEffect(() => {
     setProjetosState(projetos);
+    // Pequeno delay para garantir renderização antes de checar scroll
+    setTimeout(checkScroll, 100);
   }, [projetos]);
+
+  const checkScroll = () => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setShowLeftArrow(scrollLeft > 10);
+    // Verifica se tem espaço para scrollar (com margem de erro de 10px)
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+  };
+
+  React.useEffect(() => {
+    const el = kanbanScrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkScroll);
+      window.addEventListener('resize', checkScroll);
+      checkScroll();
+      return () => {
+        el.removeEventListener('scroll', checkScroll);
+        window.removeEventListener('resize', checkScroll);
+      };
+    }
+  }, [viewMode]); // Re-attach quando mudar viewMode
+
+  const scroll = (direction) => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+    const scrollAmount = 340; // Largura aproximada da coluna + gap
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
+  };
 
   const groupByStatus = () => {
     const groups = {};
@@ -252,162 +290,170 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
       </div>
 
       {viewMode === "kanban" ? (
-        <div 
-          ref={kanbanScrollRef}
-          {...bindKanbanDragScroll()}
-          style={{ touchAction: "pan-y" }}
-          className="kanban-scroll flex gap-3 sm:gap-4 lg:gap-6 pb-6 overflow-x-auto overflow-y-hidden w-full cursor-grab active:cursor-grabbing scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500" 
-        >
-        {statusOrder.map((status) => {
-          const config = statusConfig[status];
-          const Icon = config.icon;
-          const projetosStatus = grouped[status] || [];
-          
-          return (
-            <motion.div
-              key={status}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex-shrink-0 w-72 sm:w-80 ${config.bgColor} rounded-xl p-3 sm:p-4 border border-gray-200 flex flex-col`}
-              style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '400px' }}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, status)}
-            >
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                  <div className={`p-1.5 sm:p-2 rounded-lg ${config.color} flex-shrink-0`}>
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold text-sm sm:text-base ${config.textColor} truncate`}>{config.label}</h3>
-                    <p className="text-xs sm:text-sm text-gray-500">{projetosStatus.length} projetos</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" className="h-6 w-6 sm:h-8 sm:w-8 p-0 flex-shrink-0">
-                  <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
+        <div className="relative group h-full">
+          {/* Seta Esquerda */}
+          <AnimatePresence>
+            {showLeftArrow && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="absolute left-0 top-0 bottom-6 z-20 flex items-center justify-center w-12 bg-gradient-to-r from-gray-50/90 to-transparent pointer-events-none"
+              >
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-full shadow-lg bg-white border-gray-200 pointer-events-auto hover:bg-gray-50 text-gray-700 hover:scale-110 transition-transform duration-200"
+                  onClick={() => scroll('left')}
+                >
+                  <ChevronLeft className="w-6 h-6" />
                 </Button>
-              </div>
-              
-              <div className="space-y-3 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                <AnimatePresence>
-                  {projetosStatus.map((projeto) => (
-                    <motion.div
-                      key={projeto.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2 }}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, projeto)}
-                      className="cursor-move"
-                    >
-                      <Card className="hover:shadow-md transition-shadow duration-200 bg-white/80 backdrop-blur-sm">
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="space-y-2 sm:space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="font-semibold text-gray-900 text-xs sm:text-sm line-clamp-2 flex-1 min-w-0">
-                                {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
-                              </h4>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                              {(projeto.prioridade && projeto.prioridade !== 'Normal') && (
-                                <Badge variant="outline" className="text-xs flex-shrink-0">
-                                  {projeto.prioridade}
-                                </Badge>
-                              )}
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-gray-500 hover:text-gray-800"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <MoreVertical className="w-4 h-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    align="end"
-                                    className="w-56"
-                                    onOpenAutoFocus={(e) => e.preventDefault()}
-                                  >
-                                    <div className="space-y-1">
-                                      <Link
-                                        to={getProjetoPath(projeto.id)}
-                                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50"
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Seta Direita */}
+          <AnimatePresence>
+            {showRightArrow && (
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="absolute right-0 top-0 bottom-6 z-20 flex items-center justify-center w-12 bg-gradient-to-l from-gray-50/90 to-transparent pointer-events-none"
+              >
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-full shadow-lg bg-white border-gray-200 pointer-events-auto hover:bg-gray-50 text-gray-700 hover:scale-110 transition-transform duration-200"
+                  onClick={() => scroll('right')}
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div 
+            ref={kanbanScrollRef}
+            {...bindKanbanDragScroll()}
+            style={{ 
+              touchAction: "pan-y",
+              scrollbarWidth: 'none',  /* Firefox */
+              msOverflowStyle: 'none'  /* IE and Edge */
+            }}
+            className="flex gap-4 lg:gap-6 pb-6 overflow-x-auto overflow-y-hidden w-full h-full cursor-grab active:cursor-grabbing px-1 [&::-webkit-scrollbar]:hidden" 
+          >
+          {statusOrder.map((status) => {
+            const config = statusConfig[status];
+            const Icon = config.icon;
+            const projetosStatus = grouped[status] || [];
+            
+            return (
+              <motion.div
+                key={status}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex-shrink-0 w-80 flex flex-col h-full max-h-[calc(100vh-220px)]"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, status)}
+              >
+                {/* Header da Coluna */}
+                <div className={`flex items-center justify-between mb-3 p-3 rounded-xl border ${config.color.replace('text-', 'border-').replace('bg-', 'bg-opacity-50 bg-')} bg-white shadow-sm`}>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg ${config.color} bg-opacity-20`}>
+                      <Icon className={`w-4 h-4 ${config.textColor}`} />
+                    </div>
+                    <span className="font-semibold text-sm text-gray-700">{config.label}</span>
+                  </div>
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-600 border-0 font-medium px-2 py-0.5 h-5 text-xs">
+                    {projetosStatus.length}
+                  </Badge>
+                </div>
+                
+                {/* Área dos Cards */}
+                <div className={`flex-1 p-2 rounded-xl ${config.bgColor} border border-transparent transition-colors duration-200 ${draggedProject ? 'border-dashed border-gray-300 bg-gray-50/50' : ''} overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-1`}>
+                  <div className="space-y-3 min-h-[100px]">
+                    <AnimatePresence mode="popLayout">
+                      {projetosStatus.map((projeto) => (
+                        <motion.div
+                          key={projeto.id}
+                          layoutId={projeto.id}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, projeto)}
+                          className="group/card relative"
+                        >
+                          <Card className="cursor-grab active:cursor-grabbing hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border-gray-200/60 bg-white">
+                            <CardContent className="p-3.5">
+                              {/* Barra lateral de cor de prioridade se existir, ou padrão */}
+                              <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${projeto.prioridade === 'Alta' ? 'bg-red-500' : projeto.prioridade === 'Média' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
+                              
+                              <div className="pl-2.5 space-y-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug" title={projeto.nome_projeto || projeto.nome}>
+                                    {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
+                                  </h4>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 -mr-2 -mt-1 text-gray-400 hover:text-gray-700 opacity-0 group-hover/card:opacity-100 transition-opacity"
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <ExternalLink className="w-4 h-4 text-fohat-blue" />
+                                        <MoreVertical className="w-4 h-4" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-48 p-1">
+                                      <Link
+                                        to={getProjetoPath(projeto.id)}
+                                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
                                         Abrir projeto
                                       </Link>
-                                      <button
-                                        type="button"
-                                        className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 text-left"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const origin = typeof window !== "undefined" ? window.location.origin : "";
-                                          copyToClipboard(`${origin}${getProjetoPath(projeto.id)}`);
-                                        }}
-                                      >
-                                        <Copy className="w-4 h-4 text-gray-600" />
-                                        Copiar link
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 text-left"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          copyToClipboard(projeto.nome_projeto || projeto.nome || "");
-                                        }}
-                                      >
-                                        <Copy className="w-4 h-4 text-gray-600" />
-                                        Copiar nome
-                                      </button>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                                
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-2 text-xs text-gray-500" title="Cliente">
+                                    <User className="w-3.5 h-3.5" />
+                                    <span className="truncate max-w-[180px]">{getClienteNome(projeto)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between border-t border-gray-100 pt-2 mt-2">
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 bg-gray-50 px-2 py-1 rounded-md">
+                                      <DollarSign className="w-3.5 h-3.5 text-green-600" />
+                                      {formatCurrency(getValorProjeto(projeto))}
                                     </div>
-                                  </PopoverContent>
-                                </Popover>
+                                    <span className="text-[10px] text-gray-400 font-medium">
+                                      {formatDate(projeto.created_date)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            
-                            <div className="space-y-1.5 sm:space-y-2 text-xs text-gray-600">
-                              <div className="flex items-center gap-1.5 sm:gap-2">
-                                <User className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {getClienteNome(projeto)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2">
-                                <DollarSign className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{formatCurrency(getValorProjeto(projeto))}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2">
-                                <Calendar className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{formatDate(projeto.created_date)}</span>
-                              </div>
-                            </div>
-
-                            {projeto.observacoes && (
-                              <p className="text-xs text-gray-500 line-clamp-2">
-                                {projeto.observacoes}
-                              </p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-                
-                {projetosStatus.length === 0 && (
-                  <div className="text-center py-4 sm:py-6 lg:py-8 text-gray-400">
-                    <Icon className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs sm:text-sm">Nenhum projeto neste estágio</p>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                    
+                    {projetosStatus.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+                        <Icon className="w-8 h-8 mb-2 opacity-20" />
+                        <p className="text-xs font-medium opacity-60">Vazio</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+                </div>
+              </motion.div>
+            );
+          })}
+          </div>
+        </div>
       ) : (
         <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden flex flex-col max-h-[calc(100vh-180px)]">
           <div className="overflow-auto flex-1">
