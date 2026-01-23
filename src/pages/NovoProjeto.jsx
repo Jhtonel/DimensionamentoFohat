@@ -24,7 +24,9 @@ import { dimensionarSistema, calcularProjecaoFinanceira, CONSTANTES, calcularIns
 import DimensionamentoResults from "../components/projetos/DimensionamentoResults.jsx";
 import ConsumoMesAMes from "../components/projetos/ConsumoMesAMes.jsx";
 import CostsDetailed from "../components/projetos/CostsDetailed.jsx";
+import ClienteForm from "../components/clientes/ClienteForm.jsx";
 import { useAuth } from "@/services/authService.jsx";
+import { UserPlus } from "lucide-react";
 import { getBackendUrl } from "@/services/backendUrl.js";
 
 export default function NovoProjeto() {
@@ -38,6 +40,7 @@ export default function NovoProjeto() {
   const [loading, setLoading] = useState(false);
   const [calculando, setCalculando] = useState(false);
   const [activeTab, setActiveTab] = useState("basico");
+  const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [autoGenerateProposta, setAutoGenerateProposta] = useState(false);
   const [tipoConsumo, setTipoConsumo] = useState("medio");
   const [dadosCarregados, setDadosCarregados] = useState(false); // Flag para prevenir auto-save antes de carregar
@@ -81,16 +84,30 @@ export default function NovoProjeto() {
     return String(formData?.concessionaria || "").trim().length > 0;
   }, [formData?.concessionaria]);
 
+  // Não permitir avançar de aba sem cliente selecionado
+  const hasCliente = useCallback(() => {
+    return String(formData?.cliente_id || "").trim().length > 0;
+  }, [formData?.cliente_id]);
+
   const goToTab = useCallback((nextTab) => {
-    // Só exigimos concessionária para sair do "basico"
-    const requiresConcessionaria = nextTab !== "basico";
-    if (requiresConcessionaria && !hasConcessionaria()) {
-      toast({ title: "Atenção", description: "Selecione a concessionária para avançar.", variant: "warning" });
-      setActiveTab("basico");
-      return;
+    // Só exigimos validações para sair do "basico"
+    const requiresValidation = nextTab !== "basico";
+    if (requiresValidation) {
+      // Validar cliente
+      if (!hasCliente()) {
+        toast({ title: "Atenção", description: "Selecione um cliente para avançar.", variant: "warning" });
+        setActiveTab("basico");
+        return;
+      }
+      // Validar concessionária
+      if (!hasConcessionaria()) {
+        toast({ title: "Atenção", description: "Selecione a concessionária para avançar.", variant: "warning" });
+        setActiveTab("basico");
+        return;
+      }
     }
     setActiveTab(nextTab);
-  }, [hasConcessionaria]);
+  }, [hasCliente, hasConcessionaria]);
 
   // Cria um rascunho de projeto ao entrar na tela (se não existir)
   // NOTA: A lógica de clone_from é tratada em loadData para garantir que os dados sejam carregados corretamente
@@ -2686,6 +2703,13 @@ export default function NovoProjeto() {
   // Função para gerar proposta e avançar para resultados
   const gerarPropostaEAvançar = async () => {
     try {
+      // Validar cliente
+      if (!hasCliente()) {
+        toast({ title: "Atenção", description: "Selecione um cliente para gerar a proposta.", variant: "warning" });
+        setActiveTab("basico");
+        return;
+      }
+      // Validar concessionária
       if (!hasConcessionaria()) {
         toast({ title: "Atenção", description: "Selecione a concessionária para avançar.", variant: "warning" });
         setActiveTab("basico");
@@ -2772,11 +2796,27 @@ export default function NovoProjeto() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label>Cliente *</Label>
-                    <Select value={formData.cliente_id} onValueChange={(v) => handleChange("cliente_id", v)}>
+                    <Select 
+                      value={formData.cliente_id} 
+                      onValueChange={(v) => {
+                        if (v === "__novo_cliente__") {
+                          setShowNovoClienteModal(true);
+                        } else {
+                          handleChange("cliente_id", v);
+                        }
+                      }}
+                    >
                       <SelectTrigger className="bg-white/50 border-sky-200">
                         <SelectValue placeholder="Selecione o cliente" />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* Opção para criar novo cliente */}
+                        <SelectItem value="__novo_cliente__" className="text-green-600 font-semibold border-b border-gray-200 mb-1">
+                          <div className="flex items-center gap-2">
+                            <UserPlus className="w-4 h-4" />
+                            Criar novo cliente
+                          </div>
+                        </SelectItem>
                         {clientes.map(cliente => (
                           <SelectItem key={cliente.id} value={cliente.id}>
                             {cliente.nome}
@@ -5009,6 +5049,72 @@ export default function NovoProjeto() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Criação de Novo Cliente */}
+      {showNovoClienteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Overlay escuro */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowNovoClienteModal(false)}
+          />
+          {/* Conteúdo do Modal */}
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+            <ClienteForm
+              cliente={null}
+              currentUser={user}
+              usuarios={usuarios}
+              onCancel={() => setShowNovoClienteModal(false)}
+              onSave={async (novoCliente) => {
+                try {
+                  // Salvar o novo cliente
+                  const clienteCriado = await Cliente.create({
+                    ...novoCliente,
+                    created_by: user?.uid || null,
+                    created_by_email: user?.email || null,
+                  });
+                  
+                  // Atualizar a lista de clientes
+                  const clientesAtualizados = await Cliente.list();
+                  setClientes(clientesAtualizados);
+                  
+                  // Selecionar automaticamente o cliente criado
+                  if (clienteCriado?.id) {
+                    handleChange("cliente_id", clienteCriado.id);
+                    // Preencher nome do projeto se estiver vazio
+                    if (!formData.nome_projeto) {
+                      handleChange("nome_projeto", `Projeto - ${clienteCriado.nome || novoCliente.nome}`);
+                    }
+                    // Preencher CEP e endereço do cliente se disponíveis
+                    if (novoCliente.cep) {
+                      handleChange("cep", novoCliente.cep);
+                    }
+                    if (novoCliente.endereco_completo) {
+                      handleChange("endereco_completo", novoCliente.endereco_completo);
+                    }
+                  }
+                  
+                  // Fechar o modal
+                  setShowNovoClienteModal(false);
+                  
+                  toast({ 
+                    title: "Cliente criado", 
+                    description: `${novoCliente.nome} foi adicionado com sucesso.`,
+                    variant: "success" 
+                  });
+                } catch (error) {
+                  console.error('Erro ao criar cliente:', error);
+                  toast({ 
+                    title: "Erro ao criar cliente", 
+                    description: error.message,
+                    variant: "destructive" 
+                  });
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
