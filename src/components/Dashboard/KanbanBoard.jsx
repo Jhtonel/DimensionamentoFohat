@@ -22,14 +22,27 @@ import {
   Copy,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  FileSearch,
+  TrendingUp,
+  Trash2,
+  Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { formatDateBR } from "@/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useGesture } from "@use-gesture/react";
+import { getBackendUrl } from "@/services/backendUrl.js";
 
 const statusConfig = {
   lead: { 
@@ -95,7 +108,7 @@ const statusOrder = [
   'fechado', 'instalacao', 'concluido', 'perdido'
 ];
 
-export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) {
+export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, user = null, onViewMetrics, onViewCustos }) {
   const [draggedProject, setDraggedProject] = useState(null);
   const [projetosState, setProjetosState] = useState(projetos);
   const [viewMode, setViewMode] = useState("kanban");
@@ -396,27 +409,66 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
                                   <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug" title={projeto.nome_projeto || projeto.nome}>
                                     {projeto.nome_projeto || projeto.nome || 'Projeto sem nome'}
                                   </h4>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         className="h-6 w-6 -mr-2 -mt-1 text-gray-400 hover:text-gray-700 opacity-0 group-hover/card:opacity-100 transition-opacity"
                                         onClick={(e) => e.stopPropagation()}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        draggable={false}
                                       >
                                         <MoreVertical className="w-4 h-4" />
                                       </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent align="end" className="w-48 p-1">
-                                      <Link
-                                        to={getProjetoPath(projeto.id)}
-                                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-52">
+                                      <DropdownMenuItem asChild>
+                                        <Link to={getProjetoPath(projeto.id)} className="w-full cursor-pointer">
+                                          <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
+                                        </Link>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => window.open(projeto.url_proposta || `${getBackendUrl()}/proposta/${projeto.proposta_id || projeto.id}`, '_blank')}>
+                                        <ExternalLink className="w-4 h-4 mr-2" /> Ver Proposta Online
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')}>
+                                        <FileSearch className="w-4 h-4 mr-2" /> Ver PDF
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf?download=true`, '_blank')}>
+                                        <Download className="w-4 h-4 mr-2" /> Baixar PDF
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem asChild>
+                                        <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
+                                          <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta
+                                        </Link>
+                                      </DropdownMenuItem>
+                                      {onViewMetrics && (
+                                        <DropdownMenuItem onClick={() => onViewMetrics(projeto)}>
+                                          <TrendingUp className="w-4 h-4 mr-2" /> Ver Métricas
+                                        </DropdownMenuItem>
+                                      )}
+                                      {user?.role === 'admin' && onViewCustos && (
+                                        <DropdownMenuItem onClick={() => onViewCustos(projeto)}>
+                                          <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        className="text-red-600 focus:text-red-600 focus:bg-red-50" 
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (confirm('Tem certeza que deseja excluir este projeto?')) {
+                                            await Projeto.delete(projeto.id);
+                                            if (onUpdate) onUpdate();
+                                          }
+                                        }}
                                       >
-                                        <ExternalLink className="w-4 h-4" />
-                                        Abrir projeto
-                                      </Link>
-                                    </PopoverContent>
-                                  </Popover>
+                                        <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                                 
                                 <div className="space-y-1.5">
@@ -497,11 +549,59 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate }) 
                         {formatDate(projeto.created_date)}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
-                          <Button variant="ghost" size="sm" className="text-fohat-blue hover:bg-fohat-light h-8 px-2">
-                            Abrir
-                          </Button>
-                        </Link>
+                        <div className="flex justify-end items-center gap-1">
+                          <Link to={`${createPageUrl("NovoProjeto")}?projeto_id=${projeto.id}`}>
+                            <Button variant="ghost" size="sm" className="text-fohat-blue hover:bg-fohat-light h-8 px-2">
+                              <Eye className="w-4 h-4 mr-1" /> Abrir
+                            </Button>
+                          </Link>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem onClick={() => window.open(projeto.url_proposta || `${getBackendUrl()}/proposta/${projeto.proposta_id || projeto.id}`, '_blank')}>
+                                <ExternalLink className="w-4 h-4 mr-2" /> Ver Proposta Online
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf`, '_blank')}>
+                                <FileSearch className="w-4 h-4 mr-2" /> Ver PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.open(`${getBackendUrl()}/proposta/${projeto.id}/ver-pdf?download=true`, '_blank')}>
+                                <Download className="w-4 h-4 mr-2" /> Baixar PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem asChild>
+                                <Link to={`${createPageUrl("NovoProjeto")}?clone_from=${projeto.id}`} className="w-full cursor-pointer">
+                                  <Copy className="w-4 h-4 mr-2" /> Criar nova a partir desta
+                                </Link>
+                              </DropdownMenuItem>
+                              {onViewMetrics && (
+                                <DropdownMenuItem onClick={() => onViewMetrics(projeto)}>
+                                  <TrendingUp className="w-4 h-4 mr-2" /> Ver Métricas
+                                </DropdownMenuItem>
+                              )}
+                              {user?.role === 'admin' && onViewCustos && (
+                                <DropdownMenuItem onClick={() => onViewCustos(projeto)}>
+                                  <DollarSign className="w-4 h-4 mr-2" /> Ver Custos
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50" 
+                                onClick={async () => {
+                                  if (confirm('Tem certeza que deseja excluir este projeto?')) {
+                                    await Projeto.delete(projeto.id);
+                                    if (onUpdate) onUpdate();
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </td>
                     </tr>
                   );
