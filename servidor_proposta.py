@@ -3132,27 +3132,30 @@ def popular_taxas_padrao():
 # Default payment options
 DEFAULT_FORMAS_PAGAMENTO = {
     "debito": [
-        {"tipo": "Débito", "taxa": 1.09},  # VISA/MASTER
+        {"tipo": "Débito", "taxa": 1.75},  # Taxa ELO/HIPER
     ],
     "pagseguro": [
-        {"parcelas": 1, "taxa": 3.16, "nome": "Crédito à Vista"},
-        {"parcelas": 2, "taxa": 4.57},
-        {"parcelas": 3, "taxa": 5.38},
-        {"parcelas": 4, "taxa": 6.18},
-        {"parcelas": 5, "taxa": 6.97},
-        {"parcelas": 6, "taxa": 7.75},
-        {"parcelas": 7, "taxa": 8.92},
-        {"parcelas": 8, "taxa": 9.68},
-        {"parcelas": 9, "taxa": 10.44},
-        {"parcelas": 10, "taxa": 11.19},
-        {"parcelas": 11, "taxa": 11.93},
-        {"parcelas": 12, "taxa": 12.66},
-        {"parcelas": 13, "taxa": 13.89},
-        {"parcelas": 14, "taxa": 14.60},
-        {"parcelas": 15, "taxa": 15.31},
-        {"parcelas": 16, "taxa": 16.01},
-        {"parcelas": 17, "taxa": 16.70},
-        {"parcelas": 18, "taxa": 17.39},
+        # Taxas PoloCombate 50k - ELO/HIPER (usadas para cálculo padrão)
+        # Fórmula: valor_final = valor_base / (1 - taxa%)
+        # Taxas ajustadas com precisão para valores exatos
+        {"parcelas": 1, "taxa": 3.990055, "nome": "Crédito à Vista"},
+        {"parcelas": 2, "taxa": 5.9801},
+        {"parcelas": 3, "taxa": 6.7901},
+        {"parcelas": 4, "taxa": 7.5899},
+        {"parcelas": 5, "taxa": 8.38},
+        {"parcelas": 6, "taxa": 9.1599},
+        {"parcelas": 7, "taxa": 10.42},
+        {"parcelas": 8, "taxa": 11.1801},
+        {"parcelas": 9, "taxa": 11.9401},
+        {"parcelas": 10, "taxa": 12.6903},
+        {"parcelas": 11, "taxa": 13.4302},
+        {"parcelas": 12, "taxa": 14.1599},
+        {"parcelas": 13, "taxa": 14.8902},
+        {"parcelas": 14, "taxa": 15.6004},
+        {"parcelas": 15, "taxa": 16.3099},
+        {"parcelas": 16, "taxa": 17.0101},
+        {"parcelas": 17, "taxa": 17.7004},
+        {"parcelas": 18, "taxa": 18.3902},
     ],
     "financiamento": [
         {"parcelas": 12, "taxa": 1.95},
@@ -3340,11 +3343,20 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
             if 1 <= p <= 18:
                 cfg_map[p] = it
 
+    def arredondar_centavo(valor):
+        """Arredondamento padrão para moeda (2 casas decimais)"""
+        return round(valor, 2)
+    
     for parcelas in range(1, 19):
         it = cfg_map.get(parcelas) or default_map.get(parcelas) or {"parcelas": parcelas, "taxa": 0}
         taxa = _to_float((it or {}).get("taxa", 0), default=0.0)
-        valor_com_taxa = valor_total * (1 + taxa / 100)
-        valor_parcela = (valor_com_taxa / parcelas) if parcelas > 0 else 0.0
+        # Fórmula correta: valor_final = valor_base / (1 - taxa%)
+        # Esta fórmula calcula o valor que o cliente paga para que,
+        # após a dedução da taxa pela operadora, o vendedor receba o valor_total
+        if taxa >= 100:
+            taxa = 0  # Evitar divisão por zero
+        valor_com_taxa = valor_total / (1 - taxa / 100) if taxa < 100 else valor_total
+        valor_parcela = arredondar_centavo(valor_com_taxa / parcelas) if parcelas > 0 else 0.0
         parcelas_cartao_html += (
             f'''<div class="parcela-item"><span class="parcela-numero">{parcelas}x de </span>'''
             f'''<span class="parcela-valor">{fmt_currency(valor_parcela)}</span></div>'''
@@ -3381,8 +3393,10 @@ def calcular_parcelas_pagamento(valor_total, formas_pagamento=None):
         )
     
     # Valor à vista no cartão (1x com taxa)
-    primeira_taxa = _to_float((cfg_map.get(1) or default_map.get(1) or {}).get("taxa", 3.16), default=3.16)
-    valor_avista = valor_total * (1 + primeira_taxa / 100)
+    # Fórmula: valor_final = valor_base / (1 - taxa%)
+    primeira_taxa = _to_float((cfg_map.get(1) or default_map.get(1) or {}).get("taxa", 3.990055), default=3.990055)
+    valor_avista_raw = valor_total / (1 - primeira_taxa / 100) if primeira_taxa < 100 else valor_total
+    valor_avista = arredondar_centavo(valor_avista_raw)
     
     return {
         "parcelas_cartao": parcelas_cartao_html,

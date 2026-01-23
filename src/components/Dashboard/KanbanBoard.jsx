@@ -367,8 +367,6 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, us
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="flex-shrink-0 w-80 flex flex-col h-full max-h-[calc(100vh-220px)]"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, status)}
               >
                 {/* Header da Coluna */}
                 <div className={`flex items-center justify-between mb-3 p-3 rounded-xl border ${config.color.replace('text-', 'border-').replace('bg-', 'bg-opacity-50 bg-')} bg-white shadow-sm`}>
@@ -383,9 +381,13 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, us
                   </Badge>
                 </div>
                 
-                {/* Área dos Cards */}
-                <div className={`flex-1 p-2 rounded-xl ${config.bgColor} border border-transparent transition-colors duration-200 ${draggedProject ? 'border-dashed border-gray-300 bg-gray-50/50' : ''} overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-1`}>
-                  <div className="space-y-3 min-h-[100px]">
+                {/* Área dos Cards - toda a área é droppable */}
+                <div 
+                  className={`flex-1 p-2 rounded-xl ${config.bgColor} border-2 transition-colors duration-200 ${draggedProject ? 'border-dashed border-gray-400 bg-gray-100/50' : 'border-transparent'} overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-1`}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, status)}
+                >
+                  <div className="space-y-3 min-h-full">
                     <AnimatePresence mode="popLayout">
                       {projetosStatus.map((projeto) => (
                         <motion.div
@@ -494,9 +496,11 @@ export default function KanbanBoard({ clientes = [], projetos = [], onUpdate, us
                     </AnimatePresence>
                     
                     {projetosStatus.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+                      <div className={`flex flex-col items-center justify-center min-h-[200px] h-full text-gray-400 border-2 border-dashed rounded-lg transition-colors ${draggedProject ? 'border-gray-400 bg-gray-100/80' : 'border-gray-200 bg-gray-50/50'}`}>
                         <Icon className="w-8 h-8 mb-2 opacity-20" />
-                        <p className="text-xs font-medium opacity-60">Vazio</p>
+                        <p className="text-xs font-medium opacity-60">
+                          {draggedProject ? 'Solte aqui' : 'Vazio'}
+                        </p>
                       </div>
                     )}
                   </div>
