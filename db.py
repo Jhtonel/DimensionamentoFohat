@@ -237,6 +237,7 @@ class ClienteDB(Base):
     created_by_email = Column(String(255), nullable=True)
     endereco_completo = Column(Text, nullable=True)
     cep = Column(String(32), nullable=True)
+    numero = Column(String(64), nullable=True)
     tipo = Column(String(64), nullable=True)
     observacoes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -294,6 +295,9 @@ def init_db():
                 # Migrações para tabela 'users'
                 add_column_if_not_exists('users', 'password_hash', 'TEXT')
                 add_column_if_not_exists('users', 'telefone', 'VARCHAR(50)')
+                
+                # Migrações para tabela 'clientes'
+                add_column_if_not_exists('clientes', 'numero', 'VARCHAR(64)')
                 
                 # Migrações para tabela 'propostas' - novas colunas
                 add_column_if_not_exists('propostas', 'updated_at', 'TIMESTAMP')
