@@ -5624,6 +5624,7 @@ def listar_clientes():
                     "email": r.email,
                     "endereco_completo": r.endereco_completo,
                     "cep": r.cep,
+                    "numero": r.numero,
                     "tipo": r.tipo,
                     "observacoes": r.observacoes,
                     "created_by": r.created_by,
@@ -5675,6 +5676,7 @@ def criar_cliente():
             "email": data.get("email"),
             "endereco_completo": data.get("endereco_completo"),
             "cep": data.get("cep"),
+            "numero": data.get("numero"),
             "tipo": data.get("tipo"),
             "observacoes": data.get("observacoes"),
             # Vincular ao dono definido
@@ -5695,6 +5697,7 @@ def criar_cliente():
                 created_by_email=cliente.get("created_by_email"),
                 endereco_completo=cliente.get("endereco_completo"),
                 cep=cliente.get("cep"),
+                numero=cliente.get("numero"),
                 tipo=cliente.get("tipo"),
                 observacoes=cliente.get("observacoes"),
             ))
@@ -5735,6 +5738,7 @@ def atualizar_cliente(cliente_id):
             row.email = data.get("email", row.email)
             row.endereco_completo = data.get("endereco_completo", row.endereco_completo)
             row.cep = data.get("cep", row.cep)
+            row.numero = data.get("numero", row.numero)
             row.tipo = data.get("tipo", row.tipo)
             row.observacoes = data.get("observacoes", row.observacoes)
             db.commit()
@@ -5745,6 +5749,7 @@ def atualizar_cliente(cliente_id):
                 "email": row.email,
                 "endereco_completo": row.endereco_completo,
                 "cep": row.cep,
+                "numero": row.numero,
                 "tipo": row.tipo,
                 "observacoes": row.observacoes,
                 "created_by": row.created_by,
@@ -5766,6 +5771,7 @@ def atualizar_cliente(cliente_id):
             "email": data.get("email", cliente.get("email")),
             "endereco_completo": data.get("endereco_completo", cliente.get("endereco_completo")),
             "cep": data.get("cep", cliente.get("cep")),
+            "numero": data.get("numero", cliente.get("numero")),
             "tipo": data.get("tipo", cliente.get("tipo")),
             "observacoes": data.get("observacoes", cliente.get("observacoes")),
             "updated_at": now_brasilia().isoformat()

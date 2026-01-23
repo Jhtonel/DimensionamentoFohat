@@ -15,6 +15,7 @@ export default function ClienteForm({ cliente, onSave, onCancel, usuarios, curre
     email: "",
     endereco_completo: "",
     cep: "",
+    numero: "",
     tipo: "residencial",
     observacoes: "",
     created_by: currentUser?.uid || ""
@@ -157,13 +158,36 @@ export default function ClienteForm({ cliente, onSave, onCancel, usuarios, curre
                   </p>
                 ) : null}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="numero">Número *</Label>
+                <Input
+                  id="numero"
+                  value={formData.numero}
+                  onChange={(e) => {
+                    handleChange("numero", e.target.value);
+                    // Atualiza o endereço completo com o número
+                    if (formData.endereco_completo && e.target.value) {
+                      // Se o endereço não contém número ainda, adiciona
+                      const enderecoBase = formData.endereco_completo.replace(/,?\s*\d+\s*-/, ' -').replace(/\s+/g, ' ').trim();
+                      const partes = enderecoBase.split(' - ');
+                      if (partes.length >= 2) {
+                        const novoEndereco = `${partes[0]}, ${e.target.value} - ${partes.slice(1).join(' - ')}`;
+                        handleChange("endereco_completo", novoEndereco);
+                      }
+                    }
+                  }}
+                  placeholder="123"
+                  required
+                  className="bg-white/50 border-sky-200"
+                />
+              </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="endereco_completo">Endereço Completo</Label>
                 <Input
                   id="endereco_completo"
                   value={formData.endereco_completo}
                   onChange={(e) => handleChange("endereco_completo", e.target.value)}
-                  placeholder="Rua - Bairro, Cidade/UF"
+                  placeholder="Rua, Número - Bairro, Cidade/UF"
                   className="bg-white/50 border-sky-200"
                 />
               </div>

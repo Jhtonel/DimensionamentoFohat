@@ -237,6 +237,7 @@ class Cliente extends BaseEntity {
         email: data?.email ?? null,
         endereco_completo: data?.endereco_completo ?? null,
         cep: data?.cep ?? null,
+        numero: data?.numero ?? null,
         tipo: data?.tipo ?? null,
         observacoes: data?.observacoes ?? null,
         // Atribuição é feita no backend (usuário logado)
@@ -278,6 +279,7 @@ class Cliente extends BaseEntity {
         email: data?.email,
         endereco_completo: data?.endereco_completo,
         cep: data?.cep,
+        numero: data?.numero,
         tipo: data?.tipo,
         observacoes: data?.observacoes,
       };
