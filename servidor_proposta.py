@@ -1618,10 +1618,10 @@ def process_template_html(proposta_data, template_filename: str = "template.html
         # Usar o preço calculado de forma robusta
         template_html = template_html.replace('{{preco_final}}', preco_final_formatado)
         template_html = template_html.replace('{{cidade}}', proposta_data.get('cidade') or 'Projeto')
-        template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome') or 'Representante Comercial')
-        template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo') or 'Especialista em Energia Solar')
-        template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone') or '(11) 99999-9999')
-        template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email') or 'contato@empresa.com')
+        template_html = template_html.replace('{{vendedor_nome}}', proposta_data.get('vendedor_nome') or 'Consultor')
+        template_html = template_html.replace('{{vendedor_cargo}}', proposta_data.get('vendedor_cargo') or 'Consultor de Energia Solar')
+        template_html = template_html.replace('{{vendedor_telefone}}', proposta_data.get('vendedor_telefone') or '')
+        template_html = template_html.replace('{{vendedor_email}}', proposta_data.get('vendedor_email') or '')
         template_html = template_html.replace('{{data_proposta}}', proposta_data.get('data_proposta') or now_brasilia().strftime('%d/%m/%Y'))
         
         # Substituir variáveis financeiras
@@ -4227,10 +4227,10 @@ def salvar_proposta():
             'tipo_telhado': _pick('tipo_telhado', ''),
             'estado': _pick('estado') or _pick('uf') or '',
             'tensao': _pick('tensao') or None,
-            'vendedor_nome': _pick('vendedor_nome', 'Representante Comercial'),
-            'vendedor_cargo': _pick('vendedor_cargo', 'Especialista em Energia Solar'),
-            'vendedor_telefone': _pick('vendedor_telefone', '(11) 99999-9999'),
-            'vendedor_email': _pick('vendedor_email', 'contato@empresa.com'),
+            'vendedor_nome': _pick('vendedor_nome', ''),
+            'vendedor_cargo': _pick('vendedor_cargo', 'Consultor de Energia Solar'),
+            'vendedor_telefone': _pick('vendedor_telefone', ''),
+            'vendedor_email': _pick('vendedor_email', ''),
             'data_proposta': now_brasilia().strftime('%d/%m/%Y'),
             # Dados financeiros
             'conta_atual_anual': _pick('conta_atual_anual', 0) or 0,
@@ -6803,13 +6803,13 @@ def get_projeto(projeto_id):
             if payload_vendedor:
                 data["vendedor_nome"] = payload_vendedor
             else:
-                data["vendedor_nome"] = row.vendedor_nome or "Representante Comercial"
+                data["vendedor_nome"] = row.vendedor_nome or ""
         if not data.get("vendedor_cargo"):
             payload_cargo = (row.payload or {}).get("vendedor_cargo")
             if payload_cargo:
                 data["vendedor_cargo"] = payload_cargo
             else:
-                data["vendedor_cargo"] = row.vendedor_cargo or "Especialista em Energia Solar"
+                data["vendedor_cargo"] = row.vendedor_cargo or "Consultor de Energia Solar"
         if not data.get("vendedor_telefone"):
             payload_tel = (row.payload or {}).get("vendedor_telefone")
             if payload_tel:

@@ -64,6 +64,27 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   
   // Buscar dados do vendedor responsável pelo cliente
   // PRIORIDADE: Responsável ATUAL do cliente (created_by_email após transferência)
+  
+  // Função auxiliar para verificar se o nome é real ou apenas derivado do email
+  const isNomeReal = (nome, email) => {
+    if (!nome) return false;
+    // Se o nome é igual à parte antes do @ do email, não é um nome real
+    const emailPrefix = (email || '').split('@')[0]?.toLowerCase() || '';
+    const nomeNormalizado = (nome || '').toLowerCase().replace(/[.\s]/g, '');
+    const emailPrefixNormalizado = emailPrefix.replace(/[.\s]/g, '');
+    return nomeNormalizado !== emailPrefixNormalizado;
+  };
+  
+  // Função para formatar nome a partir do email (capitaliza e substitui pontos por espaços)
+  const formatarNomeDoEmail = (email) => {
+    if (!email) return 'Consultor';
+    const prefix = email.split('@')[0] || '';
+    return prefix
+      .split('.')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  };
+  
   const getVendedorResponsavel = () => {
     // 1. Se há cliente vinculado, usar o responsável atual do cliente (pode ter sido transferido)
     if (clienteInfo) {
@@ -72,8 +93,11 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       
       // 1a. Se o responsável é o usuário logado, usar dados completos do usuário logado
       if (user && (user.email?.toLowerCase() === responsavelEmail || user.uid === responsavelUid)) {
+        const nomeExibicao = isNomeReal(user.nome, user.email) 
+          ? user.nome 
+          : (user.full_name || user.name || user.displayName || formatarNomeDoEmail(user.email));
         return {
-          nome: user.nome || user.full_name || user.name || user.displayName || user.email?.split('@')[0] || 'Consultor',
+          nome: nomeExibicao,
           cargo: user.cargo || 'Consultor de Energia Solar',
           email: user.email || '',
           telefone: user.telefone || user.phone || ''
@@ -87,18 +111,21 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       );
       
       if (responsavel) {
+        const nomeExibicao = isNomeReal(responsavel.nome, responsavel.email)
+          ? responsavel.nome
+          : (responsavel.full_name || formatarNomeDoEmail(responsavel.email));
         return {
-          nome: responsavel.nome || responsavel.full_name || responsavel.email?.split('@')[0] || 'Consultor',
+          nome: nomeExibicao,
           cargo: responsavel.cargo || 'Consultor de Energia Solar',
           email: responsavel.email || '',
           telefone: responsavel.telefone || responsavel.phone || ''
         };
       }
       
-      // 1c. Se não encontrou o usuário na lista, usar o email como nome
+      // 1c. Se não encontrou o usuário na lista, usar o email formatado como nome
       if (responsavelEmail && responsavelEmail.includes('@')) {
         return {
-          nome: responsavelEmail.split('@')[0],
+          nome: formatarNomeDoEmail(responsavelEmail),
           cargo: 'Consultor de Energia Solar',
           email: responsavelEmail,
           telefone: ''
@@ -107,11 +134,14 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
     }
     
     // 2. Sem cliente vinculado ou responsável não encontrado: usar usuário logado
+    const nomeExibicao = isNomeReal(user?.nome, user?.email)
+      ? user?.nome
+      : (user?.full_name || user?.name || user?.displayName || formatarNomeDoEmail(user?.email) || 'Consultor');
     return {
-      nome: user?.nome || user?.full_name || user?.name || user?.displayName || user?.email || 'Consultor',
+      nome: nomeExibicao,
       cargo: user?.cargo || 'Consultor de Energia Solar',
       email: user?.email || '',
-      telefone: user?.phone || user?.telefone || ''
+      telefone: user?.telefone || user?.phone || ''
     };
   };
   

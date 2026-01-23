@@ -170,10 +170,10 @@ class Proposta:
     eficiencia_sistema: float
     
     # Informações do vendedor
-    vendedor_nome: str = "Representante Comercial"
-    vendedor_cargo: str = "Especialista em Energia Solar"
-    vendedor_telefone: str = "(11) 99999-9999"
-    vendedor_email: str = "contato@empresa.com"
+    vendedor_nome: str = ""
+    vendedor_cargo: str = "Consultor de Energia Solar"
+    vendedor_telefone: str = ""
+    vendedor_email: str = ""
     
     # Datas
     data_proposta: str = ""
