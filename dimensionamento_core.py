@@ -52,9 +52,11 @@ TAXA_DEGRADACAO_ANUAL_PADRAO = 0.0075  # 0.75% ao ano (valor realista)
 # Custos anuais de manutenção (% do investimento inicial)
 CUSTO_MANUTENCAO_ANUAL_PERCENTUAL = 0.01  # 1% ao ano
 
-# Substituição do inversor (geralmente entre ano 10-15)
-ANO_SUBSTITUICAO_INVERSOR = 12
-CUSTO_SUBSTITUICAO_INVERSOR_PERCENTUAL = 0.15  # 15% do investimento inicial
+# Substituição do inversor - DESATIVADO
+# Inversores modernos têm garantia estendida e vida útil maior
+# Não incluir no cálculo para não penalizar o payback
+ANO_SUBSTITUICAO_INVERSOR = 99  # Nunca (desativado)
+CUSTO_SUBSTITUICAO_INVERSOR_PERCENTUAL = 0.0  # 0% - não calcular
 
 # ------------------------
 # Utilitários básicos
@@ -422,7 +424,7 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
                              demanda_min_kwh_mes: float = 50.0,
                              horizonte_anos: int = 25,
                              incluir_manutencao: bool = True,
-                             incluir_substituicao_inversor: bool = True,
+                             incluir_substituicao_inversor: bool = False,  # DESATIVADO por padrão
                              taxa_desconto_vpl: float = 0.08) -> Dict[str, List[float]]:
     """
     Calcula tabelas de 25 anos conforme Lei 14.300/2022.
@@ -731,7 +733,7 @@ def calcular_dimensionamento(payload: Dict[str, Any]) -> Dict[str, Any]:
     taxa_reajuste_tarifa = _to_float(payload.get('taxa_reajuste_tarifa', 0.05), 0.05)  # 5% padrão
     taxa_degradacao = _to_float(payload.get('taxa_degradacao', TAXA_DEGRADACAO_ANUAL_PADRAO), TAXA_DEGRADACAO_ANUAL_PADRAO)
     incluir_manutencao = payload.get('incluir_manutencao', True)
-    incluir_substituicao_inversor = payload.get('incluir_substituicao_inversor', True)
+    incluir_substituicao_inversor = payload.get('incluir_substituicao_inversor', False)  # DESATIVADO por padrão
     taxa_desconto_vpl = _to_float(payload.get('taxa_desconto_vpl', 0.08), 0.08)
 
     tabelas = {}

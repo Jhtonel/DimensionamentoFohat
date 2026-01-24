@@ -2488,8 +2488,12 @@ def process_template_html(proposta_data, template_filename: str = "template.html
                         )
                     
                     # Adicionar indicador de economia
+                    # Usar economia_total_25_calc (fluxo de caixa acumulado) para consistência
+                    # com o valor mostrado no texto "Economia de R$..."
                     if sem_solar_25 > 0 and inv > 0:
-                        economia = sem_solar_25 - inv
+                        # Priorizar economia_total_25_calc (economia líquida real)
+                        # Se não disponível, calcular como diferença simples
+                        economia = economia_total_25_calc if economia_total_25_calc > 0 else (sem_solar_25 - inv)
                         economia_pct = (economia / sem_solar_25) * 100
                         economia_text = f"Economia: {_fmt_brl_full(economia)} ({economia_pct:.0f}%)"
                         ax.text(0.5, 0.02, economia_text, transform=ax.transAxes, 
