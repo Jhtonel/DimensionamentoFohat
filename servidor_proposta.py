@@ -4293,6 +4293,72 @@ def salvar_proposta():
             'metrics': _pick('metrics') or {}
         }
 
+        # ====== GARANTIR DADOS DO VENDEDOR (buscar do banco se não vieram preenchidos) ======
+        # Quando uma proposta é criada para outro usuário, os dados do vendedor podem não vir completos
+        # do frontend. Buscamos diretamente do banco de usuários para garantir persistência.
+        try:
+            vendedor_email = (proposta_data.get('vendedor_email') or '').strip()
+            vendedor_nome = (proposta_data.get('vendedor_nome') or '').strip()
+            vendedor_telefone = (proposta_data.get('vendedor_telefone') or '').strip()
+            vendedor_cargo = (proposta_data.get('vendedor_cargo') or '').strip()
+            
+            # Se temos email mas faltam outros dados, buscar do banco
+            needs_vendedor_lookup = vendedor_email and (
+                not vendedor_nome or 
+                not vendedor_telefone or 
+                vendedor_cargo == 'Consultor de Energia Solar'  # Valor padrão indica que não foi preenchido
+            )
+            
+            # Se não temos email do vendedor, usar o usuário logado
+            if not vendedor_email and me:
+                vendedor_email = me.email or ''
+                needs_vendedor_lookup = True
+            
+            if USE_DB and needs_vendedor_lookup and vendedor_email:
+                db_vendedor = SessionLocal()
+                try:
+                    user_vendedor = db_vendedor.query(UserDB).filter(
+                        func.lower(UserDB.email) == vendedor_email.lower()
+                    ).first()
+                    
+                    if user_vendedor:
+                        # Preencher dados faltantes do banco
+                        if not vendedor_nome:
+                            # Usar nome real do banco, ou formatar do email
+                            nome_db = (user_vendedor.nome or '').strip()
+                            email_prefix = vendedor_email.split('@')[0].lower().replace('.', '')
+                            nome_normalizado = nome_db.lower().replace(' ', '').replace('.', '')
+                            if nome_db and nome_normalizado != email_prefix:
+                                proposta_data['vendedor_nome'] = nome_db
+                            else:
+                                # Formatar nome do email (capitalizar partes)
+                                partes = vendedor_email.split('@')[0].split('.')
+                                nome_formatado = ' '.join(p.capitalize() for p in partes)
+                                proposta_data['vendedor_nome'] = nome_formatado
+                        
+                        if not vendedor_telefone and user_vendedor.telefone:
+                            proposta_data['vendedor_telefone'] = user_vendedor.telefone
+                        
+                        if vendedor_cargo == 'Consultor de Energia Solar' and user_vendedor.cargo:
+                            proposta_data['vendedor_cargo'] = user_vendedor.cargo
+                        
+                        if not proposta_data.get('vendedor_email'):
+                            proposta_data['vendedor_email'] = vendedor_email
+                        
+                        print(f"✅ [VENDEDOR] Dados do vendedor carregados do banco: {proposta_data.get('vendedor_nome')}, {proposta_data.get('vendedor_telefone')}")
+                    else:
+                        # Usuário não encontrado no banco - usar dados formatados do email
+                        if not vendedor_nome:
+                            partes = vendedor_email.split('@')[0].split('.')
+                            proposta_data['vendedor_nome'] = ' '.join(p.capitalize() for p in partes)
+                        if not proposta_data.get('vendedor_email'):
+                            proposta_data['vendedor_email'] = vendedor_email
+                        print(f"⚠️ [VENDEDOR] Usuário não encontrado no banco, usando email formatado: {proposta_data.get('vendedor_nome')}")
+                finally:
+                    db_vendedor.close()
+        except Exception as e:
+            print(f"⚠️ [VENDEDOR] Erro ao buscar dados do vendedor: {e}")
+
         # ====== Padronização: garantir que SEMPRE exista cliente_id (e vincular por ID, não por nome) ======
         # Motivação: telas como Clientes/Projetos contam projetos por cliente_id (match estrito se existe).
         # Se vier legado sem cliente_id, tentamos resolver; se não existir, criamos cliente e vinculamos.
