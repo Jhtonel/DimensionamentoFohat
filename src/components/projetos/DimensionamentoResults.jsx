@@ -315,8 +315,14 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   const dadosSeguros = getDadosSeguros();
 
   // useEffect para auto-geração da proposta
+  // IMPORTANTE: Não gerar nova proposta se já existe uma salva (evita duplicatas)
   useEffect(() => {
-    if (autoGenerateProposta && formData && !showPreview && !propostaSalva && !isGeneratingPDF) {
+    // Verificar se já existe uma proposta salva (pelo estado ou pela URL)
+    const urlParams = new URLSearchParams(window.location.search);
+    const projetoIdUrl = urlParams.get('projeto_id');
+    const jaTemProposta = propostaSalva || propostaId || projetoIdUrl;
+    
+    if (autoGenerateProposta && formData && !showPreview && !jaTemProposta && !isGeneratingPDF) {
       if (autoTimerRef.current) {
         clearTimeout(autoTimerRef.current);
       }
@@ -325,7 +331,12 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         autoTimerRef.current = null;
       }, 800);
     }
-  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras, propostaSalva, isGeneratingPDF]);
+    
+    // Se já tem proposta e o usuário clicou em "Gerar e Continuar" novamente, apenas mostrar preview
+    if (autoGenerateProposta && jaTemProposta && !showPreview && !isGeneratingPDF) {
+      setShowPreview(true);
+    }
+  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras, propostaSalva, propostaId, isGeneratingPDF]);
 
   // useEffect para notificar quando a auto-geração for concluída
   useEffect(() => {
@@ -396,7 +407,16 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Preparar dados da proposta para o servidor
       const clienteInfo = clientes.find(c => c.id === formData?.cliente_id);
+      
+      // IMPORTANTE: Reutilizar o ID existente para evitar duplicatas
+      // Prioridade: propostaId do estado > projeto_id da URL > formData.proposta_id
+      const urlParams = new URLSearchParams(window.location.search);
+      const projetoIdUrl = urlParams.get('projeto_id');
+      const idExistente = propostaId || projetoIdUrl || formData?.proposta_id || formData?.id || null;
+      
       const propostaData = {
+        // ID existente para fazer update em vez de criar nova proposta
+        ...(idExistente ? { id: idExistente, proposta_id: idExistente, projeto_id: idExistente } : {}),
         // Identificação do criador (para filtros por usuário)
         created_by: user?.uid || null,
         created_by_email: user?.email || null,
