@@ -4321,6 +4321,29 @@ def salvar_proposta():
                         func.lower(UserDB.email) == vendedor_email.lower()
                     ).first()
                     
+                    # Busca flexível: se não encontrou, tentar com email similar (typos comuns)
+                    if not user_vendedor:
+                        # Remover caracteres duplicados e tentar novamente
+                        email_prefix = vendedor_email.split('@')[0].lower()
+                        email_domain = vendedor_email.split('@')[1] if '@' in vendedor_email else 'gmail.com'
+                        
+                        # Tentar encontrar por LIKE (prefixo similar)
+                        similar_users = db_vendedor.query(UserDB).filter(
+                            UserDB.email.ilike(f"%{email_prefix[:8]}%")  # Primeiros 8 caracteres
+                        ).all()
+                        
+                        if similar_users:
+                            # Escolher o mais similar
+                            for su in similar_users:
+                                su_prefix = (su.email or '').split('@')[0].lower()
+                                # Verificar similaridade (permitir 1-2 caracteres de diferença)
+                                if abs(len(su_prefix) - len(email_prefix)) <= 2:
+                                    diff_count = sum(1 for a, b in zip(su_prefix, email_prefix) if a != b)
+                                    if diff_count <= 2:
+                                        user_vendedor = su
+                                        print(f"✅ [VENDEDOR] Encontrado usuário similar: {su.email} (buscando: {vendedor_email})")
+                                        break
+                    
                     if user_vendedor:
                         # Preencher dados faltantes do banco
                         if not vendedor_nome:
