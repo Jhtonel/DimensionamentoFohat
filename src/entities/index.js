@@ -1,5 +1,7 @@
 // Simulação de dados em memória para desenvolvimento
 import { getBackendUrl } from '../services/backendUrl.js';
+import { obterConcessionaria, calcularConsumoPorValor as calcConsumoPorValor, calcularValorPorConsumo as calcValorPorConsumo } from '../utils/tarifasUtils.js';
+import { getIrradianciaByCity, calcularPotenciaUsina, calcularEnergiaMensal } from '../utils/irradianciaUtils.js';
 let clientesData = [
   {
     id: '1',
@@ -599,7 +601,6 @@ class Configuracao extends BaseEntity {
       }
       
       // 2. Tentar dados locais
-      const { obterConcessionaria } = await import('../utils/tarifasUtils');
       const concessionariaData = obterConcessionaria(concessionaria);
       
       if (concessionariaData) {
@@ -619,8 +620,7 @@ class Configuracao extends BaseEntity {
   // Método para calcular consumo baseado no valor em reais
   static async calcularConsumoPorValor(valorReais, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde') {
     try {
-      const { calcularConsumoPorValor } = await import('../utils/tarifasUtils');
-      return await calcularConsumoPorValor(valorReais, concessionaria, tipoConsumo, bandeira);
+      return await calcConsumoPorValor(valorReais, concessionaria, tipoConsumo, bandeira);
     } catch (error) {
       console.error('Erro ao calcular consumo por valor:', error);
       throw error;
@@ -630,8 +630,7 @@ class Configuracao extends BaseEntity {
   // Método para calcular valor baseado no consumo
   static async calcularValorPorConsumo(consumoKwh, concessionaria, tipoConsumo = 'residencial', bandeira = 'verde') {
     try {
-      const { calcularValorPorConsumo } = await import('../utils/tarifasUtils');
-      return await calcularValorPorConsumo(consumoKwh, concessionaria, tipoConsumo, bandeira);
+      return await calcValorPorConsumo(consumoKwh, concessionaria, tipoConsumo, bandeira);
     } catch (error) {
       console.error('Erro ao calcular valor por consumo:', error);
       throw error;
@@ -645,7 +644,6 @@ class IrradiacaoSolar extends BaseEntity {
   // Método para buscar irradiação por cidade usando dados reais do CSV
   static async getByCity(cityName) {
     try {
-      const { getIrradianciaByCity } = await import('../utils/irradianciaUtils');
       return await getIrradianciaByCity(cityName);
     } catch (error) {
       console.error('Erro ao buscar irradiação por cidade:', error);
@@ -656,7 +654,6 @@ class IrradiacaoSolar extends BaseEntity {
   // Método para calcular potência da usina
   static async calculatePower(cityName, areaPainel, eficienciaPainel = 0.2) {
     try {
-      const { getIrradianciaByCity, calcularPotenciaUsina } = await import('../utils/irradianciaUtils');
       const irradianciaData = await getIrradianciaByCity(cityName);
       
       if (!irradianciaData) {
@@ -673,7 +670,6 @@ class IrradiacaoSolar extends BaseEntity {
   // Método para calcular energia mensal
   static async calculateMonthlyEnergy(cityName, areaPainel, eficienciaPainel = 0.2) {
     try {
-      const { getIrradianciaByCity, calcularEnergiaMensal } = await import('../utils/irradianciaUtils');
       const irradianciaData = await getIrradianciaByCity(cityName);
       
       if (!irradianciaData) {
