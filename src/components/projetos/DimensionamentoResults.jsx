@@ -7,23 +7,7 @@ import { baixarPdfPuppeteer } from "@/services/pdfService.js";
 import { propostaService } from '../../services/propostaService';
 import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
 import { useToast } from "@/hooks/useToast";
-
-// Importar entities de forma lazy para evitar problemas de inicialização circular
-let _Projeto = null;
-let _Configuracao = null;
-
-const getEntities = async () => {
-  if (!_Projeto || !_Configuracao) {
-    try {
-      const entities = await import('../../entities');
-      _Projeto = entities.Projeto;
-      _Configuracao = entities.Configuracao;
-    } catch (e) {
-      console.error('Erro ao carregar entities:', e);
-    }
-  }
-  return { Projeto: _Projeto, Configuracao: _Configuracao };
-};
+import { Projeto } from '../../entities';
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [], costs = null }) {
   const { toast } = useToast();
@@ -356,27 +340,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
     try {
 
-      // Obter tarifa - DEVE ser um valor exato, sem fallbacks
-      let tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
+      // Obter tarifa - DEVE vir preenchida do formData (selecionada na aba Dados Básicos)
+      const tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
         ? Number(formData.tarifa_energia)
         : 0;
-      
-      // Se não tiver tarifa válida, tentar buscar pela concessionária
-      if ((!tarifaParaEnvio || tarifaParaEnvio <= 0 || tarifaParaEnvio > 10) && formData?.concessionaria) {
-        try {
-          // Carregar entities de forma segura (lazy)
-          const { Configuracao } = await getEntities();
-          if (Configuracao && typeof Configuracao.getTarifaByConcessionaria === 'function') {
-            const t = await Configuracao.getTarifaByConcessionaria(formData.concessionaria);
-            if (t && t > 0 && t <= 10) {
-              tarifaParaEnvio = t;
-            }
-          }
-        } catch (tarifaErr) {
-          console.error('Erro ao buscar tarifa da concessionária:', tarifaErr);
-          // NÃO usar fallback - propagar o erro
-        }
-      }
       
       // Validar tarifa - é obrigatório ter um valor exato
       if (!tarifaParaEnvio || tarifaParaEnvio <= 0) {
@@ -780,10 +747,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           console.warn('Erro ao ler URL params:', urlErr);
         }
         
-        if (projetoId) {
-          // Carregar Projeto de forma segura (lazy)
-          const { Projeto } = await getEntities();
-          if (Projeto && typeof Projeto.update === 'function') {
+        if (projetoId && Projeto && typeof Projeto.update === 'function') {
             const clienteNome = (clientes.find(c => c.id === formData?.cliente_id)?.nome) || formData?.cliente_nome || null;
             // Não bloquear a geração/preview da proposta por falhas ou travas no Supabase.
             // (quando o Supabase entra em loop de refresh_token, esse await pode "pendurar" e deixar a UI em "Gerando...")
@@ -819,10 +783,10 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
               }),
               new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao atualizar projeto')), 3500)),
             ]).catch(() => {});
-          }
         }
       } catch (e) {
-        // Erro não crítico
+        // Erro não crítico ao atualizar projeto
+        console.warn('Erro ao atualizar projeto:', e);
       }
 
       // Salvar dados para preview
