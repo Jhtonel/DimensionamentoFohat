@@ -6856,6 +6856,90 @@ def get_projeto(projeto_id):
         if not data.get("margem_lucro") and row.margem_lucro:
             data["margem_lucro"] = row.margem_lucro
         
+        # ====== RECÁLCULO DE CUSTOS (quando estão zerados em propostas antigas) ======
+        # Isso garante que ao "Ver Custos" sempre tenhamos valores calculados
+        try:
+            custo_equip = parse_float(data.get("custo_equipamentos"), 0.0)
+            custo_op = parse_float(data.get("custo_operacional"), 0.0)
+            
+            # Se custos estão zerados mas temos potência e quantidade de placas, recalcular
+            if custo_op <= 0:
+                qtd_placas = parse_float(data.get("quantidade_placas") or row.quantidade_placas, 0)
+                potencia_kwp = parse_float(data.get("potencia_sistema") or row.potencia_sistema, 0)
+                preco_venda = parse_float(data.get("preco_venda") or row.preco_venda, 0)
+                
+                if qtd_placas > 0 and potencia_kwp > 0:
+                    print(f"🔄 [get_projeto] Recalculando custos para proposta {projeto_id}...")
+                    
+                    # Buscar configurações de custos
+                    try:
+                        cfg_row = db.get(ConfigDB, "proposta_configs") if USE_DB else None
+                        cfg = (cfg_row.data if cfg_row else None) or {}
+                    except Exception:
+                        cfg = {}
+                    
+                    # Parâmetros de cálculo (com defaults)
+                    base_instalacao = parse_float(cfg.get('instalacao_base_por_placa', 40), 40)
+                    pct_seguranca = parse_float(cfg.get('instalacao_percentual_seguranca', 10), 10)
+                    custo_ca_por_placa = parse_float(cfg.get('custo_ca_aterramento_por_placa', 100), 100)
+                    pct_transporte = parse_float(cfg.get('percentual_transporte', 5), 5)
+                    pct_despesas_gerais = parse_float(cfg.get('percentual_despesas_gerais', 10), 10)
+                    custo_placas_sin = parse_float(cfg.get('custo_placas_sinalizacao', 60), 60)
+                    
+                    # Calcular custos
+                    instalacao_por_placa = base_instalacao * (1 + pct_seguranca / 100)
+                    calc_instalacao = qtd_placas * instalacao_por_placa
+                    calc_ca_aterramento = qtd_placas * custo_ca_por_placa
+                    
+                    # Homologação baseada na potência
+                    if potencia_kwp > 75:
+                        calc_homologacao = 1800
+                    elif potencia_kwp > 25:
+                        calc_homologacao = 1200
+                    elif potencia_kwp > 10:
+                        calc_homologacao = 1000
+                    else:
+                        calc_homologacao = 800
+                    
+                    calc_despesas_gerais = calc_instalacao * (pct_despesas_gerais / 100)
+                    
+                    # Equipamentos: se temos preço de venda, estimar como ~35-45% do preço
+                    # (ou usar valor existente se houver)
+                    if custo_equip <= 0 and preco_venda > 0:
+                        # Estimar equipamentos como ~40% do preço de venda
+                        custo_equip = preco_venda * 0.40
+                    
+                    calc_transporte = custo_equip * (pct_transporte / 100) if custo_equip > 0 else 0
+                    
+                    # Total operacional
+                    calc_operacional = (
+                        custo_equip + calc_transporte + calc_instalacao + 
+                        calc_ca_aterramento + calc_homologacao + 
+                        custo_placas_sin + calc_despesas_gerais
+                    )
+                    
+                    # Atualizar dados se não existiam
+                    if not data.get("custo_equipamentos") or parse_float(data.get("custo_equipamentos"), 0) <= 0:
+                        data["custo_equipamentos"] = round(custo_equip, 2)
+                    if not data.get("custo_transporte") or parse_float(data.get("custo_transporte"), 0) <= 0:
+                        data["custo_transporte"] = round(calc_transporte, 2)
+                    if not data.get("custo_instalacao") or parse_float(data.get("custo_instalacao"), 0) <= 0:
+                        data["custo_instalacao"] = round(calc_instalacao, 2)
+                    if not data.get("custo_ca_aterramento") or parse_float(data.get("custo_ca_aterramento"), 0) <= 0:
+                        data["custo_ca_aterramento"] = round(calc_ca_aterramento, 2)
+                    if not data.get("custo_homologacao") or parse_float(data.get("custo_homologacao"), 0) <= 0:
+                        data["custo_homologacao"] = round(calc_homologacao, 2)
+                    if not data.get("custo_placas_sinalizacao") or parse_float(data.get("custo_placas_sinalizacao"), 0) <= 0:
+                        data["custo_placas_sinalizacao"] = round(custo_placas_sin, 2)
+                    if not data.get("custo_despesas_gerais") or parse_float(data.get("custo_despesas_gerais"), 0) <= 0:
+                        data["custo_despesas_gerais"] = round(calc_despesas_gerais, 2)
+                    if not data.get("custo_operacional") or parse_float(data.get("custo_operacional"), 0) <= 0:
+                        data["custo_operacional"] = round(calc_operacional, 2)
+                    
+                    print(f"✅ [get_projeto] Custos recalculados: equip={data.get('custo_equipamentos')}, op={data.get('custo_operacional')}")
+        except Exception as e:
+            print(f"⚠️ [get_projeto] Erro ao recalcular custos: {e}")
+        
         # Fallback de DRE do Projeto (colunas do banco)
         if not data.get("valor_comissao") and row.valor_comissao:
             data["valor_comissao"] = row.valor_comissao
