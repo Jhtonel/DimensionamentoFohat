@@ -314,42 +314,6 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
   const dadosSeguros = getDadosSeguros();
 
-  // useEffect para auto-geração da proposta
-  // IMPORTANTE: Não gerar nova proposta se já existe uma salva (evita duplicatas)
-  useEffect(() => {
-    // Verificar se já existe uma proposta salva (pelo estado ou pela URL)
-    let projetoIdUrl = null;
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      projetoIdUrl = urlParams.get('projeto_id');
-    } catch (e) {
-      console.warn('Erro ao ler URL params:', e);
-    }
-    const jaTemProposta = propostaSalva || propostaId || projetoIdUrl;
-    
-    if (autoGenerateProposta && formData && !showPreview && !jaTemProposta && !isGeneratingPDF) {
-      if (autoTimerRef.current) {
-        clearTimeout(autoTimerRef.current);
-      }
-      autoTimerRef.current = setTimeout(() => {
-        salvarProposta();
-        autoTimerRef.current = null;
-      }, 800);
-    }
-    
-    // Se já tem proposta e o usuário clicou em "Gerar e Continuar" novamente, apenas mostrar preview
-    if (autoGenerateProposta && jaTemProposta && !showPreview && !isGeneratingPDF) {
-      setShowPreview(true);
-    }
-  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras, propostaSalva, propostaId, isGeneratingPDF]);
-
-  // useEffect para notificar quando a auto-geração for concluída
-  useEffect(() => {
-    if (showPreview && autoGenerateProposta && onAutoGenerateComplete) {
-      onAutoGenerateComplete();
-    }
-  }, [showPreview, autoGenerateProposta, onAutoGenerateComplete]);
-
   // Função para converter imagem para base64
   const convertImageToBase64 = async (imagePath) => {
     try {
@@ -844,6 +808,42 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       setIsGeneratingPDF(false);
     }
   };
+
+  // useEffect para auto-geração da proposta
+  // IMPORTANTE: Não gerar nova proposta se já existe uma salva (evita duplicatas)
+  useEffect(() => {
+    // Verificar se já existe uma proposta salva (pelo estado ou pela URL)
+    let projetoIdUrl = null;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      projetoIdUrl = urlParams.get('projeto_id');
+    } catch (e) {
+      console.warn('Erro ao ler URL params:', e);
+    }
+    const jaTemProposta = propostaSalva || propostaId || projetoIdUrl;
+    
+    if (autoGenerateProposta && formData && !showPreview && !jaTemProposta && !isGeneratingPDF) {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+      }
+      autoTimerRef.current = setTimeout(() => {
+        salvarProposta();
+        autoTimerRef.current = null;
+      }, 800);
+    }
+    
+    // Se já tem proposta e o usuário clicou em "Gerar e Continuar" novamente, apenas mostrar preview
+    if (autoGenerateProposta && jaTemProposta && !showPreview && !isGeneratingPDF) {
+      setShowPreview(true);
+    }
+  }, [autoGenerateProposta, formData, showPreview, kitSelecionado, projecoesFinanceiras, propostaSalva, propostaId, isGeneratingPDF]);
+
+  // useEffect para notificar quando a auto-geração for concluída
+  useEffect(() => {
+    if (showPreview && autoGenerateProposta && onAutoGenerateComplete) {
+      onAutoGenerateComplete();
+    }
+  }, [showPreview, autoGenerateProposta, onAutoGenerateComplete]);
 
   // Função para carregar template para preview
   const loadTemplateForPreview = async (proposta) => {
