@@ -356,7 +356,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
     try {
 
-      // Garantir tarifa válida (fallback pela concessionária)
+      // Obter tarifa - DEVE ser um valor exato, sem fallbacks
       let tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
         ? Number(formData.tarifa_energia)
         : 0;
@@ -373,15 +373,14 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
             }
           }
         } catch (tarifaErr) {
-          console.warn('Erro ao buscar tarifa, usando fallback:', tarifaErr);
-          // Fallback: usar tarifa média de SP
-          tarifaParaEnvio = 0.85;
+          console.error('Erro ao buscar tarifa da concessionária:', tarifaErr);
+          // NÃO usar fallback - propagar o erro
         }
       }
       
-      // Fallback final se ainda não tiver tarifa
+      // Validar tarifa - é obrigatório ter um valor exato
       if (!tarifaParaEnvio || tarifaParaEnvio <= 0) {
-        tarifaParaEnvio = 0.85; // Tarifa média SP
+        throw new Error('Tarifa de energia não informada. Selecione a concessionária ou informe a tarifa manualmente.');
       }
       // Derivar consumo kWh:
       // 1) Preferir média a partir do vetor mês a mês se existir

@@ -1321,7 +1321,7 @@ export default function NovoProjeto() {
       console.log('📊 Potências de painéis nos filtros:', filtros.potenciasPaineis);
       
       // Calcula a potência se ainda não foi calculada
-      const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
+      const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0;
       const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
@@ -1361,10 +1361,9 @@ export default function NovoProjeto() {
             }
           }
           
-          // Fallback se não conseguir obter tarifa
+          // Validar que tarifa foi obtida - NÃO usar fallback
           if (!tarifa || tarifa <= 0) {
-            tarifa = 0.85; // Valor padrão médio SP
-            fonteTarifa = 'Fallback padrão (0.85)';
+            throw new Error('Tarifa de energia não disponível. Selecione a concessionária ou informe a tarifa manualmente.');
           }
           
           console.log('  📌 Tarifa FINAL usada:', tarifa, 'R$/kWh');
@@ -1806,7 +1805,7 @@ export default function NovoProjeto() {
       console.log('formData atual:', formData);
       
       // Calcula a potência se ainda não foi calculada
-      const tarifaEnergiaCalc = parseFloat(formData.tarifa_energia) || 0.85;
+      const tarifaEnergiaCalc = parseFloat(formData.tarifa_energia) || 0;
       const margemReaisCalc = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
@@ -1889,7 +1888,7 @@ export default function NovoProjeto() {
       if (consumoMensal > 0) {
         try {
           console.log('🔄 Calculando potência automaticamente...');
-          const tarifaAuto = parseFloat(formData.tarifa_energia) || 0.85;
+          const tarifaAuto = parseFloat(formData.tarifa_energia) || 0;
           const margemReaisAuto = parseFloat(formData.margem_adicional_reais) || 0;
           const margemAdicional = {
             percentual: parseFloat(formData.margem_adicional_percentual) || 0,
@@ -2010,7 +2009,7 @@ export default function NovoProjeto() {
     
     // Só calcula nova potência se não houver uma já definida
     if (!potenciaKw || potenciaKw <= 0) {
-      const tarifaPot = parseFloat(formData.tarifa_energia) || 0.85;
+      const tarifaPot = parseFloat(formData.tarifa_energia) || 0;
       const margemReaisPot = parseFloat(formData.margem_adicional_reais) || 0;
       const margemAdicional = {
         percentual: parseFloat(formData.margem_adicional_percentual) || 0,
@@ -2506,7 +2505,7 @@ export default function NovoProjeto() {
         const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
         const margemKwhDir = parseFloat(formData.margem_adicional_kwh) || 0;
         const margemReaisDir = parseFloat(formData.margem_adicional_reais) || 0;
-        const tarifaDir = parseFloat(formData.tarifa_energia) || 0.85;
+        const tarifaDir = parseFloat(formData.tarifa_energia) || 0;
         const margemKwh = margemReaisDir > 0 ? margemReaisDir / tarifaDir : margemKwhDir;
         if (margemPercentual > 0) {
           consumoKwh *= (1 + margemPercentual / 100);
@@ -2599,13 +2598,13 @@ export default function NovoProjeto() {
       .map(c => c.concessionaria);
   }, [concessionariasLista, configs]);
   
-  // Buscar tarifa da concessionária selecionada
+  // Buscar tarifa da concessionária selecionada - retorna null se não encontrar
   const getTarifaConcessionaria = useCallback((nomeConcessionaria) => {
-    if (!nomeConcessionaria) return 0.73; // Média SP
+    if (!nomeConcessionaria) return null;
     const conc = concessionariasLista.find(c => 
       c.nome.toLowerCase() === nomeConcessionaria.toLowerCase()
     );
-    return conc?.tarifa_kwh || 0.73;
+    return conc?.tarifa_kwh || null;
   }, [concessionariasLista]);
 
   // As funções de cálculo financeiro agora estão centralizadas em src/utils/calculosSolares.js
@@ -3134,7 +3133,7 @@ export default function NovoProjeto() {
                               const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
                               const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
                               const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
-                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
+                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0;
                               
                               // Converter R$ para kWh se necessário
                               const margemKwhFinal = margemReais > 0 ? margemReais / tarifaEnergia : margemKwh;
@@ -3287,7 +3286,7 @@ export default function NovoProjeto() {
                               const margemPercentual = parseFloat(formData.margem_adicional_percentual) || 0;
                               const margemKwh = parseFloat(formData.margem_adicional_kwh) || 0;
                               const margemReais = parseFloat(formData.margem_adicional_reais) || 0;
-                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0.85;
+                              const tarifaEnergia = parseFloat(formData.tarifa_energia) || 0;
                               
                               // Converter R$ para kWh se necessário
                               const margemKwhFinal = margemReais > 0 ? margemReais / tarifaEnergia : margemKwh;
@@ -4482,12 +4481,11 @@ export default function NovoProjeto() {
                             const consumoKwh = parseFloat(formData.consumo_mensal_kwh || 0);
                             const consumoReais = parseFloat(formData.consumo_mensal_reais || 0);
                             
-                            // Tarifa: prioriza formData, senão usa valor padrão
+                            // Tarifa: DEVE vir do formData - sem fallback
                             let tarifaKwh = parseFloat(formData.tarifa_energia || 0);
                             let fonteTarifa = 'formData.tarifa_energia';
                             if (!tarifaKwh || tarifaKwh <= 0 || tarifaKwh > 10) {
-                              tarifaKwh = 0.85; // Média SP
-                              fonteTarifa = 'Fallback padrão (0.85)';
+                              fonteTarifa = 'Não informada - selecione concessionária';
                             }
                             
                             const cidade = formData.cidade || 'N/A';
@@ -4589,8 +4587,8 @@ export default function NovoProjeto() {
                                   if (consumoKwh <= 0 && consumoReais <= 0) {
                                     alertas.push('⚠️ Nenhum consumo informado (nem kWh nem R$)');
                                   }
-                                  if (fonteTarifa.includes('Fallback')) {
-                                    alertas.push(`⚠️ Tarifa usando fallback: ${tarifaKwh.toFixed(2)}. Selecione uma concessionária para usar tarifa oficial.`);
+                                  if (!tarifaKwh || tarifaKwh <= 0) {
+                                    alertas.push('❌ TARIFA NÃO INFORMADA! Selecione a concessionária ou informe a tarifa manualmente.');
                                   }
                                   if (fonteIrradiancia.includes('Fallback')) {
                                     alertas.push('⚠️ Irradiância usando fallback. Cidade não encontrada no CSV.');

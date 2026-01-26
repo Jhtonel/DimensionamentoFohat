@@ -598,7 +598,7 @@ class Configuracao extends BaseEntity {
         return found.tarifa_kwh;
       }
       
-      // 2. Fallback: usar dados locais antigos
+      // 2. Tentar dados locais
       const { obterConcessionaria } = await import('../utils/tarifasUtils');
       const concessionariaData = obterConcessionaria(concessionaria);
       
@@ -606,11 +606,13 @@ class Configuracao extends BaseEntity {
         return concessionariaData.tarifas.residencial.totalComImpostos;
       }
 
-      console.warn(`⚠️ Concessionária "${concessionaria}" não encontrada`);
-      return 0.73; // Valor médio SP como fallback
+      // NÃO usar fallback - retornar null para indicar que não encontrou
+      console.error(`❌ Concessionária "${concessionaria}" não encontrada. Informe a tarifa manualmente.`);
+      return null;
     } catch (error) {
       console.error('Erro ao buscar tarifa:', error);
-      return 0.73; // Valor médio como fallback
+      // NÃO usar fallback - propagar null
+      return null;
     }
   }
 
