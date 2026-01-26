@@ -2181,14 +2181,7 @@ export default function NovoProjeto() {
       const irradianciaDataLocal = await getIrradianciaByCity(cidade);
       
       if (!irradianciaDataLocal) {
-        console.warn('⚠️ Cidade não encontrada nos dados de irradiância:', cidade);
-        // Fallback para valores padrão
-        const irradianciaMedia = 5.0;
-        const eficienciaSistema = 0.80;
-        const fatorCorrecao = 1.066; // Ajustado para corresponder à planilha
-        const potenciaNecessariaKw = (consumoComMargem / ((irradianciaMedia * eficienciaSistema) * 30.4)) * fatorCorrecao;
-        const resultado = Math.round(potenciaNecessariaKw * 100) / 100;
-        return Math.max(resultado, 1.0);
+        throw new Error(`Cidade "${cidade}" não encontrada nos dados de irradiância. Informe uma cidade válida.`);
       }
       
       // Salvar dados de irradiância no estado para uso posterior
@@ -4490,8 +4483,8 @@ export default function NovoProjeto() {
                             
                             const cidade = formData.cidade || 'N/A';
                             const irradianciaAnual = irradianciaData?.annual || 0;
-                            const irradianciaDiaria = irradianciaAnual > 0 ? irradianciaAnual / 1000 : 5.0;
-                            const fonteIrradiancia = irradianciaAnual > 0 ? `CSV (${irradianciaData?.name || cidade})` : 'Fallback padrão (5.0)';
+                            const irradianciaDiaria = irradianciaAnual > 0 ? irradianciaAnual / 1000 : 0;
+                            const fonteIrradiancia = irradianciaAnual > 0 ? `CSV (${irradianciaData?.name || cidade})` : 'NÃO INFORMADA - Selecione cidade válida';
                             const eficiencia = 0.80;
                             const fatorCorrecao = 1.066;
                             const margemPct = parseFloat(formData.margem_adicional_percentual || 0);

@@ -143,28 +143,8 @@ export async function getIrradianciaByCity(cityName) {
     return city;
   }
   
-  // Fallback: usar São Paulo como padrão
-  console.log('⚠️ Cidade não encontrada, usando São Paulo como fallback');
-  const fallbackCity = data.find(item => 
-    item?.name && item.name.toLowerCase() === 'são paulo' && item.class === 'Capital Estadual'
-  );
-  
-  if (fallbackCity) {
-    console.log('✅ Fallback encontrado:', fallbackCity.name, 'Irradiância:', fallbackCity.annual);
-    return fallbackCity;
-  }
-  
-  // Fallback secundário: qualquer cidade de São Paulo
-  const fallbackSP = data.find(item => 
-    item?.state && item.state.toLowerCase().includes('são paulo')
-  );
-  
-  if (fallbackSP) {
-    console.log('✅ Fallback SP encontrado:', fallbackSP.name, 'Irradiância:', fallbackSP.annual);
-    return fallbackSP;
-  }
-  
-  console.log('❌ Nenhuma cidade encontrada, nem fallback');
+  // NÃO usar fallback - retornar null para que o sistema exija cidade válida
+  console.error('❌ Cidade não encontrada no banco de dados de irradiância:', cityName);
   return null;
 }
 

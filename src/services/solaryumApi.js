@@ -118,7 +118,7 @@ class SolaryumApiService {
       });
     } catch (error) {
       console.error('Erro ao buscar produtos:', error);
-      return this.getMockProdutos(filtros);
+      throw new Error('Não foi possível buscar produtos. API indisponível.');
     }
   }
 
@@ -134,7 +134,7 @@ class SolaryumApiService {
       });
     } catch (error) {
       console.error('Erro ao buscar filtros:', error);
-      return this.getMockFiltros();
+      throw new Error('Não foi possível buscar filtros. API indisponível.');
     }
   }
 
@@ -163,20 +163,8 @@ class SolaryumApiService {
       return custos;
     } catch (error) {
       console.error('❌ Erro ao calcular custos do projeto:', error);
-      console.log('📋 Response completa do erro:', error);
-      // Fallback: estimar custos localmente para não quebrar o fluxo
-      try {
-        const fallback = this.getMockProjectCosts(dimensionamentoData);
-        console.log('🟡 Usando custos estimados localmente (fallback):', fallback);
-        return fallback;
-      } catch (mockError) {
-        // Se fallback também falhar, propaga o erro completo
-        throw {
-          error: error,
-          dimensionamentoData: dimensionamentoData,
-          message: 'Erro ao calcular custos do projeto - verifique os logs para detalhes'
-        };
-      }
+      // NÃO usar fallback - propagar erro para que o usuário saiba que houve problema
+      throw new Error(`Erro ao calcular custos do projeto: ${error.message || 'API indisponível'}`);
     }
   }
 
@@ -628,10 +616,9 @@ class SolaryumApiService {
     
     const potencia = dimensionamentoData.potencia_kw || 5;
     
-    // Verifica se kitMontado é válido
+    // Verifica se kitMontado é válido - NÃO usar mock
     if (!kitMontado || !Array.isArray(kitMontado) || kitMontado.length === 0) {
-      console.warn('⚠️ Kit montado inválido ou vazio, usando valores padrão');
-      return this.getMockCustos(dimensionamentoData);
+      throw new Error('Kit inválido ou vazio. Não é possível calcular custos sem dados reais do kit.');
     }
     
     // Pega o primeiro kit da lista

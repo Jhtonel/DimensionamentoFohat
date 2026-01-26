@@ -514,7 +514,7 @@ export function dimensionarSistema({
   }
   
   if (!irradiacaoMedia || irradiacaoMedia <= 0) {
-    irradiacaoMedia = 4.5; // Fallback conservador para SP
+    throw new Error('Irradiação solar é obrigatória. Informe a cidade para obter dados reais.');
   }
   
   // Cálculos de dimensionamento

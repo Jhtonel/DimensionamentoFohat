@@ -30,12 +30,11 @@ export const useProjectCosts = () => {
       console.log('🔍 API disponível:', isApiAvailable);
 
       if (!isApiAvailable) {
-        // Fallback local quando a API não está disponível
-        console.warn('⚠️ API indisponível. Usando estimativas locais.');
-        const fallbackCosts = solaryumApi.getMockProjectCosts(dimensionamentoData);
-        setCosts(fallbackCosts);
-        setError(null);
-        return fallbackCosts;
+        // API indisponível - lançar erro em vez de usar dados mockados
+        const errorMsg = 'API de custos indisponível. Não é possível calcular custos sem dados reais.';
+        setError(errorMsg);
+        setApiAvailable(false);
+        throw new Error(errorMsg);
       }
 
       // Busca os custos usando o novo método
@@ -44,19 +43,11 @@ export const useProjectCosts = () => {
       return projectCosts;
     } catch (err) {
       console.error('❌ Erro ao buscar custos:', err);
-      try {
-        // Último recurso: tenta estimar localmente
-        const fallbackCosts = solaryumApi.getMockProjectCosts(dimensionamentoData);
-        setCosts(fallbackCosts);
-        setApiAvailable(false);
-        setError(null);
-        return fallbackCosts;
-      } catch (_) {
-        setError(err.message);
-        setApiAvailable(false);
-        setCosts(null);
-        throw err;
-      }
+      // NÃO usar fallback - propagar erro
+      setError(err.message);
+      setApiAvailable(false);
+      setCosts(null);
+      throw err;
     } finally {
       setLoading(false);
     }

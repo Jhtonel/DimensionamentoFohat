@@ -393,7 +393,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           }, 0);
           const media = soma / 12;
           if (media > 0) consumoKwhParaEnvio = media;
-        } catch (_) {}
+        } catch (parseErr) {
+          console.warn('Erro ao processar consumo mês a mês:', parseErr);
+        }
       }
       // 2) Senão, usar o campo direto de kWh mensal
       if (consumoKwhParaEnvio <= 0) {
@@ -680,7 +682,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         if (d.includes('micro')) propostaData.tipo_inversor = 'Microinversor';
         else if (d.includes('híbrido') || d.includes('hibrido')) propostaData.tipo_inversor = 'Híbrido';
         else if (descInversor) propostaData.tipo_inversor = 'String';
-      } catch (_) {}
+      } catch (kitErr) {
+        console.warn('Erro ao extrair dados do kit:', kitErr);
+      }
 
       // 1) Geração dos gráficos antes de salvar (analise financeira)
       try {
