@@ -650,6 +650,12 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
         economia_real_acumulada_r.append(round(acc_real, 2))
         custo_tusd_fio_b_acumulado_r.append(round(acc_fio_b, 2))
 
+    # Economia Total em 25 anos (Definição: Gasto SEM Solar - Gasto COM Solar - Investimento)
+    # Isso representa o LUCRO LÍQUIDO ou o que o cliente DEIXOU DE GASTAR no total.
+    gasto_total_sem_solar = custo_acumulado_sem_solar_r[-1] if custo_acumulado_sem_solar_r else 0
+    gasto_total_com_solar = custo_acumulado_com_solar_r[-1] if custo_acumulado_com_solar_r else 0
+    economia_total_25_anos = gasto_total_sem_solar - gasto_total_com_solar - valor_usina
+
     return {
         "ano": anos,
         "ano_calendario": anos_calendario,
@@ -669,6 +675,7 @@ def calcular_tabelas_25_anos(consumo_kwh_mes: float,
         "economia_anual_real_r": economia_anual_real_r,
         "economia_liquida_anual_r": economia_liquida_anual_r,
         "economia_real_acumulada_r": economia_real_acumulada_r,
+        "economia_total_25_anos": round(economia_total_25_anos, 2),
         # Fluxo de caixa
         "fluxo_caixa_anual_r": fluxo_caixa_anual_r,
         "fluxo_caixa_acumulado_r": fluxo_caixa_acumulado_r,
@@ -769,7 +776,7 @@ def calcular_dimensionamento(payload: Dict[str, Any]) -> Dict[str, Any]:
                             # fração dentro do intervalo:
                             denom = (v_curr - v_prev)
                             frac = 0.0 if denom == 0 else (-v_prev) / denom
-                            payback_fluxo_anos = (idx) + frac  # idx é ano anterior (base 1) porque lista começa em 0
+                            payback_fluxo_anos = (idx) + frac  # idx é ano anterior (base 1) because lista começa em 0
                         break
                 if payback_fluxo_anos >= 0:
                     # Sempre usar o payback do fluxo de caixa como referência principal
@@ -784,6 +791,11 @@ def calcular_dimensionamento(payload: Dict[str, Any]) -> Dict[str, Any]:
                         kpis["gasto_acumulado_payback"] = conta_atual_anual * anos_pb if (conta_atual_anual > 0 and anos_pb > 0) else 0.0
                     except Exception:
                         pass
+            
+            # Atualizar economia total 25 anos nos KPIs vindo das tabelas
+            if "economia_total_25_anos" in tabelas:
+                kpis["economia_total_25_anos"] = tabelas["economia_total_25_anos"]
+                
         except Exception:
             # Não falhar se interpolação falhar
             pass

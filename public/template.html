@@ -1640,7 +1640,7 @@
           </p>
         </div>
 
-        <div class="cronograma-content">
+        <div class="cronograma-content" style="margin-bottom: 10px;">
           <!-- Datas em cima -->
           <div class="timeline-dates">
             <div class="date-label">Pré-venda</div>
@@ -1684,19 +1684,17 @@
           </div>
         </div>
 
-        <div style="margin-top:40px; text-align:center; background: var(--n-50); padding: 20px 40px; border-radius: 16px; border: 1px solid var(--n-200); width: 100%; max-width: 600px;">
+        <!-- Aviso de Validade (Abaixo do Cronograma) -->
+        <div style="margin-bottom: 25px; display: flex; align-items: center; justify-content: center; gap: 6px; color: #92400E; font-size: 13px; font-weight: 600; background: #FEF3C7; padding: 4px 16px; border-radius: 20px; border: 1px solid #FDE68A;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <span>Proposta válida por 3 dias a partir da data de emissão ({{data_proposta}})</span>
+        </div>
+
+        <div style="margin-top:0px; text-align:center; background: var(--n-50); padding: 15px 40px; border-radius: 16px; border: 1px solid var(--n-200); width: 100%; max-width: 600px;">
           <h4 style="color:var(--n-600); text-transform:uppercase; font-size:12px; letter-spacing:1px; margin-bottom:8px;">Fale com seu consultor credenciado:</h4>
           <div style="font-size:24px; font-weight:700; color:var(--brand-primary);">{{vendedor_nome}}</div>
           <div style="font-size:16px; margin-top:4px;">{{vendedor_telefone}}</div>
           <div style="font-size:16px;">{{vendedor_email}}</div>
-        </div>
-
-        <!-- Aviso de Validade -->
-        <div style="margin-top:24px; text-align:center; padding: 12px 24px; background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); border-radius: 12px; border: 1px solid #F59E0B; width: 100%; max-width: 500px;">
-          <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            <span style="font-size: 14px; font-weight: 600; color: #92400E;">Proposta válida por 3 dias a partir da data de emissão ({{data_proposta}})</span>
-          </div>
         </div>
 
       </div>
