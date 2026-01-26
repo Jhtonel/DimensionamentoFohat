@@ -380,7 +380,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       
       // Validar tarifa - é obrigatório ter um valor exato
       if (!tarifaParaEnvio || tarifaParaEnvio <= 0) {
-        throw new Error('Tarifa de energia não informada. Selecione a concessionária ou informe a tarifa manualmente.');
+        throw new Error('Tarifa de energia não informada. Volte à aba de Dados Básicos e selecione a concessionária.');
       }
       // Derivar consumo kWh:
       // 1) Preferir média a partir do vetor mês a mês se existir

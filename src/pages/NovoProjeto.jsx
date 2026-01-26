@@ -1363,7 +1363,7 @@ export default function NovoProjeto() {
           
           // Validar que tarifa foi obtida - NÃO usar fallback
           if (!tarifa || tarifa <= 0) {
-            throw new Error('Tarifa de energia não disponível. Selecione a concessionária ou informe a tarifa manualmente.');
+            throw new Error('Tarifa de energia não disponível. Verifique se a concessionária foi selecionada corretamente na aba de Dados Básicos.');
           }
           
           console.log('  📌 Tarifa FINAL usada:', tarifa, 'R$/kWh');
@@ -4581,7 +4581,7 @@ export default function NovoProjeto() {
                                     alertas.push('⚠️ Nenhum consumo informado (nem kWh nem R$)');
                                   }
                                   if (!tarifaKwh || tarifaKwh <= 0) {
-                                    alertas.push('❌ TARIFA NÃO INFORMADA! Selecione a concessionária ou informe a tarifa manualmente.');
+                                    alertas.push('❌ TARIFA NÃO INFORMADA! Verifique se a concessionária foi selecionada na aba de Dados Básicos.');
                                   }
                                   if (fonteIrradiancia.includes('Fallback')) {
                                     alertas.push('⚠️ Irradiância usando fallback. Cidade não encontrada no CSV.');

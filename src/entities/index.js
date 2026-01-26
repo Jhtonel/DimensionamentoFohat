@@ -607,7 +607,7 @@ class Configuracao extends BaseEntity {
       }
 
       // NÃO usar fallback - retornar null para indicar que não encontrou
-      console.error(`❌ Concessionária "${concessionaria}" não encontrada. Informe a tarifa manualmente.`);
+      console.error(`❌ Concessionária "${concessionaria}" não encontrada no banco de dados.`);
       return null;
     } catch (error) {
       console.error('Erro ao buscar tarifa:', error);
