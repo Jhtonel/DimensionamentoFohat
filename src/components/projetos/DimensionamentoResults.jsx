@@ -626,6 +626,9 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
           ? kit.componentes
           : (Array.isArray(kit.composicao) ? kit.composicao : []);
 
+        console.log('📦 Kit para extração de equipamentos:', kit);
+        console.log('📦 Componentes encontrados:', comps);
+
         const pickFirst = (group) => comps.find(c => (c?.agrupamento || c?.tipo || '').toString().toLowerCase() === group);
 
         // Painel: no NovoProjeto vem como agrupamento "Painel"
@@ -635,20 +638,74 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         const inversor = comps.find(c => (c?.agrupamento || '').toString().toLowerCase() === 'inversor')
           || pickFirst('inversor');
 
+        console.log('📦 Painel encontrado:', painel);
+        console.log('📦 Inversor encontrado:', inversor);
+
         const norm = (v) => (v == null ? '' : String(v).trim());
         const descPainel = norm(painel?.descricao || painel?.nome || '');
         const descInversor = norm(inversor?.descricao || inversor?.nome || '');
 
-        propostaData.modulo_marca = norm(painel?.marca || '');
-        propostaData.modulo_modelo = norm(painel?.modelo || descPainel);
+        // Tentar extrair marca do campo 'marca' ou do início da descrição
+        let marcaPainel = norm(painel?.marca || '');
+        let modeloPainel = norm(painel?.modelo || '');
+        if (!marcaPainel && descPainel) {
+          // Tentar extrair marca do início da descrição (geralmente é a primeira palavra)
+          const partes = descPainel.split(/[\s-]+/);
+          if (partes.length > 0) {
+            // Marcas comuns: Canadian, JA Solar, Trina, Jinko, LONGi, etc.
+            const marcasConhecidas = ['Canadian', 'JA', 'Trina', 'Jinko', 'JinkoSolar', 'LONGi', 'Risen', 'DAH', 'BYD', 'Growatt', 'Deye', 'Hoymiles', 'APsystems'];
+            const primeirasPalavras = partes.slice(0, 2).join(' ');
+            for (const m of marcasConhecidas) {
+              if (primeirasPalavras.toLowerCase().includes(m.toLowerCase())) {
+                marcaPainel = m;
+                break;
+              }
+            }
+          }
+        }
+        if (!modeloPainel) modeloPainel = descPainel;
 
-        propostaData.inversor_marca = norm(inversor?.marca || '');
-        propostaData.inversor_modelo = norm(inversor?.modelo || descInversor);
+        let marcaInversor = norm(inversor?.marca || '');
+        let modeloInversor = norm(inversor?.modelo || '');
+        if (!marcaInversor && descInversor) {
+          const partes = descInversor.split(/[\s-]+/);
+          if (partes.length > 0) {
+            const marcasConhecidas = ['Growatt', 'Deye', 'Hoymiles', 'APsystems', 'Solis', 'Fronius', 'Huawei', 'SMA', 'ABB', 'Goodwe'];
+            const primeirasPalavras = partes.slice(0, 2).join(' ');
+            for (const m of marcasConhecidas) {
+              if (primeirasPalavras.toLowerCase().includes(m.toLowerCase())) {
+                marcaInversor = m;
+                break;
+              }
+            }
+          }
+        }
+        if (!modeloInversor) modeloInversor = descInversor;
+
+        propostaData.modulo_marca = marcaPainel;
+        propostaData.modulo_modelo = modeloPainel;
+
+        propostaData.inversor_marca = marcaInversor;
+        propostaData.inversor_modelo = modeloInversor;
+
+        // Potência do painel (pode estar em 'potencia' do componente)
+        if (painel?.potencia && !propostaData.potencia_placa_w) {
+          propostaData.potencia_placa_w = Number(painel.potencia) || 0;
+        }
 
         const d = (descInversor || '').toLowerCase();
         if (d.includes('micro')) propostaData.tipo_inversor = 'Microinversor';
         else if (d.includes('híbrido') || d.includes('hibrido')) propostaData.tipo_inversor = 'Híbrido';
         else if (descInversor) propostaData.tipo_inversor = 'String';
+
+        console.log('📦 Dados extraídos:', {
+          modulo_marca: propostaData.modulo_marca,
+          modulo_modelo: propostaData.modulo_modelo,
+          inversor_marca: propostaData.inversor_marca,
+          inversor_modelo: propostaData.inversor_modelo,
+          potencia_placa_w: propostaData.potencia_placa_w,
+          tipo_inversor: propostaData.tipo_inversor
+        });
       } catch (kitErr) {
         console.warn('Erro ao extrair dados do kit:', kitErr);
       }

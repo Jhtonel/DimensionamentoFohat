@@ -829,8 +829,18 @@ export default function Projetos() {
                             const lldi = custosData.lldi || (pv - custoOp - comissao - despDir - imp);
                             return pv > 0 ? ((lldi / pv) * 100).toFixed(1) : '0.0';
                           })()}%</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{Number(custosData.divisao_lucro || (custosData.lldi || 0) * 0.4).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
-                          <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{Number(custosData.fundo_caixa || (custosData.lldi || 0) * 0.2).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span><span className="text-right">-</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{(() => {
+                            const val = custosData.divisao_lucro;
+                            if (val !== undefined && val !== null && val > 0) return Number(val).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+                            const lldi = Number(custosData.lldi || 0);
+                            return lldi > 0 ? (lldi * 0.4).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}) : 'R$ 0,00';
+                          })()}</span><span className="text-right">-</span></div>
+                          <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{(() => {
+                            const val = custosData.fundo_caixa;
+                            if (val !== undefined && val !== null && val > 0) return Number(val).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+                            const lldi = Number(custosData.lldi || 0);
+                            return lldi > 0 ? (lldi * 0.2).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}) : 'R$ 0,00';
+                          })()}</span><span className="text-right">-</span></div>
                         </div>
                       </div>
 
@@ -838,7 +848,7 @@ export default function Projetos() {
                       <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                         <h4 className="font-semibold text-purple-700 text-sm mb-2">⚙️ Parâmetros</h4>
                         <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                          <div><span className="text-purple-600">Média Consumo:</span> <span className="font-semibold">{custosData.consumo_mensal_kwh || custosData.consumo_kwh || '-'} kWh/mês</span></div>
+                          <div><span className="text-purple-600">Média Consumo:</span> <span className="font-semibold">{Number(custosData.consumo_mensal_kwh || custosData.consumo_kwh || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} kWh/mês</span></div>
                           <div><span className="text-purple-600">Consumo R$:</span> <span className="font-semibold">{Number(custosData.consumo_mensal_reais || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span></div>
                           <div><span className="text-purple-600">Tarifa:</span> <span className="font-semibold">R$ {(custosData.tarifa_energia || custosData.tarifa_kwh || 0).toFixed(3)}/kWh</span></div>
                           <div><span className="text-purple-600">Concessionária:</span> <span className="font-semibold">{custosData.concessionaria || '-'}</span></div>
