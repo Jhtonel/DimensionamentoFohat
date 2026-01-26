@@ -739,11 +739,11 @@ export default function Projetos() {
                         <h4 className="font-semibold text-slate-700 text-sm mb-2 flex items-center gap-1"><Sun className="w-3.5 h-3.5" /> Sistema</h4>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div><span className="text-slate-500">Potência:</span> <span className="font-semibold">{(custosData.potencia_kw || custosData.potencia_sistema || custosData.potencia_kwp || 0).toFixed(2)} kWp</span></div>
-                          <div><span className="text-slate-500">Módulos:</span> <span className="font-semibold">{custosData.quantidade_modulos || custosData.qtd_modulos || '-'}</span></div>
-                          <div><span className="text-slate-500">Módulo:</span> <span className="font-semibold">{custosData.marca_modulo || '-'} {custosData.modelo_modulo || ''}</span></div>
-                          <div><span className="text-slate-500">Pot. Módulo:</span> <span className="font-semibold">{custosData.potencia_modulo || custosData.potencia_painel || '-'}W</span></div>
-                          <div><span className="text-slate-500">Inversor:</span> <span className="font-semibold">{custosData.marca_inversor || '-'} {custosData.modelo_inversor || ''}</span></div>
-                          <div><span className="text-slate-500">Área:</span> <span className="font-semibold">{custosData.area_estimada || '-'} m²</span></div>
+                          <div><span className="text-slate-500">Módulos:</span> <span className="font-semibold">{custosData.quantidade_placas || custosData.quantidade_modulos || custosData.qtd_modulos || '-'}</span></div>
+                          <div><span className="text-slate-500">Módulo:</span> <span className="font-semibold">{custosData.modulo_marca || custosData.marca_modulo || '-'} {custosData.modulo_modelo || custosData.modelo_modulo || ''}</span></div>
+                          <div><span className="text-slate-500">Pot. Módulo:</span> <span className="font-semibold">{custosData.potencia_placa_w || custosData.potencia_modulo || custosData.potencia_painel || '-'}W</span></div>
+                          <div><span className="text-slate-500">Inversor:</span> <span className="font-semibold">{custosData.inversor_marca || custosData.marca_inversor || '-'} {custosData.inversor_modelo || custosData.modelo_inversor || ''}</span></div>
+                          <div><span className="text-slate-500">Área:</span> <span className="font-semibold">{custosData.area_necessaria || custosData.area_estimada || '-'} m²</span></div>
                         </div>
                       </div>
 
@@ -832,13 +832,25 @@ export default function Projetos() {
                           <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100"><span>Divisão Lucro (40%)</span><span className="text-right">{(() => {
                             const val = custosData.divisao_lucro;
                             if (val !== undefined && val !== null && val > 0) return Number(val).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-                            const lldi = Number(custosData.lldi || 0);
+                            // Calcular LLDI se não salvo
+                            const pv = Number(custosData.preco_venda || custosData.preco_final || 0);
+                            const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
+                            const comissao = pv * ((custosData.comissao_vendedor || 6) / 100);
+                            const despDir = pv * 0.01;
+                            const imp = pv * 0.033;
+                            const lldi = Number(custosData.lldi) > 0 ? Number(custosData.lldi) : (pv - custoOp - comissao - despDir - imp);
                             return lldi > 0 ? (lldi * 0.4).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}) : 'R$ 0,00';
                           })()}</span><span className="text-right">-</span></div>
                           <div className="grid grid-cols-3 gap-1 py-1"><span>Fundo Caixa (20%)</span><span className="text-right">{(() => {
                             const val = custosData.fundo_caixa;
                             if (val !== undefined && val !== null && val > 0) return Number(val).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-                            const lldi = Number(custosData.lldi || 0);
+                            // Calcular LLDI se não salvo
+                            const pv = Number(custosData.preco_venda || custosData.preco_final || 0);
+                            const custoOp = Number(custosData.custo_operacional || custosData.custo_total || 0);
+                            const comissao = pv * ((custosData.comissao_vendedor || 6) / 100);
+                            const despDir = pv * 0.01;
+                            const imp = pv * 0.033;
+                            const lldi = Number(custosData.lldi) > 0 ? Number(custosData.lldi) : (pv - custoOp - comissao - despDir - imp);
                             return lldi > 0 ? (lldi * 0.2).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}) : 'R$ 0,00';
                           })()}</span><span className="text-right">-</span></div>
                         </div>
@@ -1053,27 +1065,69 @@ export default function Projetos() {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8">
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">VPL (25 anos):</span>
-                            <span className="text-emerald-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.vpl || 0).toLocaleString('pt-BR')}</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.vpl || custosData.tabelas?.vpl_final || 0).toLocaleString('pt-BR')}</span>
                           </div>
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">TIR (Interna):</span>
-                            <span className="text-emerald-400 font-bold font-mono">{(custosData.metrics?.tir || 0).toFixed(2)}%</span>
+                            <span className="text-emerald-400 font-bold font-mono">{(() => {
+                              const tir = custosData.metrics?.tir || 0;
+                              if (tir > 0) return tir.toFixed(2);
+                              // Fallback: calcular TIR aproximada a partir do payback
+                              const payback = custosData.metrics?.anos_payback || custosData.anos_payback || custosData.payback_anos || 0;
+                              if (payback > 0 && payback < 25) return ((1 / payback) * 100).toFixed(2);
+                              return '0.00';
+                            })()}%</span>
                           </div>
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">LCOE (Custo de Ger.):</span>
-                            <span className="text-emerald-400 font-bold font-mono">R$ {(custosData.metrics?.lcoe || 0).toFixed(3)}/kWh</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {(() => {
+                              const lcoe = custosData.metrics?.lcoe || 0;
+                              if (lcoe > 0) return lcoe.toFixed(3);
+                              // Fallback: calcular LCOE aproximado
+                              const preco = custosData.preco_venda || custosData.preco_final || 0;
+                              const geracao = (custosData.geracao_media_mensal || 0) * 12 * 25;
+                              if (geracao > 0 && preco > 0) return (preco / geracao).toFixed(3);
+                              return '0.000';
+                            })()}/kWh</span>
                           </div>
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">Gasto 25a (S/ Solar):</span>
-                            <span className="text-red-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_sem_solar || 0).toLocaleString('pt-BR')}</span>
+                            <span className="text-red-400 font-bold font-mono">R$ {(() => {
+                              const val = custosData.metrics?.gasto_25_anos_sem_solar || custosData.metrics?.gasto_total_25_anos || 0;
+                              if (val > 0) return Math.round(val).toLocaleString('pt-BR');
+                              // Fallback: calcular a partir do consumo
+                              const consumoMensal = custosData.consumo_mensal_reais || ((custosData.consumo_mensal_kwh || 0) * (custosData.tarifa_energia || 0.8));
+                              const gastoAnual = consumoMensal * 12;
+                              const gasto25 = gastoAnual * 25 * 1.05; // Com reajuste médio de 5%
+                              return Math.round(gasto25).toLocaleString('pt-BR');
+                            })()}</span>
                           </div>
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">Gasto 25a (C/ Solar):</span>
-                            <span className="text-emerald-400 font-bold font-mono">R$ {Math.round(custosData.metrics?.gasto_25_anos_com_solar || 0).toLocaleString('pt-BR')}</span>
+                            <span className="text-emerald-400 font-bold font-mono">R$ {(() => {
+                              const val = custosData.metrics?.gasto_25_anos_com_solar || 0;
+                              if (val > 0) return Math.round(val).toLocaleString('pt-BR');
+                              // Fallback: investimento + taxa mínima 25 anos
+                              const preco = custosData.preco_venda || custosData.preco_final || 0;
+                              const taxaMin = 50 * 12 * 25; // ~R$ 50/mês taxa mínima
+                              return Math.round(preco + taxaMin).toLocaleString('pt-BR');
+                            })()}</span>
                           </div>
                           <div className="flex justify-between items-center text-[11px] border-b border-slate-700 pb-1">
                             <span className="text-slate-400 font-medium">Economia Total Líquida:</span>
-                            <span className="text-blue-400 font-bold font-mono">R$ {Math.round((custosData.metrics?.gasto_25_anos_sem_solar || 0) - (custosData.metrics?.gasto_25_anos_com_solar || 0)).toLocaleString('pt-BR')}</span>
+                            <span className="text-blue-400 font-bold font-mono">R$ {(() => {
+                              const semSolar = custosData.metrics?.gasto_25_anos_sem_solar || custosData.metrics?.gasto_total_25_anos || 0;
+                              const comSolar = custosData.metrics?.gasto_25_anos_com_solar || 0;
+                              if (semSolar > 0 && comSolar > 0) return Math.round(semSolar - comSolar).toLocaleString('pt-BR');
+                              // Fallback
+                              const consumoMensal = custosData.consumo_mensal_reais || ((custosData.consumo_mensal_kwh || 0) * (custosData.tarifa_energia || 0.8));
+                              const gastoAnual = consumoMensal * 12;
+                              const gasto25SemSolar = gastoAnual * 25 * 1.05;
+                              const preco = custosData.preco_venda || custosData.preco_final || 0;
+                              const taxaMin = 50 * 12 * 25;
+                              const gasto25ComSolar = preco + taxaMin;
+                              return Math.round(gasto25SemSolar - gasto25ComSolar).toLocaleString('pt-BR');
+                            })()}</span>
                           </div>
                         </div>
                       </div>

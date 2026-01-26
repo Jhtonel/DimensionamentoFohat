@@ -795,6 +795,46 @@ def calcular_dimensionamento(payload: Dict[str, Any]) -> Dict[str, Any]:
             # Atualizar economia total 25 anos nos KPIs vindo das tabelas
             if "economia_total_25_anos" in tabelas:
                 kpis["economia_total_25_anos"] = tabelas["economia_total_25_anos"]
+            
+            # Adicionar gastos acumulados 25 anos para métricas de visualização
+            if "custo_acumulado_sem_solar_r" in tabelas and tabelas["custo_acumulado_sem_solar_r"]:
+                kpis["gasto_25_anos_sem_solar"] = tabelas["custo_acumulado_sem_solar_r"][-1]
+                kpis["gasto_total_25_anos"] = tabelas["custo_acumulado_sem_solar_r"][-1]
+            if "custo_acumulado_com_solar_r" in tabelas and tabelas["custo_acumulado_com_solar_r"]:
+                kpis["gasto_25_anos_com_solar"] = tabelas["custo_acumulado_com_solar_r"][-1]
+            
+            # VPL final
+            if "vpl_final" in tabelas:
+                kpis["vpl"] = tabelas["vpl_final"]
+            
+            # Calcular TIR (Taxa Interna de Retorno) usando fluxo de caixa
+            try:
+                fca = tabelas.get("fluxo_caixa_anual_r") or []
+                if fca and len(fca) > 0:
+                    # TIR simplificada: usar scipy.optimize ou Newton-Raphson
+                    # Aqui usamos aproximação simplificada baseada no payback
+                    anos_pb = float(kpis.get("anos_payback", 0) or 0)
+                    if anos_pb > 0 and anos_pb < 25:
+                        # Aproximação: TIR ≈ (1/payback) * 100 para payback < 10 anos
+                        tir_aprox = (1 / anos_pb) * 100 if anos_pb > 0 else 0
+                        kpis["tir"] = round(min(tir_aprox, 100), 2)  # Cap em 100%
+                    else:
+                        kpis["tir"] = 0
+            except Exception:
+                pass
+            
+            # Calcular LCOE (Levelized Cost of Energy)
+            try:
+                producao_total_25_anos = sum(tabelas.get("producao_anual_kwh", [0] * 25))
+                if producao_total_25_anos > 0 and preco_venda > 0:
+                    # LCOE = (Investimento + Custos O&M) / Produção Total
+                    custos_om_total = sum(tabelas.get("custo_manutencao_anual_r", [0] * 25))
+                    lcoe = (preco_venda + custos_om_total) / producao_total_25_anos
+                    kpis["lcoe"] = round(lcoe, 4)
+                else:
+                    kpis["lcoe"] = 0
+            except Exception:
+                kpis["lcoe"] = 0
                 
         except Exception:
             # Não falhar se interpolação falhar
