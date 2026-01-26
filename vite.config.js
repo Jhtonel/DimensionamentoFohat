@@ -10,6 +10,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Garantir que módulos Node.js não sejam usados no browser
+  optimizeDeps: {
+    exclude: ['fs', 'path', 'os', 'crypto']
+  },
+  build: {
+    rollupOptions: {
+      external: ['fs', 'path', 'os', 'crypto']
+    }
+  },
       server: {
         port: 3003,
         host: true,
