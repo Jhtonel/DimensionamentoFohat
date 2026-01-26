@@ -735,7 +735,7 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
         throw new Error(htmlResult.message);
       }
 
-      const propostaId = htmlResult.proposta_id;
+      const novoPropostaId = htmlResult.proposta_id;
 
       // Atualizar projeto: status e vínculo ao cliente
       try {
@@ -767,8 +767,8 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
                 margem_adicional_percentual: formData?.margem_adicional_percentual || '',
                 margem_adicional_kwh: formData?.margem_adicional_kwh || '',
                 margem_adicional_reais: formData?.margem_adicional_reais || '',
-                proposta_id: propostaId,
-                url_proposta: propostaService.getPropostaURL(propostaId),
+                proposta_id: novoPropostaId,
+                url_proposta: propostaService.getPropostaURL(novoPropostaId),
                 custo_equipamentos: propostaData.custo_equipamentos || propostaData.custos_detalhados?.kit_fotovoltaico || 0,
                 custo_transporte: propostaData.custos_detalhados?.transporte || 0,
                 custo_instalacao: propostaData.custo_instalacao || propostaData.custos_detalhados?.instalacao || 0,
@@ -791,13 +791,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Salvar dados para preview
       setPropostaData(propostaData);
-      setPropostaId(propostaId);
+      setPropostaId(novoPropostaId);
       setPropostaSalva(true);
       setShowPreview(true);
       
       // Buscar o HTML processado para permitir a geração do PDF via cliente
       try {
-        const htmlData = await propostaService.gerarPropostaHTML(propostaId);
+        const htmlData = await propostaService.gerarPropostaHTML(novoPropostaId);
         if (htmlData && htmlData.html_content) {
           setTemplateContent(htmlData.html_content);
         }
