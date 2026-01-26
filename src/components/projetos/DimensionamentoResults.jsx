@@ -318,8 +318,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
   // IMPORTANTE: Não gerar nova proposta se já existe uma salva (evita duplicatas)
   useEffect(() => {
     // Verificar se já existe uma proposta salva (pelo estado ou pela URL)
-    const urlParams = new URLSearchParams(window.location.search);
-    const projetoIdUrl = urlParams.get('projeto_id');
+    let projetoIdUrl = null;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      projetoIdUrl = urlParams.get('projeto_id');
+    } catch (e) {
+      console.warn('Erro ao ler URL params:', e);
+    }
     const jaTemProposta = propostaSalva || propostaId || projetoIdUrl;
     
     if (autoGenerateProposta && formData && !showPreview && !jaTemProposta && !isGeneratingPDF) {
@@ -410,8 +415,13 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       
       // IMPORTANTE: Reutilizar o ID existente para evitar duplicatas
       // Prioridade: propostaId do estado > projeto_id da URL > formData.proposta_id
-      const urlParams = new URLSearchParams(window.location.search);
-      const projetoIdUrl = urlParams.get('projeto_id');
+      let projetoIdUrl = null;
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        projetoIdUrl = urlParams.get('projeto_id');
+      } catch (e) {
+        console.warn('Erro ao ler URL params:', e);
+      }
       const idExistente = propostaId || projetoIdUrl || formData?.proposta_id || formData?.id || null;
       
       const propostaData = {
