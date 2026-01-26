@@ -6,8 +6,24 @@ import { saveAs } from "file-saver";
 import { baixarPdfPuppeteer } from "@/services/pdfService.js";
 import { propostaService } from '../../services/propostaService';
 import { Maximize2, Minimize2, Share2, Link, FileText, ChevronDown } from 'lucide-react';
-import { Projeto, Configuracao } from '../../entities';
 import { useToast } from "@/hooks/useToast";
+
+// Importar entities de forma lazy para evitar problemas de inicialização circular
+let _Projeto = null;
+let _Configuracao = null;
+
+const getEntities = async () => {
+  if (!_Projeto || !_Configuracao) {
+    try {
+      const entities = await import('../../entities');
+      _Projeto = entities.Projeto;
+      _Configuracao = entities.Configuracao;
+    } catch (e) {
+      console.error('Erro ao carregar entities:', e);
+    }
+  }
+  return { Projeto: _Projeto, Configuracao: _Configuracao };
+};
 
 export default function DimensionamentoResults({ resultados, formData, onSave, loading, projecoesFinanceiras, kitSelecionado, clientes = [], configs = {}, autoGenerateProposta = false, onAutoGenerateComplete, user = null, usuarios = [], costs = null }) {
   const { toast } = useToast();
@@ -344,13 +360,28 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
       let tarifaParaEnvio = (Number(formData?.tarifa_energia) > 0 && Number(formData?.tarifa_energia) <= 10)
         ? Number(formData.tarifa_energia)
         : 0;
+      
+      // Se não tiver tarifa válida, tentar buscar pela concessionária
       if ((!tarifaParaEnvio || tarifaParaEnvio <= 0 || tarifaParaEnvio > 10) && formData?.concessionaria) {
         try {
-          const t = await Configuracao.getTarifaByConcessionaria(formData.concessionaria);
-          if (t && t > 0 && t <= 10) {
-            tarifaParaEnvio = t;
+          // Carregar entities de forma segura (lazy)
+          const { Configuracao } = await getEntities();
+          if (Configuracao && typeof Configuracao.getTarifaByConcessionaria === 'function') {
+            const t = await Configuracao.getTarifaByConcessionaria(formData.concessionaria);
+            if (t && t > 0 && t <= 10) {
+              tarifaParaEnvio = t;
+            }
           }
-        } catch (_) {}
+        } catch (tarifaErr) {
+          console.warn('Erro ao buscar tarifa, usando fallback:', tarifaErr);
+          // Fallback: usar tarifa média de SP
+          tarifaParaEnvio = 0.85;
+        }
+      }
+      
+      // Fallback final se ainda não tiver tarifa
+      if (!tarifaParaEnvio || tarifaParaEnvio <= 0) {
+        tarifaParaEnvio = 0.85; // Tarifa média SP
       }
       // Derivar consumo kWh:
       // 1) Preferir média a partir do vetor mês a mês se existir
@@ -738,49 +769,54 @@ export default function DimensionamentoResults({ resultados, formData, onSave, l
 
       // Atualizar projeto: status e vínculo ao cliente
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const projetoId = urlParams.get('projeto_id');
+        let projetoId = null;
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          projetoId = urlParams.get('projeto_id');
+        } catch (urlErr) {
+          console.warn('Erro ao ler URL params:', urlErr);
+        }
+        
         if (projetoId) {
-          const clienteNome = (clientes.find(c => c.id === formData?.cliente_id)?.nome) || formData?.cliente_nome || null;
-          // Não bloquear a geração/preview da proposta por falhas ou travas no Supabase.
-          // (quando o Supabase entra em loop de refresh_token, esse await pode "pendurar" e deixar a UI em "Gerando...")
-          Promise.race([
-            Projeto.update(projetoId, {
-            ...formData,
-            // Requisito: recém gerados devem aparecer em "Dimensionamento"
-            status: 'dimensionamento',
-            cliente_id: formData?.cliente_id || null,
-            cliente_nome: clienteNome || undefined,
-            // Preço: usar o mesmo valor enviado na proposta (preco_venda normalizado)
-            preco_final: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
-            preco_venda: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
-            // Dados do sistema
-            potencia_kw: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
-            potencia_sistema: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
-            consumo_mensal_kwh: propostaData.consumo_mensal_kwh || formData?.consumo_mensal_kwh || undefined,
-            consumo_mes_a_mes: propostaData.consumo_mes_a_mes || formData?.consumo_mes_a_mes || [],
-            tarifa_energia: propostaData.tarifa_energia || formData?.tarifa_energia || undefined,
-            // Margem adicional
-            margem_adicional_percentual: formData?.margem_adicional_percentual || '',
-            margem_adicional_kwh: formData?.margem_adicional_kwh || '',
-            margem_adicional_reais: formData?.margem_adicional_reais || '',
-            proposta_id: propostaId,
-            url_proposta: propostaService.getPropostaURL(propostaId),
-            // Custos detalhados (persistir todos os valores calculados)
-            custo_equipamentos: propostaData.custo_equipamentos || propostaData.custos_detalhados?.kit_fotovoltaico || 0,
-            custo_transporte: propostaData.custos_detalhados?.transporte || 0,
-            custo_instalacao: propostaData.custo_instalacao || propostaData.custos_detalhados?.instalacao || 0,
-            custo_ca_aterramento: propostaData.custos_detalhados?.ca_aterramento || 0,
-            custo_homologacao: propostaData.custo_homologacao || propostaData.custos_detalhados?.homologacao || 0,
-            custo_placas_sinalizacao: propostaData.custos_detalhados?.placas_sinalizacao || 0,
-            custo_despesas_gerais: propostaData.custos_detalhados?.despesas_gerais || 0,
-            custo_operacional: propostaData.custos_detalhados?.custo_operacional || 0,
-            custos_detalhados: propostaData.custos_detalhados,
-            comissao_vendedor: propostaData.comissao_vendedor || formData?.comissao_vendedor || 6,
-            margem_lucro: dadosSeguros?.margem_lucro || 0,
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao atualizar projeto')), 3500)),
-          ]).catch(() => {});
+          // Carregar Projeto de forma segura (lazy)
+          const { Projeto } = await getEntities();
+          if (Projeto && typeof Projeto.update === 'function') {
+            const clienteNome = (clientes.find(c => c.id === formData?.cliente_id)?.nome) || formData?.cliente_nome || null;
+            // Não bloquear a geração/preview da proposta por falhas ou travas no Supabase.
+            // (quando o Supabase entra em loop de refresh_token, esse await pode "pendurar" e deixar a UI em "Gerando...")
+            Promise.race([
+              Projeto.update(projetoId, {
+                ...formData,
+                status: 'dimensionamento',
+                cliente_id: formData?.cliente_id || null,
+                cliente_nome: clienteNome || undefined,
+                preco_final: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
+                preco_venda: propostaData.preco_venda || propostaData.preco_final || dadosSeguros?.preco_final || undefined,
+                potencia_kw: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
+                potencia_sistema: propostaData.potencia_sistema || formData?.potencia_kw || undefined,
+                consumo_mensal_kwh: propostaData.consumo_mensal_kwh || formData?.consumo_mensal_kwh || undefined,
+                consumo_mes_a_mes: propostaData.consumo_mes_a_mes || formData?.consumo_mes_a_mes || [],
+                tarifa_energia: propostaData.tarifa_energia || formData?.tarifa_energia || undefined,
+                margem_adicional_percentual: formData?.margem_adicional_percentual || '',
+                margem_adicional_kwh: formData?.margem_adicional_kwh || '',
+                margem_adicional_reais: formData?.margem_adicional_reais || '',
+                proposta_id: propostaId,
+                url_proposta: propostaService.getPropostaURL(propostaId),
+                custo_equipamentos: propostaData.custo_equipamentos || propostaData.custos_detalhados?.kit_fotovoltaico || 0,
+                custo_transporte: propostaData.custos_detalhados?.transporte || 0,
+                custo_instalacao: propostaData.custo_instalacao || propostaData.custos_detalhados?.instalacao || 0,
+                custo_ca_aterramento: propostaData.custos_detalhados?.ca_aterramento || 0,
+                custo_homologacao: propostaData.custo_homologacao || propostaData.custos_detalhados?.homologacao || 0,
+                custo_placas_sinalizacao: propostaData.custos_detalhados?.placas_sinalizacao || 0,
+                custo_despesas_gerais: propostaData.custos_detalhados?.despesas_gerais || 0,
+                custo_operacional: propostaData.custos_detalhados?.custo_operacional || 0,
+                custos_detalhados: propostaData.custos_detalhados,
+                comissao_vendedor: propostaData.comissao_vendedor || formData?.comissao_vendedor || 6,
+                margem_lucro: dadosSeguros?.margem_lucro || 0,
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao atualizar projeto')), 3500)),
+            ]).catch(() => {});
+          }
         }
       } catch (e) {
         // Erro não crítico
