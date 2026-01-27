@@ -60,6 +60,20 @@ const statusStyles = {
   perdido: "bg-rose-50 text-rose-700 border-rose-200"
 };
 
+// Função para verificar se a proposta venceu (3 dias)
+const checkVencimento = (dateStr) => {
+  if (!dateStr) return false;
+  try {
+    const createdDate = new Date(dateStr);
+    const now = new Date();
+    const diffTime = now - createdDate;
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    return diffDays > 3;
+  } catch (e) {
+    return false;
+  }
+};
+
 export default function Projetos() {
   const [projetos, setProjetos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -379,18 +393,33 @@ export default function Projetos() {
               animate={{ opacity: 1, y: 0 }}
               layoutId={projeto.id}
             >
-              <div className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-primary/20 transition-all duration-300 flex flex-col h-full overflow-hidden relative">
+              <div className={`group rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full overflow-hidden relative ${
+                checkVencimento(projeto.created_date) 
+                  ? 'bg-red-50 border-red-200 hover:border-red-300' 
+                  : 'bg-white border-slate-200 hover:border-primary/20'
+              }`}>
                 
                 {/* Status Stripe */}
-                <div className={`h-1 w-full ${statusStyles[projeto.status]?.split(' ')[0].replace('bg-', 'bg-') || 'bg-slate-200'}`} />
+                <div className={`h-1 w-full ${
+                  checkVencimento(projeto.created_date)
+                    ? 'bg-red-500'
+                    : (statusStyles[projeto.status]?.split(' ')[0].replace('bg-', 'bg-') || 'bg-slate-200')
+                }`} />
 
                 <div className="p-6 flex-1 flex flex-col">
                   {/* Header */}
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-bold text-lg text-slate-900 group-hover:text-primary transition-colors line-clamp-1" title={projeto.nome_projeto}>
-                        {projeto.nome_projeto}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-primary transition-colors line-clamp-1" title={projeto.nome_projeto}>
+                          {projeto.nome_projeto}
+                        </h3>
+                        {checkVencimento(projeto.created_date) && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 uppercase tracking-wider">
+                            Vencida
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
                         <User className="w-3 h-3" />
                         {getClienteNome(projeto.cliente_id)}
@@ -506,9 +535,20 @@ export default function Projetos() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredProjetos.map((projeto) => (
-                  <tr key={projeto.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <tr key={projeto.id} className={`transition-colors group ${
+                    checkVencimento(projeto.created_date) 
+                      ? 'bg-red-50/50 hover:bg-red-50' 
+                      : 'hover:bg-slate-50/80'
+                  }`}>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{projeto.nome_projeto}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-slate-900">{projeto.nome_projeto}</div>
+                        {checkVencimento(projeto.created_date) && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-600 border border-red-200 uppercase tracking-wider">
+                            Vencida
+                          </span>
+                        )}
+                      </div>
                       <div className="text-slate-500 text-xs mt-0.5">{getClienteNome(projeto.cliente_id)}</div>
                     </td>
                     <td className="px-6 py-4">
