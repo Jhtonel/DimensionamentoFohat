@@ -1429,16 +1429,26 @@ export default function NovoProjeto() {
       const todosOsKits = [];
       try {
         setProgressMonotonic(45, 'Buscando kits iniciais...');
-        console.log('🚀 Disparando chamada inicial MontarKits (tipoInv=0)...');
-        const kitInicial = await solaryumApi.montarKitCustomizado({ ...dadosBase, tipoInv: '0' });
-        if (Array.isArray(kitInicial) && kitInicial.length > 0) {
-          todosOsKits.push(...kitInicial);
-          console.log(`✅ Chamada inicial retornou ${kitInicial.length} kits`);
-        } else {
-          console.log('⚠️ Chamada inicial retornou vazia');
-        }
+        console.log('🚀 Disparando chamadas iniciais MontarKits para todos os tipos...');
+        
+        // Faz a busca inicial paralela para os tipos principais (0, 1, 2)
+        const chamadasIniciais = ['0', '1', '2'].map(tipo => 
+          solaryumApi.montarKitCustomizado({ ...dadosBase, tipoInv: tipo })
+            .catch(e => {
+              console.warn(`⚠️ Falha na chamada inicial para tipoInv ${tipo}:`, e);
+              return [];
+            })
+        );
+        
+        const resultadosIniciais = await Promise.all(chamadasIniciais);
+        resultadosIniciais.forEach((kits, index) => {
+          if (Array.isArray(kits) && kits.length > 0) {
+            todosOsKits.push(...kits);
+            console.log(`✅ Chamada inicial (tipo ${index}) retornou ${kits.length} kits`);
+          }
+        });
       } catch (e) {
-        console.warn('⚠️ Falha na chamada inicial MontarKits:', e);
+        console.warn('⚠️ Falha geral na busca inicial:', e);
       }
 
       // Busca kits para cada potência de painel E cada tipo de inversor
@@ -1446,7 +1456,7 @@ export default function NovoProjeto() {
       const POTENCIA_MINIMA_PAINEL_W = 585;
       const todasPotenciasRaw = Array.isArray(filtros.potenciasPaineis) ? filtros.potenciasPaineis : [];
       const todasPotencias = todasPotenciasRaw.filter(p => parseFloat(p.potencia) >= POTENCIA_MINIMA_PAINEL_W);
-      const tiposInversor = [0, 1, 2]; // Tipos de inversor: 0, 1, 2
+      const tiposInversor = [0, 1, 2, 3]; // Tipos de inversor: 0 (Micro), 1 (String), 2 (Híbrido), 3 (Outros)
       
       console.log('⚡ Potências de painéis (raw):', todasPotenciasRaw.map(p => p.potencia));
       console.log('⚡ Potências de painéis filtradas (>= 585W):', todasPotencias.map(p => p.potencia));
